@@ -82,5 +82,5 @@ same key. See [04](04-metadata-index.md) for the merge algebra and
 - Cache format is decided by benchmark during implementation
   ([31](31-performance.md)).
 - The server is branch-agnostic; version handling in [31](31-performance.md).
-- Licensed MIT, matching `frappe/frappe` — copyleft would block the upstream
-  path this project is aimed at.
+- Licensed GPLv3, as `frappe/erpnext` is. Consequence for upstreaming in
+  [019](../tasks/019-upstream.md).

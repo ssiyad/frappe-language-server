@@ -28,7 +28,7 @@ Phase 1 (design) complete. No implementation yet.
 | Scope | Frappe-specific semantics; defers to pyright/ruff/ts-ls |
 | Priority | Navigation first — grep is the problem being solved |
 | Frappe version | Branch-agnostic; detected, never assumed |
-| License | MIT, matching `frappe/frappe` |
+| License | GPLv3, as `erpnext` — see [019](tasks/019-upstream.md) for the upstream consequence |
 | Upstream | Intended, but not before phase 5 ([019](tasks/019-upstream.md)) |
 
 ## Reference bench

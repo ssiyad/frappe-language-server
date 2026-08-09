@@ -20,7 +20,19 @@ server to argue from.
 - Server is in real use across several apps ([roadmap](../roadmap.md) phase 5).
 - Measured evidence for each proposal — the overload cost table in
   [24](../specs/24-type-integration.md) is the model.
-- MIT throughout, matching `frappe/frappe`.
+
+## Licensing
+
+frappe-lsp is GPLv3; `frappe/frappe` is MIT. The server itself is unaffected —
+GPLv3 is well precedented in this ecosystem, since `frappe/erpnext` is GPLv3 too,
+and living under the `frappe` org does not require matching `frappe/frappe`.
+
+What it does affect is this task specifically. The candidates above are changes
+*inside* `frappe/frappe`, and GPLv3 source cannot be merged into an MIT project.
+Each one must therefore be contributed as an independent MIT patch authored
+against `frappe`, not lifted from this repository. That is a normal thing to do —
+the ideas and the measurements transfer freely, only the text does not — but it
+means "upstream it" is a rewrite, not a copy. Budget for that.
 
 ## Done when
 
