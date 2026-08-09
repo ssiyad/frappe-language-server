@@ -11,6 +11,7 @@ bench and turns those strings into links.
 
 - [Roadmap](roadmap.md) — phases and milestones
 - [Development](development.md) — toolchain, workflow, conventions
+- [Guidelines](guidelines.md) — how these docs are written
 - [Specifications](specs/index.md) — normative design
 - [Tasks](tasks/index.md) — pending and in-progress work
 
