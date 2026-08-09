@@ -52,15 +52,34 @@ Several specs depend on values copied out of `frappe`: fieldtype tables
 events ([11](11-surface-javascript.md)), doc events and scheduler frequencies
 ([12](12-surface-hooks.md)), Jinja globals ([13](13-surface-jinja.md)).
 
-These drift. Mitigation:
+These drift, and the server is **branch-agnostic**: it must behave on v15, on
+`develop`, and on whatever the workspace happens to be running.
 
-1. Generate them with a script that reads a `frappe` checkout; commit the
-   generated file with the source commit hash recorded.
-2. A CI job re-runs generation against `develop` and fails on a diff, so drift is
-   a visible failure rather than a silent wrong answer.
-3. Unknown values from a *newer* Frappe degrade to "unknown", never to "invalid" —
-   the diagnostics in [23](23-diagnostics.md) that assert invalidity MUST be
-   derived from a version the workspace actually pins where that is detectable.
+### Version detection
+
+Two sources, both on disk, neither requiring a running site:
+
+| Source | Yields |
+| --- | --- |
+| `<frappe package>/__init__.py` → `__version__` | e.g. `17.0.0-dev` |
+| `sites/apps.json` → `resolution.branch`, `commit_hash`, `version` | per app, incl. non-`frappe` apps |
+
+### Policy
+
+1. Generate constants with a script reading a `frappe` checkout; commit each
+   snapshot tagged with the version and commit it came from.
+2. CI re-runs generation against `develop` and fails on a diff, so drift is a
+   visible failure rather than a silent wrong answer.
+3. **Unknown never becomes invalid unless the detected version matches a
+   vendored snapshot exactly.** On an exact match, a value outside the snapshot
+   is genuinely wrong and [23](23-diagnostics.md) may report it. On any other
+   version — a fork, an unreleased branch, a commit between snapshots — an
+   unrecognized value degrades to "unknown" and reports nothing.
+
+This is what branch-agnostic costs: on an unpinned bench, checks that assert
+invalidity from a vendored list get quieter. That is the correct trade. A server
+that calls a valid new hook key an error on the day it lands upstream is worse
+than one that stays silent.
 
 ## Measurement
 

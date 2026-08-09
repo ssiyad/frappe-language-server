@@ -17,17 +17,49 @@ Stop at the filesystem root or a `.git` boundary that fails both tests.
 
 ## App enumeration
 
-Preferred order from `sites/apps.txt` (newline-delimited, install order). Apps
-present on disk but absent from `apps.txt` are appended in directory order and
-marked `installed: false`. Order matters — it decides override precedence in
+The directory name under `apps/` is **not** the app name, and the package inside
+is **not** named after it. Both assumptions fail on real benches.
+
+Find the package by globbing `apps/*/*/hooks.py`; its parent directory is the
+package, and the app name is the `app_name` assignment inside. Observed on a
+development bench:
+
+| Directory | Package | `app_name` |
+| --- | --- | --- |
+| `apps/frappe/` | `frappe/` | `frappe` |
+| `apps/resource-management/` | `frappe_sre/` | `frappe_sre` |
+| `apps/resource_management/` | `resource_management/` | `resource_management` |
+
+### Installed apps are authoritative
+
+An app on disk is indexed only if it is installed. Two sources, preferred in
+order:
+
+1. `sites/apps.json` — richest: per-app `idx` (install order), `version`,
+   and `resolution.branch` / `commit_hash`. Feeds version detection in
+   [31](31-performance.md).
+2. `sites/apps.txt` — newline-delimited, install order. May lack a trailing
+   newline; the parser MUST tolerate that.
+
+Apps on disk but absent from both are recorded as `installed: false` and
+**excluded from the index**. They MUST NOT contribute DocTypes, and MUST NOT
+raise the duplicate-definition diagnostic in [04](04-metadata-index.md).
+
+This is not hygiene. On the reference bench, `apps/resource-management/`
+(package `frappe_sre`) is a stale rename of `apps/resource_management/`, and the
+two define **41 of 41 identical DocType names**. Indexing both would emit 41
+false conflicts before the user typed anything. `apps.txt` lists only the current
+one.
+
+Order matters beyond exclusion — it decides override precedence in
 [04](04-metadata-index.md).
 
-An app's Python package is `apps/<app>/<app>/`. Modules come from
-`apps/<app>/<app>/modules.txt`; a module's directory is its scrubbed name.
+Modules come from `<package>/modules.txt`; a module's directory is its scrubbed
+name.
 
 ## DocType discovery
 
-Glob `apps/<app>/<app>/**/doctype/*/*.json`, then require **all** of:
+Glob `<package>/**/doctype/*/*.json`, then require **all** of:
 
 1. basename stem equals its parent directory name;
 2. parses as a JSON object;

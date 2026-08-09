@@ -7,7 +7,7 @@ Terms used normatively across specs.
 | Term | Meaning |
 | --- | --- |
 | Bench | Workspace root holding `apps/`, `sites/`, `env/` |
-| App | Python package under `apps/<app>/<app>/`, entrypoint `hooks.py` |
+| App | Python package under `apps/<dir>/`, located by its `hooks.py`; named by `app_name`, not by `<dir>` |
 | Module | Grouping dir inside an app, listed in `modules.txt` |
 | DocType | Model+view schema; `<module>/doctype/<scrubbed>/<scrubbed>.json` |
 | Controller | `Document` subclass in `<scrubbed>.py` beside the JSON |

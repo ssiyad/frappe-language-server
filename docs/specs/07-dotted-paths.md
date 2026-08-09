@@ -63,7 +63,7 @@ not dotted paths. They resolve differently:
 
 | Form | Resolves to |
 | --- | --- |
-| `public/js/x.js` | `apps/<app>/<app>/public/js/x.js` |
+| `public/js/x.js` | `<package>/public/js/x.js` ([03](03-workspace-model.md)) |
 | `/assets/<app>/js/x.js` | same, via the `assets` symlink |
 | `<app>/public/js/x.bundle.js` | bundle entry; `.bundle.js` may be generated |
 

@@ -25,6 +25,15 @@ gated on the index being complete enough to know.
 Presence checks — a wrong event name, an invalid cron expression — are never
 gated, because no amount of extra metadata could make them valid.
 
+### Version gating
+
+Separately, any check that asserts invalidity from a **vendored list** (hook
+keys, doc events, scheduler frequencies, form events, fieldtypes) fires only when
+the detected Frappe version exactly matches a vendored snapshot
+([31](31-performance.md)). Otherwise the value degrades to "unknown" and reports
+nothing. Cron syntax, duplicate keys and path resolution are unaffected — they
+are checkable without a version.
+
 ## Checks
 
 Severity defaults; all individually configurable ([30](30-configuration.md)).

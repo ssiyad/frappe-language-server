@@ -73,9 +73,14 @@ same key. See [04](04-metadata-index.md) for the merge algebra and
 | Bridge unreachable | Fall back to static layers, downgrade confidence, no user-facing error after the first. |
 | Grammar parse error | Use the last good tree for that buffer. |
 
-## Open questions
+## Resolved
 
-- Whether to expose the index over a custom LSP extension method for debugging.
-  Leaning yes: `frappe-lsp/indexStatus` is cheap and makes the tasks in
-  [32](32-testing.md) far easier.
-- Grammar for Jinja — no mature tree-sitter grammar; see [13](13-surface-jinja.md).
+- `frappe-lsp/indexStatus` is exposed. Cheap, and [32](32-testing.md) depends on
+  it for integration assertions.
+- Jinja grammar choice is deferred to phase 4; options in
+  [13](13-surface-jinja.md).
+- Cache format is decided by benchmark during implementation
+  ([31](31-performance.md)).
+- The server is branch-agnostic; version handling in [31](31-performance.md).
+- Licensed MIT, matching `frappe/frappe` — copyleft would block the upstream
+  path this project is aimed at.

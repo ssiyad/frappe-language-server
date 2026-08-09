@@ -33,6 +33,7 @@ Normative design for frappe-lsp. Numbered for stable cross-referencing.
 | 22 | [Hover](22-hover.md) | Content per entity kind |
 | 23 | [Diagnostics](23-diagnostics.md) | Checks, confidence gating, quick fixes |
 | 24 | [Type checker integration](24-type-integration.md) | Generated overloads for pyright — experimental |
+| 25 | [Test running](25-test-runner.md) | Code lenses over `bench run-tests` |
 
 ## Operations
 

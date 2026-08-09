@@ -6,8 +6,8 @@ Warm start and staying current, per [31](../specs/31-performance.md).
 
 ## Scope
 
-- Serialize the index to `<bench>/.frappe-lsp/index.v<N>.bin`. Format decided by
-  benchmark here, closing the question in 001.
+- Serialize the index to `<bench>/.frappe-lsp/index.v<N>.bin`. Choose the format
+  by benchmark here — `rkyv` for zero-copy load vs `bincode` for simplicity.
 - Validity key: schema version + `(path, mtime, len)` per indexed file. Partial
   invalidation re-parses only changed files.
 - Corrupt or absent cache falls back to a full scan, silently.

@@ -2,10 +2,10 @@
 
 Language server for [Frappe Framework](https://docs.frappe.io/framework) apps.
 
-Frappe's semantics live in string literals — `frappe.get_doc("Sales Invoice")`,
-`fields=["customer"]`, `doc_events` keys, `frappe.ui.form.on("Task")`. General
-language servers cannot see through them. frappe-lsp indexes the bench and makes
-those strings navigable, completable, and checkable.
+Frappe resolves its own structure at runtime. `frappe.get_doc("Sales Invoice")`,
+`doc_events`, `frappe.ui.form.on("Task")` — the relationships are all strings, so
+the editor cannot follow them and the answer is grep. frappe-lsp indexes the
+bench and turns those strings into links.
 
 ## Contents
 
@@ -16,7 +16,7 @@ those strings navigable, completable, and checkable.
 
 ## Status
 
-Phase 1 (design). No implementation yet.
+Phase 1 (design) complete. No implementation yet.
 
 ## Decisions
 
@@ -25,4 +25,13 @@ Phase 1 (design). No implementation yet.
 | Language | Rust — `tower-lsp` + `tree-sitter` |
 | Index source | Static bench files, optional live site bridge |
 | Editor target | Generic stdio LSP (Neovim first) |
-| Scope | Frappe-specific semantics only; defers to pyright/ruff/ts-ls |
+| Scope | Frappe-specific semantics; defers to pyright/ruff/ts-ls |
+| Priority | Navigation first — grep is the problem being solved |
+| Frappe version | Branch-agnostic; detected, never assumed |
+| License | MIT, matching `frappe/frappe` |
+| Upstream | Intended, but not before phase 5 ([019](tasks/019-upstream.md)) |
+
+## Reference bench
+
+`~/sources/frappe-dev` — `frappe` 17.0.0-dev, plus custom apps. Used to validate
+discovery rules; several specs cite it directly.

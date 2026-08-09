@@ -3,32 +3,36 @@
 Phases are gated on usefulness, not on feature count. Each ships something a
 developer would keep enabled.
 
-## Phase 1 — Design (current)
+The organising goal is removing grep. Frappe resolves its own structure at
+runtime, so the questions that cost the most time — where is this DocType, who
+handles this event, what does this hook point at — have no answer in the editor
+today. Navigation therefore leads, and everything else follows from the index
+built to support it.
 
-Specs and task breakdown. No code.
+## Phase 1 — Design ✅
 
-**Done when** [specs](specs/index.md) cover every surface and feature, and the
-[task list](tasks/index.md) is ordered with dependencies stated.
+Specs and task breakdown. Complete.
 
-## Phase 2 — Index and read-only features
+## Phase 2 — Index and navigation
 
-Workspace discovery, DocType index, Python surface, completion, hover,
-definition. Static layers only; no bridge, no diagnostics.
+Workspace discovery, DocType index, Python surface, hooks surface, go-to-
+definition, hover, completion, cache. Static layers only; no diagnostics.
 
-Diagnostics are deliberately last. Getting resolution right against real benches
-must come before anything that can accuse correct code of being wrong
+Diagnostics are deliberately absent. Resolution must be right against real benches
+before anything can accuse correct code of being wrong
 ([23](specs/23-diagnostics.md)).
 
-**Done when** completion and go-to-definition work on an ERPNext bench within the
-budgets in [31](specs/31-performance.md).
+**Done when** go-to-definition works on the reference bench within the budgets in
+[31](specs/31-performance.md).
 
-## Phase 3 — Hooks, JavaScript, diagnostics
+## Phase 3 — JavaScript, references, diagnostics
 
-`hooks.py` validation, client-script surface, the diagnostic set, quick fixes,
-references, workspace symbols.
+Client-script surface, workspace references, symbols, the diagnostic set, quick
+fixes. Test running ([25](specs/25-test-runner.md)) rides along — it depends only
+on workspace discovery and can be pulled forward.
 
 **Done when** the nightly real-bench smoke test reports zero diagnostics across
-`frappe` and `erpnext` ([32](specs/32-testing.md)).
+`frappe` and a custom app ([32](specs/32-testing.md)).
 
 ## Phase 4 — Bridge and templates
 
@@ -39,12 +43,14 @@ depends only on phase 2 and blocks nothing.
 
 **Done when** a field added through Customize Form completes without a restart.
 
-## Phase 5 — Distribution
+## Phase 5 — Distribution and upstream
 
-Release binaries, editor setup docs beyond Neovim, packaging.
+Release binaries, editor setup docs, packaging. Then the upstream conversation
+([019](tasks/019-upstream.md)) — deliberately last, so it is argued from a
+working server and measured evidence rather than a proposal.
 
 ## Deferred
 
 Field rename across a workspace, DocType scaffolding, semantic tokens, inlay
-hints, a debug adapter. Revisit only after phase 4 and only with a concrete
-request behind it.
+hints, test result trees, a debug adapter. Revisit only after phase 4 and only
+with a concrete request behind it.
