@@ -1,6 +1,31 @@
-[package]
-name = "frappe-language-server"
+[workspace]
+resolver = "3"
+members = ["crates/*", "xtask"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.95"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/ssiyad/frappe-language-server"
 
-[dependencies]
+[workspace.dependencies]
+frappe-bridge = { path = "crates/frappe-bridge", version = "0.1.0" }
+frappe-index = { path = "crates/frappe-index", version = "0.1.0" }
+frappe-syntax = { path = "crates/frappe-syntax", version = "0.1.0" }
+
+ropey = "1.6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = "1"
+toml = "1.1"
+tower-lsp-server = "0.23"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+lto = "thin"
+strip = true

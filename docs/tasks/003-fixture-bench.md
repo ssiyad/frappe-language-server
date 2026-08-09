@@ -1,6 +1,6 @@
 # 003 — Fixture bench
 
-**Phase** 2 · **Depends on** 002 · **Blocks** 004, 005, 006
+**Phase** 2 · **Depends on** — · **Blocks** 004, 005, 006
 
 The test corpus everything else asserts against. Built early on purpose — writing
 it forces the edge cases in [04](../specs/04-metadata-index.md) into the open

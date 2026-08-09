@@ -1,1 +1,4 @@
 /target
+
+# Index cache, written into the bench root — specs/31-performance.md
+.frappe-lsp/

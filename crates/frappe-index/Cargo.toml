@@ -1,0 +1,14 @@
+[package]
+name = "frappe-index"
+description = "Workspace discovery, metadata graph and cache for frappe-lsp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+frappe-bridge.workspace = true
+
+[lints]
+workspace = true

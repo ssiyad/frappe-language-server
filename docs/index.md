@@ -17,13 +17,15 @@ bench and turns those strings into links.
 
 ## Status
 
-Phase 1 (design) complete. No implementation yet.
+Phase 1 (design) complete. Phase 2 started: the workspace, the server lifecycle
+and configuration are in place. The server negotiates capabilities and tracks
+buffers; it does not index anything yet.
 
 ## Decisions
 
 | Decision | Choice |
 | --- | --- |
-| Language | Rust — `tower-lsp` + `tree-sitter` |
+| Language | Rust — `tower-lsp-server` + `tree-sitter` |
 | Index source | Static bench files, optional live site bridge |
 | Editor target | Generic stdio LSP (Neovim first) |
 | Scope | Frappe-specific semantics; defers to pyright/ruff/ts-ls |

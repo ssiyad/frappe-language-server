@@ -2,7 +2,7 @@
 
 ## Process model
 
-Single binary, stdio LSP, `tokio` runtime, `tower-lsp` transport. No editor
+Single binary, stdio LSP, `tokio` runtime, `tower-lsp-server` transport. No editor
 extension and no sidecar process. The server never imports or executes app code.
 
 ```

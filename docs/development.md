@@ -36,7 +36,7 @@ next person trusts them.
 
 | Purpose | Crate |
 | --- | --- |
-| LSP transport | `tower-lsp` |
+| LSP transport | `tower-lsp-server` |
 | Async runtime | `tokio` |
 | Parsing | `tree-sitter` + language grammars |
 | Buffers | `ropey` |
@@ -49,6 +49,13 @@ next person trusts them.
 
 Adding a dependency needs a line in the PR on what it replaces. Compile time and
 binary size are features here — the server is expected to start in milliseconds.
+
+`tower-lsp-server` is the maintained fork of `tower-lsp`, which has not shipped
+since August 2023 and is pinned to `lsp-types` 0.94. The API is the same shape;
+`ls_types` replaces `lsp_types`, and `Uri` replaces `Url`.
+
+The command line is hand-rolled — `--log-level` and `--stdio` do not justify a
+parser dependency in a process whose entire interface is stdio.
 
 ## Vendored constants
 

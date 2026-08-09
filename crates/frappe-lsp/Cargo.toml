@@ -1,0 +1,27 @@
+[package]
+name = "frappe-lsp"
+description = "Language server for Frappe Framework apps"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "frappe-lsp"
+path = "src/main.rs"
+
+[dependencies]
+frappe-index.workspace = true
+frappe-syntax.workspace = true
+ropey.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["io-std", "macros", "rt-multi-thread"] }
+toml.workspace = true
+tower-lsp-server.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true
