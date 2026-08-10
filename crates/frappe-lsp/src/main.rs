@@ -25,7 +25,13 @@ async fn main() -> ExitCode {
     logging::init(args.log_level.as_deref());
     tracing::info!(version = VERSION, "starting");
 
-    let (service, socket) = LspService::new(Backend::new);
+    // The custom methods of spec 30. `indexStatus` in particular is what makes
+    // a bug report actionable without a reproduction.
+    let (service, socket) = LspService::build(Backend::new)
+        .custom_method("frappe-lsp/indexStatus", Backend::index_status)
+        .custom_method("frappe-lsp/reindex", Backend::reindex)
+        .custom_method("frappe-lsp/refreshBridge", Backend::refresh_bridge)
+        .finish();
     Server::new(tokio::io::stdin(), tokio::io::stdout(), socket)
         .serve(service)
         .await;

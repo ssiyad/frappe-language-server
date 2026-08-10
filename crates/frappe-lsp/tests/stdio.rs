@@ -278,3 +278,229 @@ fn a_config_file_carrying_a_credential_is_reported_and_ignored() {
 
     std::fs::remove_dir_all(&root).expect("cleanup");
 }
+
+fn fixture_bench() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(2)
+        .expect("repo root")
+        .join("tests/fixtures/bench")
+}
+
+#[test]
+fn the_index_builds_in_the_background_and_reports_itself() {
+    let bench = fixture_bench();
+    let mut session = Session::start();
+
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    let response = session.request(1, "initialize", params);
+    assert!(response.get("error").is_none(), "{response}");
+
+    // Before `initialized`, nothing has been built and the server says so
+    // rather than blocking — specs/02.
+    let before = session.request(2, "frappe-lsp/indexStatus", json!(null))["result"].clone();
+    assert_eq!(before["confidence"], "partial");
+    assert_eq!(before["doctypes"], 0);
+
+    session.notify("initialized", json!({}));
+
+    // The build runs off the request path, so poll rather than assume.
+    let mut status = Value::Null;
+    for attempt in 0..100 {
+        status =
+            session.request(10 + attempt, "frappe-lsp/indexStatus", json!(null))["result"].clone();
+        if status["confidence"] == "static" {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    assert_eq!(
+        status["confidence"], "static",
+        "index never finished: {status}"
+    );
+    assert_eq!(status["apps"], 3);
+    assert_eq!(status["doctypes"], 8, "{status}");
+    assert_eq!(status["controllers"], 5);
+    assert_eq!(status["whitelistedMethods"], 5);
+    assert_eq!(status["frappeVersion"], "17.0.0-dev");
+    // Library Availability twice, and the colliding custom field.
+    assert_eq!(status["conflicts"], 2);
+    // The deliberately malformed DocType JSON, and nothing else.
+    assert_eq!(status["problems"], 1);
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_forced_reindex_starts_over() {
+    let bench = fixture_bench();
+    let mut session = Session::start();
+
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+
+    let response = session.request(2, "frappe-lsp/reindex", json!(null));
+    assert!(response.get("error").is_none(), "{response}");
+    assert_eq!(response["result"]["started"], true);
+
+    let mut status = Value::Null;
+    for attempt in 0..100 {
+        status =
+            session.request(10 + attempt, "frappe-lsp/indexStatus", json!(null))["result"].clone();
+        if status["confidence"] == "static" {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert_eq!(status["doctypes"], 8, "{status}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn the_bridge_says_it_is_off_rather_than_missing() {
+    let mut session = Session::start();
+    session.request(1, "initialize", initialize_params());
+    session.notify("initialized", json!({}));
+
+    let response = session.request(2, "frappe-lsp/refreshBridge", json!(null));
+    let error = response.get("error").expect("an error, not a result");
+    // -32601 is method_not_found, which would read as "this server is broken".
+    assert_ne!(error["code"], -32601, "{error}");
+    assert!(
+        error["message"]
+            .as_str()
+            .is_some_and(|message| message.contains("bridge")),
+        "{error}"
+    );
+
+    session.request(3, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+fn copy_tree(from: &std::path::Path, to: &std::path::Path) {
+    std::fs::create_dir_all(to).expect("destination");
+    for entry in std::fs::read_dir(from).expect("readable source").flatten() {
+        let source = entry.path();
+        let target = to.join(entry.file_name());
+        if source.is_dir() {
+            copy_tree(&source, &target);
+        } else {
+            std::fs::copy(&source, &target).expect("copy");
+        }
+    }
+}
+
+/// Poll `indexStatus` until the background build settles.
+fn settled(session: &mut Session, first_id: i64) -> Value {
+    let mut status = Value::Null;
+    for attempt in 0..100 {
+        status =
+            session.request(first_id + attempt, "frappe-lsp/indexStatus", json!(null))["result"]
+                .clone();
+        if status["confidence"] == "static" {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    status
+}
+
+#[test]
+fn saving_a_doctype_patches_the_graph_without_a_rebuild() {
+    let bench = std::env::temp_dir().join(format!("frappe-lsp-save-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&bench);
+    copy_tree(&fixture_bench(), &bench);
+
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+
+    let before = settled(&mut session, 10);
+    assert_eq!(before["doctypes"], 8, "{before}");
+    let fields_before = before["fields"].as_u64().expect("a field count");
+
+    // Add a DocType the way `bench new-doctype` would, then tell the server the
+    // file was saved. Adding one is the observable case: a count that moves
+    // cannot be confused with a save that was quietly ignored.
+    let directory = bench.join("apps/library/library/library/doctype/library_shelf");
+    std::fs::create_dir_all(&directory).expect("doctype directory");
+    let path = directory.join("library_shelf.json");
+    std::fs::write(
+        &path,
+        r#"{
+ "actions": [],
+ "creation": "2026-01-14 09:12:44.201375",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "shelf_code"
+ ],
+ "fields": [
+  {
+   "fieldname": "shelf_code",
+   "fieldtype": "Data",
+   "label": "Shelf Code"
+  }
+ ],
+ "links": [],
+ "modified": "2026-02-03 11:47:02.884913",
+ "modified_by": "Administrator",
+ "module": "Library",
+ "name": "Library Shelf",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
+"#,
+    )
+    .expect("write the new DocType");
+
+    session.notify(
+        "textDocument/didSave",
+        json!({"textDocument": {"uri": format!("file://{}", path.display())}}),
+    );
+
+    // The re-index runs off the request path too, so poll for its effect.
+    let mut after = Value::Null;
+    for attempt in 0..100 {
+        after =
+            session.request(300 + attempt, "frappe-lsp/indexStatus", json!(null))["result"].clone();
+        if after["doctypes"] == 9 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+
+    assert_eq!(
+        after["doctypes"], 9,
+        "the save was never picked up: {after}"
+    );
+    assert_eq!(
+        after["fields"].as_u64().expect("a field count"),
+        fields_before + 1
+    );
+    // A patch, not a rebuild: nothing else moved.
+    assert_eq!(after["apps"], before["apps"]);
+    assert_eq!(after["problems"], before["problems"]);
+    assert_eq!(after["conflicts"], before["conflicts"]);
+
+    session.request(500, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+
+    std::fs::remove_dir_all(&bench).expect("cleanup");
+}

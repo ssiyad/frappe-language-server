@@ -8,12 +8,14 @@ use tower_lsp_server::ls_types::{
     ClientCapabilities, CodeActionProviderCapability, CompletionOptions,
     CompletionOptionsCompletionItem, DiagnosticOptions, DiagnosticServerCapabilities,
     HoverProviderCapability, ImplementationProviderCapability, MarkupKind, OneOf,
-    PositionEncodingKind, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability,
     WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 
-use crate::document::PositionEncoding;
+use frappe_syntax::PositionEncoding;
+
+use crate::buffers;
 
 /// Trigger characters of spec 30: the quote that opens a DocType or fieldname
 /// literal, the dot of a dotted path, and the bracket of a `filters` list.
@@ -37,16 +39,12 @@ impl ClientSupport {
     pub fn detect(capabilities: &ClientCapabilities) -> Self {
         let text_document = capabilities.text_document.as_ref();
 
-        let utf8 = capabilities
-            .general
-            .as_ref()
-            .and_then(|general| general.position_encodings.as_ref())
-            .is_some_and(|encodings| encodings.contains(&PositionEncodingKind::UTF8));
-        let position_encoding = if utf8 {
-            PositionEncoding::Utf8
-        } else {
-            PositionEncoding::Utf16
-        };
+        let position_encoding = buffers::negotiate(
+            capabilities
+                .general
+                .as_ref()
+                .and_then(|general| general.position_encodings.as_deref()),
+        );
 
         let location_link = text_document
             .and_then(|caps| caps.definition.as_ref())
@@ -88,7 +86,7 @@ impl ClientSupport {
 /// semantic tokens and inlay hints stay unadvertised: other servers own them.
 pub fn server_capabilities(support: ClientSupport) -> ServerCapabilities {
     ServerCapabilities {
-        position_encoding: Some(support.position_encoding.kind()),
+        position_encoding: Some(buffers::encoding_kind(support.position_encoding)),
         text_document_sync: Some(TextDocumentSyncCapability::Options(
             TextDocumentSyncOptions {
                 open_close: Some(true),
@@ -140,7 +138,7 @@ mod tests {
     use super::*;
     use tower_lsp_server::ls_types::{
         DiagnosticClientCapabilities, GeneralClientCapabilities, GotoCapability,
-        TextDocumentClientCapabilities,
+        PositionEncodingKind, TextDocumentClientCapabilities,
     };
 
     #[test]
