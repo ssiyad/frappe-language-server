@@ -75,6 +75,12 @@ pub enum TableEvent {
     Remove,
     /// `before_<table_fieldname>_remove`.
     BeforeRemove,
+    /// `<table_fieldname>_delete`.
+    Delete,
+    /// `<table_fieldname>_move`.
+    Move,
+    /// `<table_fieldname>_on_form_rendered`.
+    OnFormRendered,
 }
 
 /// Split a per-table event key into the `Table` fieldname it names and the
@@ -94,6 +100,18 @@ pub fn table_event(key: &str) -> Option<(&str, TableEvent)> {
     }
     if let Some(fieldname) = key.strip_suffix("_add") {
         return Some((fieldname, TableEvent::Add));
+    }
+    // `grid.js` and `grid_row.js` trigger all six; the first three alone left
+    // `_delete`, `_move` and `_on_form_rendered` handlers reported as dead
+    // ([32](../../../docs/specs/32-testing.md)).
+    if let Some(fieldname) = key.strip_suffix("_delete") {
+        return Some((fieldname, TableEvent::Delete));
+    }
+    if let Some(fieldname) = key.strip_suffix("_move") {
+        return Some((fieldname, TableEvent::Move));
+    }
+    if let Some(fieldname) = key.strip_suffix("_on_form_rendered") {
+        return Some((fieldname, TableEvent::OnFormRendered));
     }
     None
 }

@@ -20,6 +20,7 @@
 pub mod buffer;
 pub mod extract;
 pub mod generated;
+pub mod handlers;
 pub mod hooks;
 pub mod language;
 pub mod matches;

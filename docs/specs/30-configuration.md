@@ -34,8 +34,10 @@ refresh_interval = 0   # seconds; 0 = manual only
 [diagnostics]
 enabled = true
 # "error" | "warning" | "info" | "hint" | "off"
-unknown-doctype = "off"        # 67 hits on frappe itself — see 23
-unknown-field = "off"          # same
+unknown-doctype = "warning"
+unknown-field = "warning"      # fieldnames written as names
+unknown-attribute = "off"      # `doc.x` — needs types, see 23
+unknown-form-event = "warning"
 non-whitelisted-call = "error"
 unknown-hook = "warning"
 unknown-doc-event = "error"

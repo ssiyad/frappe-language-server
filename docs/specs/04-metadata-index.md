@@ -146,3 +146,27 @@ Serialize to `<bench>/.frappe-lsp/index.v<N>.bin`. Validity key: schema version 
 changed files. Adding or removing an **app** is not incremental — install order
 decides the merge, so a change to the installed set is a full rebuild. Cache is an optimisation — a corrupt or absent cache MUST fall
 back to a full scan. Budgets in [31](31-performance.md).
+
+## Controller attributes
+
+A controller is an ordinary Python class and hangs working state off `self`:
+`self._attachments`, a cached total, a flag set in `validate` and read in
+`on_submit`. None of those is a field, and every one is read back later, so the
+index records them beside the methods.
+
+Collected from the controller class, from every class `hooks.py` mixes into it
+(`extend_doctype_class`, `override_doctype_class`), and from every class it
+derives from — erpnext's controllers inherit `AccountsController` and
+`StockController`, which set most of what the leaf classes read. Bases are
+matched by bare class name rather than resolved through imports: the cost of a
+collision is one suppressed diagnostic, never a wrong one, which is the
+direction [23](23-diagnostics.md) says to err in.
+
+`self` binds to the DocType only inside the **controller class**. A controller
+file holds other classes too — erpnext's `stock_entry_type.py` carries a plain
+`ManufactureEntry` beside the `Document` subclass — and their `self` is not a
+document at all.
+
+Frappe also queries several of its own tables by name: `Singles`, `Series`,
+`Sessions`, `__global_search`, `__Auth`, `__UserSettings`. They have no DocType
+JSON anywhere and resolve to nothing rather than to an unknown DocType.

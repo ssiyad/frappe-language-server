@@ -102,6 +102,8 @@ pub struct ControllerExtra {
     pub name_range: Range,
     /// Methods it declares, which join the DocType's method set (spec 04).
     pub methods: Vec<String>,
+    /// Names it hangs off `self`, which join the DocType's attribute set.
+    pub attributes: Vec<String>,
 }
 
 /// How a hook contributes a class.
@@ -187,6 +189,9 @@ pub struct Index {
     fixtures: BTreeMap<PathBuf, LayerTwo>,
     modules: BTreeMap<PathBuf, python::Module>,
     hook_reads: BTreeSet<String>,
+    handlers: BTreeSet<String>,
+    class_attributes: BTreeMap<String, BTreeSet<String>>,
+    class_bases: BTreeMap<String, Vec<String>>,
     packages: Vec<(String, PathBuf)>,
     whitelisted: BTreeMap<String, WhitelistedMethod>,
     hooks: BTreeMap<String, crate::hooks::Hooks>,
@@ -239,6 +244,9 @@ impl Index {
             problems: Vec::new(),
             hooks: BTreeMap::new(),
             hook_reads: BTreeSet::new(),
+            handlers: BTreeSet::new(),
+            class_attributes: BTreeMap::new(),
+            class_bases: BTreeMap::new(),
             controller_extras: BTreeMap::new(),
             remapped: BTreeMap::new(),
             confidence: Confidence::Partial,
@@ -268,6 +276,9 @@ impl Index {
             problems: workspace.problems.clone(),
             hooks: BTreeMap::new(),
             hook_reads: BTreeSet::new(),
+            handlers: BTreeSet::new(),
+            class_attributes: BTreeMap::new(),
+            class_bases: BTreeMap::new(),
             controller_extras: BTreeMap::new(),
             remapped: BTreeMap::new(),
             workspace,
@@ -288,6 +299,8 @@ impl Index {
         let mut raws = index.parse_doctypes();
         index.read_fixtures();
         index.read_python();
+
+        index.read_javascript();
 
         let names: Vec<String> = index.sources.keys().cloned().collect();
         for name in names {
@@ -431,6 +444,90 @@ impl Index {
         }
 
         self.collect_hook_reads();
+        self.collect_classes();
+    }
+
+    /// Class name → what it hangs off `self`, and what it derives from.
+    ///
+    /// Keyed by bare class name rather than by dotted path: resolving a base
+    /// would need this crate to follow imports, and the cost of a collision is
+    /// one suppressed diagnostic, never a wrong one — which is the direction
+    /// [23](../../../docs/specs/23-diagnostics.md) says to err in.
+    fn collect_classes(&mut self) {
+        self.class_attributes.clear();
+        self.class_bases.clear();
+        for module in self.modules.values() {
+            for class in &module.classes {
+                self.class_attributes
+                    .entry(class.name.clone())
+                    .or_default()
+                    .extend(class.attributes.iter().cloned());
+                let bases = self.class_bases.entry(class.name.clone()).or_default();
+                for base in &class.bases {
+                    // `frappe.model.document.Document` and `Document` are the
+                    // same class to this map.
+                    let bare = base.rsplit('.').next().unwrap_or(base);
+                    if !bases.iter().any(|seen| seen == bare) {
+                        bases.push(bare.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    /// Whether `class_name` or anything it derives from assigns `name`.
+    fn class_assigns(&self, class_name: &str, name: &str) -> bool {
+        let mut pending = vec![class_name.to_string()];
+        let mut seen: BTreeSet<String> = BTreeSet::new();
+        while let Some(current) = pending.pop() {
+            if !seen.insert(current.clone()) {
+                continue;
+            }
+            if self
+                .class_attributes
+                .get(&current)
+                .is_some_and(|attributes| attributes.contains(name))
+            {
+                return true;
+            }
+            if let Some(bases) = self.class_bases.get(&current) {
+                pending.extend(bases.iter().cloned());
+            }
+        }
+        false
+    }
+
+    /// Every form-handler name the workspace's JavaScript calls by name.
+    ///
+    /// Only the names are kept. The trees are not: this exists to answer one
+    /// yes-or-no question per key, and holding 1 350 parsed files to answer it
+    /// would cost more memory than the whole metadata graph.
+    fn read_javascript(&mut self) {
+        let files: Vec<PathBuf> = self
+            .workspace
+            .apps
+            .iter()
+            .flat_map(|app| {
+                Walk::new(&app.package)
+                    .filter(|path| path.extension().is_some_and(|extension| extension == "js"))
+            })
+            .collect();
+
+        self.handlers = files
+            .into_par_iter()
+            .filter_map(|path| {
+                let source = std::fs::read_to_string(&path).ok()?;
+                // The query cannot match text that is not there, and most of a
+                // bench's JavaScript is not form script. Parsing only the
+                // files that could match takes this pass from 770 ms to a
+                // fraction of it.
+                if !source.contains("trigger(") && !source.contains("events.") {
+                    return None;
+                }
+                frappe_syntax::handlers::read(&source).ok()
+            })
+            .flatten()
+            .collect();
     }
 
     /// Every hook key any app asks for, across the workspace.
@@ -678,6 +775,12 @@ impl Index {
                     .and_then(|module| module.class(&candidate.name))
                     .map(|class| class.methods.iter().map(|m| m.name.clone()).collect())
                     .unwrap_or_default(),
+                attributes: self
+                    .modules
+                    .get(&candidate.path)
+                    .and_then(|module| module.class(&candidate.name))
+                    .map(|class| class.attributes.clone())
+                    .unwrap_or_default(),
             });
     }
 
@@ -876,6 +979,63 @@ impl Index {
     pub fn has_field(&self, doctype: &str, fieldname: &str) -> bool {
         self.doctype(doctype)
             .is_some_and(|doctype| doctype.has_field(&self.interner, fieldname))
+    }
+
+    /// Whether the controller hangs `name` off `self`.
+    ///
+    /// A controller is an ordinary Python class: `self._attachments`,
+    /// `self.flags`, a cached total. None of those is a field and every one is
+    /// read back later, so without this the controller's own state is reported
+    /// as missing fields — 675 of them across `frappe` and `erpnext`
+    /// ([32](../../../docs/specs/32-testing.md)).
+    #[must_use]
+    pub fn has_attribute(&self, doctype: &str, name: &str) -> bool {
+        let own = self
+            .doctype(doctype)
+            .and_then(|doctype| doctype.controller.as_ref())
+            .is_some_and(|controller| controller.attributes.iter().any(|a| a == name));
+
+        if own {
+            return true;
+        }
+
+        let extra = self.controller_extras.get(doctype).is_some_and(|extras| {
+            extras
+                .iter()
+                .any(|e| e.attributes.iter().any(|a| a == name))
+        });
+        if extra {
+            return true;
+        }
+
+        // erpnext's controllers derive from `AccountsController` and
+        // `StockController`, which set most of the working state the leaf
+        // classes read back.
+        self.doctype(doctype)
+            .and_then(|doctype| doctype.controller.as_ref())
+            .is_some_and(|controller| self.class_assigns(&controller.class_name, name))
+    }
+
+    /// Whether `fieldname` is a `Table` field, on any DocType, holding rows of
+    /// `child`.
+    ///
+    /// Grid row events are registered against the **child**: `grid.js` fires
+    /// `script_manager.trigger(fieldname + "_add", row.doctype, row.name)`, so
+    /// `items_add` written under `frappe.ui.form.on("Sales Order Item", …)` is
+    /// the documented shape even though `items` is a field of the parent
+    /// ([11](../../../docs/specs/11-surface-javascript.md)).
+    #[must_use]
+    pub fn is_grid_field(&self, fieldname: &str, child: &str) -> bool {
+        self.doctypes.values().any(|doctype| {
+            doctype.fields.iter().any(|field| {
+                self.interner.resolve(field.fieldname) == fieldname
+                    && self.interner.resolve(field.fieldtype) == "Table"
+                    && field
+                        .options
+                        .as_deref()
+                        .is_some_and(|options| options.eq_ignore_ascii_case(child))
+            })
+        })
     }
 
     /// Every field name of a DocType: declared first, then the implicit fields
@@ -1092,6 +1252,14 @@ impl Index {
     #[must_use]
     pub fn hooks(&self, app: &str) -> Option<&crate::hooks::Hooks> {
         self.hooks.get(app)
+    }
+
+    /// Whether anything in the workspace calls a form handler by this name —
+    /// `frm.trigger("x")` or `frm.events.x(frm)`
+    /// ([11](../../../docs/specs/11-surface-javascript.md)).
+    #[must_use]
+    pub fn calls_handler(&self, name: &str) -> bool {
+        self.handlers.contains(name)
     }
 
     /// Whether any app in the workspace reads `key` back through `get_hooks`.

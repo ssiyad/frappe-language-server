@@ -140,8 +140,11 @@ fn extraction_over_frappe_is_stable_and_finds_every_pattern() {
     // walk is committed here rather than run ad hoc.
     assert_eq!(totals.matches, 16_291, "match count moved");
     assert_eq!(totals.slots, 21_199, "slot count moved");
-    assert_eq!(totals.anchored, 12_511, "anchored slot count moved");
-    assert_eq!(totals.unknown, 8_688, "unknown slot count moved");
+    // Two slots moved from anchored to unknown when the legacy
+    // `frappe.ui.form.on(D, event, fn)` form stopped being read as a fieldname:
+    // an event name carries no anchor of its own (specs/11).
+    assert_eq!(totals.anchored, 12_509, "anchored slot count moved");
+    assert_eq!(totals.unknown, 8_690, "unknown slot count moved");
 
     // A pattern that never fires on the reference corpus is a pattern nothing
     // is testing at scale.

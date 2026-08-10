@@ -382,6 +382,7 @@ fn self_binds_to_the_controllers_doctype() {
         source,
         Context {
             self_doctype: Some("Library Member"),
+            self_class: None,
         },
     );
     let found = resolve_all(index(), &matches);

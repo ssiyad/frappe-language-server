@@ -400,7 +400,11 @@ fn code(
             findings.extend(
                 finding_for(&resolved)
                     .filter(|finding| {
-                        absence || !matches!(finding.code, "unknown-doctype" | "unknown-field")
+                        absence
+                            || !matches!(
+                                finding.code,
+                                "unknown-attribute" | "unknown-doctype" | "unknown-field"
+                            )
                     })
                     // Underline the name, not the quotes around it — the same
                     // range hover and definition use
@@ -471,8 +475,17 @@ fn finding_for(resolved: &frappe_index::resolve::Resolved) -> Option<Finding> {
                 None => format!("no DocType named `{name}`"),
             },
         },
+        // A fieldname written as a string is a claim frappe will act on: it goes
+        // into a query, and a name that is not a field silently returns
+        // nothing. `doc.x` is Python being Python — a Document is an open
+        // object and code attaches to it freely — so the two are different
+        // checks with different defaults ([23](../../../docs/specs/23-diagnostics.md)).
         Target::UnknownField { doctype, fieldname } => Finding {
-            code: "unknown-field",
+            code: if is_attribute_access(resolved.pattern) {
+                "unknown-attribute"
+            } else {
+                "unknown-field"
+            },
             span: resolved.span,
             message: format!("`{doctype}` has no field `{fieldname}`"),
         },
@@ -858,12 +871,13 @@ fn malformed(index: &Index, path: &Path) -> Vec<Finding> {
 
 /// Checks that assert something is *not* there, which only an index complete
 /// enough to know may make — spec 23's confidence table.
-const ABSENCE_CHECKS: [&str; 12] = [
+const ABSENCE_CHECKS: [&str; 13] = [
     "dangling-depends-on",
     "dangling-dynamic-link",
     "missing-asset",
     "non-whitelisted-call",
     "table-not-child",
+    "unknown-attribute",
     "unknown-doctype",
     "unknown-field",
     "unknown-form-event",
@@ -872,6 +886,11 @@ const ABSENCE_CHECKS: [&str; 12] = [
     "unknown-required-app",
     "unresolvable-fetch-from",
 ];
+
+/// Whether the position was written as `doc.x` rather than as a name.
+fn is_attribute_access(pattern: frappe_syntax::PatternId) -> bool {
+    matches!(pattern.0, "doc.attribute" | "frm.doc.attribute")
+}
 
 fn asserts_absence(code: &str) -> bool {
     ABSENCE_CHECKS.binary_search(&code).is_ok()
@@ -911,12 +930,13 @@ fn severity(config: &Config, code: &str) -> Option<DiagnosticSeverity> {
         "unknown-doc-event" => config.diagnostics.unknown_doc_event,
         "unknown-doctype" => config.diagnostics.unknown_doctype,
         "unknown-field" => config.diagnostics.unknown_field,
+        "unknown-attribute" => config.diagnostics.unknown_attribute,
+        "unknown-form-event" => config.diagnostics.unknown_form_event,
         "non-whitelisted-call" => config.diagnostics.non_whitelisted_call,
         "translation-literal" => config.diagnostics.translation_literal,
         // Codes spec 30 does not name individually take the default from
         // spec 23's table.
         "malformed-json" | "unknown-frequency" | "invalid-cron" => Level::Error,
-        "unknown-form-event" => config.diagnostics.unknown_field,
         _ => Level::Warning,
     };
 

@@ -76,18 +76,18 @@ this check exists to find. The other 2 are allowlisted in
 fixed: a `.css` bundle is compiled from `.scss`, so the name in the hook exists
 nowhere on disk.
 
-One thing to verify before trusting it: the guard that keeps a symbol behind a
-re-export from being reported silenced `frappe.utils.markdown` but not
-`frappe.utils.file_manager.download_file`, whose module also exists. The visible
-answers are right — those are true positives — but the guard is not behaving as
-written, and a broken guard reports re-exports elsewhere.
+The re-export guard is behaving as written; what confused it is one line above.
+`unresolvable-path` resolves `index.effective_method(dotted)` first, so a path
+that `override_whitelisted_methods` remaps is judged by its *replacement*: the
+guard was asked about `download_file`, a bare name with no module at all,
+rather than about `frappe.utils.file_manager.download_file`. The finding is
+still a true positive — that bare string is not a path — but the message names
+the key while the failure is in the value, and a key that resolves fine would
+be reported for its replacement's sake. Judging the two on their own terms is
+the fix.
 
 ## Scope
 
-- Make the absence checks defensible enough to default on: learn a controller's
-  runtime attributes from its own `self.x =` assignments, and recognise the raw
-  table names Frappe queries directly (`Singles`). Both are what stands between
-  67 and zero.
 - The last three codes in the registry: `not-single-doctype`,
   `parent-field-on-child`, and wiring `translation-dynamic` — it is defined and
   configurable but its extraction arm returns nothing, so turning it on today
@@ -100,11 +100,32 @@ written, and a broken guard reports re-exports elsewhere.
 - Publishing conflicts against files that are not open. `duplicate-doctype` and
   `custom-field-collision` land on two files by definition, and only the open
   one sees them.
-- Verify the re-export guard. It silenced `frappe.utils.markdown` but not
-  `frappe.utils.file_manager.download_file`, whose module also exists; a guard
-  that is inert reports re-exported symbols somewhere else.
 - `Degraded` confidence and the suppression of absence checks under it, once
   [014](014-live-bridge.md) gives that state a way to occur.
+- `unresolvable-path` judging a hook key by its `override_whitelisted_methods`
+  replacement rather than on its own terms — see above.
+
+## Absence checks — on
+
+`unknown-doctype`, `unknown-field` and `unknown-form-event` ship **on**.
+`unknown-attribute` is a new code for the same claim reached as `doc.x`, and it
+ships **off**: a `Document` is an open Python object, and telling a typo from a
+runtime attribute needs type information this server does not have
+([23](../specs/23-diagnostics.md)).
+
+Turning them on took reducing the corpus from 2 524 findings to 459, then
+splitting the residue by how the fieldname was written. Nine fixes, each one a
+rule the checks did not know: `self` binding outside the controller class,
+`self.x =` on the class and its bases, grid events registered against the
+child, handlers called through `frm.trigger` and `frm.events`, the legacy
+three-argument `form.on`, hook map keys that name no DocType, frappe's own
+tables, `locals[":Company"]`, and `dist/`. All of them are in the specs and
+have a negative case in the fixture bench.
+
+What remains is on the allowlist with a reason, and the honest summary is in
+[32](../specs/32-testing.md): 214 entries, of which 160 are the absence checks.
+Most of the 33 `unknown-doctype` would disappear on a bench that installs the
+apps erpnext links into.
 
 ## Corpus check — done
 

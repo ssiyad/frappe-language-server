@@ -1,6 +1,5 @@
 ---
 source: crates/frappe-index/tests/metadata_index.rs
-assertion_line: 711
 expression: index().fingerprint()
 ---
 app frappe order=0 package=apps/frappe/frappe
@@ -44,10 +43,11 @@ doctype Library Member app=library module=Library child=false single=false submi
   field reference_name type=Dynamic Link layer=schema app=library source=apps/library/library/library/doctype/library_member/library_member.json range=1148..1280 label=Some("Reference Name") options=Some("reference_type") default=None reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
   field loans type=Table layer=schema app=library source=apps/library/library/library/doctype/library_member/library_member.json range=1284..1394 label=Some("Loans") options=Some("Library Loan Item") default=None reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
   field loyalty_points type=Int layer=fixture app=library source=apps/library/library/fixtures/custom_field.json range=3..384 label=Some("Loyalty Points") options=None default=None reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
-  controller apps/library/library/library/doctype/library_member/library_member.py class=LibraryMember range=169..610
-    method validate whitelisted=false range=201..315
-    method add_loan whitelisted=false range=318..465
-    method renew_all whitelisted=true range=468..610
+  controller apps/library/library/library/doctype/library_member/library_member.py class=LibraryMember range=485..1211
+    method validate whitelisted=false range=534..648
+    method summarise whitelisted=false range=651..916
+    method add_loan whitelisted=false range=919..1066
+    method renew_all whitelisted=true range=1069..1211
 doctype Library Membership app=library module=Library child=false single=false submittable=true virtual=false tree=false autoname=Some("hash") title_field=None sort_field=Some("creation") search_fields=None path=apps/library/library/library/doctype/library_membership/library_membership.json range=0..1484
   order member from_date to_date renewal_of currency amount amended_from
   field member type=Link layer=schema app=library source=apps/library/library/library/doctype/library_membership/library_membership.json range=267..389 label=Some("Member") options=Some("Library Member") default=None reqd=true hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
@@ -80,5 +80,5 @@ whitelisted library.api.get_member_summary allow_guest=false methods= params=mem
 whitelisted library.api.get_member_summary_v2 allow_guest=false methods= params=member apps/library/library/api.py range=242..456
 whitelisted library.api.list_issued_titles allow_guest=true methods=GET params= apps/library/library/api.py range=459..702
 whitelisted library.api.ping allow_guest=false methods= params= apps/library/library/api.py range=782..828
-whitelisted library.library.doctype.library_member.library_member.LibraryMember.renew_all allow_guest=false methods= params=self apps/library/library/library/doctype/library_member/library_member.py range=468..610
+whitelisted library.library.doctype.library_member.library_member.LibraryMember.renew_all allow_guest=false methods= params=self apps/library/library/library/doctype/library_member/library_member.py range=1069..1211
 problem apps/circulation-app/circulation/circulation/doctype/circulation_malformed/circulation_malformed.json malformed JSON: trailing comma at line 8 column 2

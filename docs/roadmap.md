@@ -49,10 +49,11 @@ name decided by a vendored table or a file that does not parse is reported; a
 name the index merely cannot find is not, until absence is knowable enough to
 be quiet on correct code.
 
-`cargo xtask smoke` measures this on every run rather than by hand: over
-`frappe` and `erpnext` — 7 079 files, 863 DocTypes — the shipping defaults
-produce 54 findings, every one of them checked against the source and recorded
-with a reason in `tests/smoke-allowlist.toml`. Anything else fails the job.
+The absence checks are on, `doc.x` excepted. `cargo xtask smoke` measures this
+on every run rather than by hand: over `frappe` and `erpnext` — 7 079 files,
+863 DocTypes — the shipping defaults produce 214 findings, every one of them
+checked against the source and recorded with a reason in
+`tests/smoke-allowlist.toml`. Anything else fails the job.
 
 **Done when** that check stays clean ([32](specs/32-testing.md)) with every
 check carrying both a positive and a negative case.

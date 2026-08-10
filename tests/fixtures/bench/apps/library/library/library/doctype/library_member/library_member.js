@@ -23,4 +23,36 @@ frappe.ui.form.on("Library Loan Item", {
 	loan_status(frm, cdt, cdn) {
 		frappe.model.set_value(cdt, cdn, "due_date", frappe.datetime.add_days(frappe.datetime.nowdate(), 14));
 	},
+	// A grid event is registered against the child, with the *parent's* table
+	// fieldname: `grid.js` triggers it as `(fieldname + "_add", row.doctype)`.
+	// expect: clean
+	loans_add(frm, cdt, cdn) {
+		frm.refresh_field("loans");
+	},
+});
+
+frappe.ui.form.on("Library Member", {
+	// Neither an event nor a fieldname, but the handler below calls it by
+	// name, which is all a handler needs to fire. expect: clean
+	refresh_membership_banner(frm) {
+		frm.set_intro(__("Membership"));
+	},
+	onload(frm) {
+		frm.trigger("refresh_membership_banner");
+		frm.events.stamp_visit(frm);
+		// `locals[":DocType"]` is frappe's own notation for a Single's cached
+		// record; the DocType is what follows the colon. expect: clean
+		const settings = locals[":Library Settings"];
+		return settings;
+	},
+	stamp_visit(frm) {
+		frm.set_value("email_id", frm.doc.email_id);
+	},
+});
+
+// The legacy three-argument form takes an *event*, not a fieldname: `refresh`
+// here is a lifecycle event and must not be read as a missing field.
+// expect: clean
+frappe.ui.form.on("Library Member", "refresh", function (frm) {
+	frm.add_custom_button(__("Renew"), () => frm.trigger("refresh_membership_banner"));
 });

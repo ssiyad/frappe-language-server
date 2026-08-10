@@ -24,6 +24,9 @@ pub struct ControllerRef {
     pub name_range: Range,
     /// Methods declared on it.
     pub methods: Vec<Method>,
+    /// Names it hangs off `self` — working state, not fields
+    /// ([04](../../../docs/specs/04-metadata-index.md)).
+    pub attributes: Vec<String>,
 }
 
 impl ControllerRef {
@@ -120,6 +123,7 @@ pub fn resolve(
                 whitelisted: matches!(method.whitelist, Whitelist::Yes(_)),
             })
             .collect(),
+        attributes: class.attributes.clone(),
     })
 }
 

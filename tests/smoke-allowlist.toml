@@ -6,11 +6,165 @@
 # accommodate a noisy check — see docs/specs/32-testing.md.
 
 [[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/account/account.js"
+code = "unknown-field"
+message = "`Account` has no field `warehouse`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/accounting_dimension_filter/accounting_dimension_filter.js"
+code = "unknown-field"
+message = "`Allowed Dimension` has no field `dimensions`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/budget/budget.js"
+code = "unknown-field"
+message = "`Budget Distribution` has no field `budget_distribution`"
+count = 2
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/budget/budget.js"
+code = "unknown-field"
+message = "`Budget` has no field `monthly_distribution`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/chart_of_accounts_importer/chart_of_accounts_importer.js"
+code = "unknown-field"
+message = "`Chart of Accounts Importer` has no field `import_file_section`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/cost_center/cost_center.js"
+code = "unknown-field"
+message = "`Cost Center` has no field `sb1`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/exchange_rate_revaluation/exchange_rate_revaluation.py"
+code = "unknown-field"
+message = "`Journal Entry Account` has no field `balance`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/invoice_discounting/invoice_discounting.py"
+code = "unknown-field"
+message = "`Account` has no field `currency`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/ledger_merge/ledger_merge.js"
+code = "unknown-field"
+message = "`Ledger Merge Accounts` has no field `merge_accounts`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/payment_entry/payment_entry.js"
+code = "unknown-field"
+message = "`Payment Entry` has no field `advance_tax_account`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/payment_gateway_account/payment_gateway_account.json"
 code = "unknown-link-target"
 message = "`payment_gateway` links to `Payment Gateway`, which is not a DocType"
 count = 1
 reason = "the target DocType belongs to an app this bench does not have installed"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/payment_request/payment_request.js"
+code = "unknown-form-event"
+message = "`calculate_total_amount_by_selected_rows` is neither an event nor a field on `Payment Request`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/pos_invoice/pos_invoice.js"
+code = "unknown-form-event"
+message = "`request_for_payment` is neither an event nor a field on `POS Invoice`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/pos_settings/pos_settings.js"
+code = "unknown-field"
+message = "`POS Field` has no field `fields`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/pos_settings/pos_settings.js"
+code = "unknown-field"
+message = "`POS Search Fields` has no field `fields`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/pricing_rule/pricing_rule.py"
+code = "unknown-field"
+message = "`Pricing Rule` has no field `suggestion`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/process_deferred_accounting/process_deferred_accounting.js"
+code = "unknown-field"
+message = "`Process Deferred Accounting` has no field `document_type`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts.js"
+code = "unknown-form-event"
+message = "`view_properties` is neither an event nor a field on `Process Statement Of Accounts`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/purchase_invoice/purchase_invoice.js"
+code = "unknown-field"
+message = "`Purchase Invoice` has no field `additional_discount_account`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/sales_invoice/sales_invoice.js"
+code = "unknown-field"
+message = "`Sales Invoice` has no field `adjustment_against`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/doctype/subscription_plan/subscription_plan.js"
+code = "unknown-form-event"
+message = "`subscription_plan` is neither an event nor a field on `Subscription Plan`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/party.py"
+code = "unknown-field"
+message = "`Address` has no field `tax_category`"
+count = 2
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/party.py"
+code = "unknown-field"
+message = "`Contact` has no field `is_billing_contact`"
+count = 2
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/report/customer_ledger_summary/customer_ledger_summary.py"
@@ -41,11 +195,95 @@ count = 2
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
 
 [[allow]]
+file = "apps/erpnext/erpnext/accounts/utils.py"
+code = "unknown-field"
+message = "`Account` has no field `is_root`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/utils.py"
+code = "unknown-field"
+message = "`Desktop Icon` has no field `_report`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/assets/doctype/asset/asset.js"
+code = "unknown-field"
+message = "`Asset Finance Book` has no field `finance_books`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/assets/doctype/asset/asset.js"
+code = "unknown-field"
+message = "`Asset` has no field `warehouse`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/assets/doctype/asset/asset.py"
+code = "unknown-field"
+message = "`Asset` has no field `remarks`"
+count = 2
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/assets/doctype/asset_repair/asset_repair.js"
+code = "unknown-form-event"
+message = "`stock_consumption` is neither an event nor a field on `Asset Repair`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
 file = "apps/erpnext/erpnext/buying/doctype/purchase_order/purchase_order.json"
 code = "dangling-depends-on"
 message = "`supplied_items` is not a field on `Purchase Order`"
 count = 1
 reason = "names a field no schema declares: either a leftover, or a Customize Form field only the live site can see, which is what Static confidence means"
+
+[[allow]]
+file = "apps/erpnext/erpnext/buying/doctype/supplier/supplier.py"
+code = "unknown-field"
+message = "`Supplier` has no field `address_line1`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/buying/doctype/supplier_scorecard/supplier_scorecard.js"
+code = "unknown-field"
+message = "`Supplier Scorecard Scoring Criteria` has no field `criteria`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/controllers/accounts_controller.py"
+code = "unknown-field"
+message = "`Journal Entry` has no field `reference_name`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/controllers/accounts_controller.py"
+code = "unknown-field"
+message = "`Journal Entry` has no field `reference_type`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/crm/doctype/appointment/appointment.py"
+code = "unknown-field"
+message = "`Event` has no field `type`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/crm/doctype/campaign/campaign.py"
+code = "unknown-field"
+message = "`UTM Campaign` has no field `crm_campaign`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/crm/doctype/lead/lead.json"
@@ -55,11 +293,25 @@ count = 1
 reason = "names a field no schema declares: either a leftover, or a Customize Form field only the live site can see, which is what Static confidence means"
 
 [[allow]]
+file = "apps/erpnext/erpnext/erpnext_integrations/utils.py"
+code = "unknown-doctype"
+message = "no DocType named `Parcel Service`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
 file = "apps/erpnext/erpnext/hooks.py"
 code = "missing-asset"
 message = "`email_erpnext.bundle.css` is not a file in this app"
 count = 1
 reason = "the asset is not a file in the app: dead config, or served from a DocType at runtime"
+
+[[allow]]
+file = "apps/erpnext/erpnext/hooks.py"
+code = "unknown-doctype"
+message = "no DocType named `Newsletter`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
 
 [[allow]]
 file = "apps/erpnext/erpnext/hooks.py"
@@ -153,6 +405,69 @@ count = 1
 reason = "the dotted path defines no such attribute; frappe's own override_whitelisted_methods carries two of these"
 
 [[allow]]
+file = "apps/erpnext/erpnext/maintenance/doctype/maintenance_schedule/maintenance_schedule.py"
+code = "unknown-field"
+message = "`Serial No` has no field `delivery_date`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/manufacturing/doctype/bom_creator/bom_creator.js"
+code = "unknown-field"
+message = "`BOM Creator Item` has no field `bom_no`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/manufacturing/doctype/bom_creator/bom_creator.js"
+code = "unknown-field"
+message = "`BOM Creator` has no field `workstation`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/manufacturing/doctype/job_card/job_card.js"
+code = "unknown-form-event"
+message = "`hide_timer` is neither an event nor a field on `Job Card`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/erpnext/erpnext/manufacturing/doctype/job_card/job_card.js"
+code = "unknown-form-event"
+message = "`make_time_log` is neither an event nor a field on `Job Card`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/erpnext/erpnext/manufacturing/doctype/job_card/job_card.py"
+code = "unknown-field"
+message = "`Job Card Item` has no field `amount`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/manufacturing/doctype/job_card/job_card.py"
+code = "unknown-field"
+message = "`Job Card Item` has no field `rate`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/manufacturing/doctype/job_card/job_card.py"
+code = "unknown-field"
+message = "`Job Card Scheduled Time` has no field `completed_qty`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/manufacturing/doctype/master_production_schedule/master_production_schedule.py"
+code = "unknown-field"
+message = "`Production Plan Sales Order` has no field `delivery_date`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
 file = "apps/erpnext/erpnext/manufacturing/doctype/production_plan_sub_assembly_item/production_plan_sub_assembly_item.json"
 code = "unresolvable-fetch-from"
 message = "`sub_assembly_item_code.item_name` reads `sub_assembly_item_code`, which is not a field here"
@@ -188,11 +503,312 @@ count = 1
 reason = "patches.txt names a module that is not in the checkout, or names one twice"
 
 [[allow]]
+file = "apps/erpnext/erpnext/patches/v10_0/update_translatable_fields.py"
+code = "unknown-field"
+message = "`Property Setter` has no field `propery_type`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v11_0/add_expense_claim_default_account.py"
+code = "unknown-field"
+message = "`Company` has no field `default_expense_claim_payable_account`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v11_0/merge_land_unit_with_location.py"
+code = "unknown-doctype"
+message = "no DocType named `Land Unit`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v11_0/rename_members_with_naming_series.py"
+code = "unknown-doctype"
+message = "no DocType named `Member`"
+count = 3
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v11_1/make_job_card_time_logs.py"
+code = "unknown-field"
+message = "`Job Card` has no field `time_in_mins`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v11_1/woocommerce_set_creation_user.py"
+code = "unknown-doctype"
+message = "no DocType named `Woocommerce Settings`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v12_0/rename_tolerance_fields.py"
+code = "unknown-field"
+message = "`Accounts Settings` has no field `over_delivery_receipt_allowance`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v12_0/set_cwip_and_delete_asset_settings.py"
+code = "unknown-doctype"
+message = "no DocType named `Asset Settings`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
+code = "unknown-doctype"
+message = "no DocType named `Service Level`"
+count = 2
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
+code = "unknown-field"
+message = "`Service Level Agreement` has no field `priority`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
+code = "unknown-field"
+message = "`Service Level Agreement` has no field `resolution_time_period`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
+code = "unknown-field"
+message = "`Service Level Agreement` has no field `resolution_time`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
+code = "unknown-field"
+message = "`Service Level Agreement` has no field `response_time_period`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
+code = "unknown-field"
+message = "`Service Level Agreement` has no field `response_time`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
+code = "unknown-field"
+message = "`Service Level Priority` has no field `resolution_time_period`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
+code = "unknown-field"
+message = "`Service Level Priority` has no field `response_time_period`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/delete_old_purchase_reports.py"
+code = "unknown-field"
+message = "`Desktop Icon` has no field `_report`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/delete_old_sales_reports.py"
+code = "unknown-field"
+message = "`Desktop Icon` has no field `_report`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/fix_number_and_frequency_for_monthly_depreciation.py"
+code = "unknown-field"
+message = "`Asset` has no field `allow_monthly_depreciation`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/modify_invalid_gain_loss_gl_entries.py"
+code = "unknown-field"
+message = "`Accounts Settings` has no field `acc_frozen_upto`"
+count = 3
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/rename_issue_doctype_fields.py"
+code = "unknown-field"
+message = "`Issue` has no field `mins_to_first_response`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/rename_issue_doctype_fields.py"
+code = "unknown-field"
+message = "`Issue` has no field `resolution_by_variance`"
+count = 2
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/rename_issue_doctype_fields.py"
+code = "unknown-field"
+message = "`Issue` has no field `response_by_variance`"
+count = 2
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/rename_issue_doctype_fields.py"
+code = "unknown-field"
+message = "`Opportunity` has no field `mins_to_first_response`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/replace_supplier_item_group_with_party_specific_item.py"
+code = "unknown-doctype"
+message = "no DocType named `Supplier Item Group`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/trim_whitespace_from_serial_nos.py"
+code = "unknown-field"
+message = "`Serial No` has no field `purchase_document_type`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/update_dates_in_tax_withholding_category.py"
+code = "unknown-field"
+message = "`Tax Withholding Rate` has no field `fiscal_year`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/update_member_email_address.py"
+code = "unknown-doctype"
+message = "no DocType named `Member`"
+count = 4
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/update_recipient_email_digest.py"
+code = "unknown-field"
+message = "`Email Digest` has no field `recipient_list`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/update_response_by_variance.py"
+code = "unknown-field"
+message = "`Issue` has no field `resolution_by_variance`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/update_response_by_variance.py"
+code = "unknown-field"
+message = "`Issue` has no field `response_by_variance`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/update_sla_enhancements.py"
+code = "unknown-doctype"
+message = "no DocType named `Service Level`"
+count = 2
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/update_sla_enhancements.py"
+code = "unknown-field"
+message = "`Service Level Agreement` has no field `employee_group`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v14_0/add_default_for_repost_settings.py"
+code = "unknown-doctype"
+message = "no DocType named `Repost Accounting Ledger Settings`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v14_0/migrate_cost_center_allocations.py"
+code = "unknown-doctype"
+message = "no DocType named `Distributed Cost Center`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v14_0/single_to_multi_dunning.py"
+code = "unknown-field"
+message = "`Accounts Settings` has no field `acc_frozen_upto`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v15_0/migrate_to_utm_analytics.py"
+code = "unknown-doctype"
+message = "no DocType named `Lead Source`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v15_0/recalculate_amount_difference_field.py"
+code = "unknown-field"
+message = "`Accounts Settings` has no field `acc_frozen_upto`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v15_0/refactor_closing_stock_balance.py"
+code = "unknown-doctype"
+message = "no DocType named `Closing Stock Balance`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v16_0/co_by_product_patch.py"
+code = "unknown-doctype"
+message = "no DocType named `BOM Scrap Item`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v16_0/migrate_tax_withholding_data.py"
+code = "unknown-doctype"
+message = "no DocType named `Advance Tax`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v16_0/migrate_tax_withholding_data.py"
+code = "unknown-doctype"
+message = "no DocType named `Tax Withheld Vouchers`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
 file = "apps/erpnext/erpnext/projects/doctype/project_update/project_update.py"
 code = "translation-literal"
 message = "translations are extracted statically, so a concatenation is never translated"
 count = 1
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
+
+[[allow]]
+file = "apps/erpnext/erpnext/public/js/address.js"
+code = "unknown-form-event"
+message = "`is_your_company_address` is neither an event nor a field on `Address`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
 
 [[allow]]
 file = "apps/erpnext/erpnext/public/js/bom_configurator/bom_configurator.bundle.js"
@@ -202,11 +818,46 @@ count = 7
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
 
 [[allow]]
+file = "apps/erpnext/erpnext/public/js/newsletter.js"
+code = "unknown-doctype"
+message = "no DocType named `Newsletter`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
 file = "apps/erpnext/erpnext/quality_management/doctype/quality_feedback/quality_feedback.json"
 code = "unresolvable-fetch-from"
 message = "`Quality Feedback Template` has no field `feedback_values`, so `parameters` stays empty"
 count = 1
 reason = "the source field is absent from the linked DocType, so the fetch silently stays empty"
+
+[[allow]]
+file = "apps/erpnext/erpnext/regional/doctype/import_supplier_invoice/import_supplier_invoice.py"
+code = "unknown-field"
+message = "`Payment Schedule` has no field `bank_account_iban`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/regional/doctype/import_supplier_invoice/import_supplier_invoice.py"
+code = "unknown-field"
+message = "`Payment Schedule` has no field `mode_of_payment_code`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/regional/doctype/import_supplier_invoice/import_supplier_invoice.py"
+code = "unknown-field"
+message = "`Purchase Invoice` has no field `destination_code`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/regional/doctype/import_supplier_invoice/import_supplier_invoice.py"
+code = "unknown-field"
+message = "`Purchase Invoice` has no field `document_type`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/regional/doctype/lower_deduction_certificate/lower_deduction_certificate.json"
@@ -216,11 +867,60 @@ count = 1
 reason = "the source field is absent from the linked DocType, so the fetch silently stays empty"
 
 [[allow]]
+file = "apps/erpnext/erpnext/regional/italy/utils.py"
+code = "unknown-field"
+message = "`Company` has no field `fiscal_code`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/regional/italy/utils.py"
+code = "unknown-field"
+message = "`Company` has no field `fiscal_regime`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/regional/italy/utils.py"
+code = "unknown-field"
+message = "`Mode of Payment` has no field `mode_of_payment_code`"
+count = 2
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/regional/united_arab_emirates/utils.py"
+code = "unknown-field"
+message = "`Item` has no field `is_zero_rated`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/selling/doctype/customer/customer.py"
+code = "unknown-field"
+message = "`Customer` has no field `address_line1`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
 file = "apps/erpnext/erpnext/selling/doctype/quotation/quotation.js"
 code = "translation-literal"
 message = "translations are extracted statically, so a concatenation is never translated"
 count = 1
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
+
+[[allow]]
+file = "apps/erpnext/erpnext/selling/doctype/quotation/quotation.py"
+code = "unknown-doctype"
+message = "no DocType named `CRM Deal`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/selling/doctype/sales_order/sales_order.js"
+code = "unknown-form-event"
+message = "`set_delivery_schedule` is neither an event nor a field on `Sales Order`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
 
 [[allow]]
 file = "apps/erpnext/erpnext/selling/doctype/sales_order/sales_order.json"
@@ -244,11 +944,60 @@ count = 1
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
 
 [[allow]]
+file = "apps/erpnext/erpnext/setup/doctype/item_group/item_group.js"
+code = "unknown-form-event"
+message = "`page_name` is neither an event nor a field on `Item Group`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/erpnext/erpnext/setup/doctype/sales_person/sales_person.js"
+code = "unknown-field"
+message = "`Sales Person` has no field `sales_team`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/setup/setup_wizard/operations/install_fixtures.py"
+code = "unknown-field"
+message = "`Stock Settings` has no field `email_footer_address`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/stock/doctype/delivery_note/delivery_note.py"
+code = "unknown-field"
+message = "`Delivery Note Item` has no field `is_fixed_asset`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/stock/doctype/delivery_note/delivery_note.py"
+code = "unknown-field"
+message = "`Delivery Note Item` has no field `is_subcontracted`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
 file = "apps/erpnext/erpnext/stock/doctype/inventory_dimension/inventory_dimension.py"
 code = "translation-literal"
 message = "translations are extracted statically, so a concatenation is never translated"
 count = 1
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
+
+[[allow]]
+file = "apps/erpnext/erpnext/stock/doctype/item/item.js"
+code = "unknown-form-event"
+message = "`page_name` is neither an event nor a field on `Item`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/erpnext/erpnext/stock/doctype/item_price/item_price.js"
+code = "unknown-field"
+message = "`Item Price` has no field `bulk_import_help`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/stock/doctype/item_variant_attribute/item_variant_attribute.json"
@@ -265,6 +1014,69 @@ count = 1
 reason = "names a field no schema declares: either a leftover, or a Customize Form field only the live site can see, which is what Static confidence means"
 
 [[allow]]
+file = "apps/erpnext/erpnext/stock/doctype/shipment/shipment.js"
+code = "unknown-field"
+message = "`Shipment Delivery Note` has no field `value_of_goods`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/stock/doctype/shipment/shipment.js"
+code = "unknown-form-event"
+message = "`remove_email_row` is neither an event nor a field on `Shipment`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/erpnext/erpnext/stock/doctype/stock_entry/services/manufacturing.py"
+code = "unknown-field"
+message = "`BOM` has no field `use_multi_level_bom`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/stock/doctype/stock_entry/services/serial_batch.py"
+code = "unknown-field"
+message = "`Serial and Batch Bundle` has no field `posting_date`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/stock/doctype/stock_entry/services/serial_batch.py"
+code = "unknown-field"
+message = "`Serial and Batch Bundle` has no field `posting_time`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/stock/doctype/stock_ledger_entry/stock_ledger_entry.py"
+code = "unknown-field"
+message = "`Stock Ledger Entry` has no field `via_landed_cost_voucher`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/subcontracting/doctype/subcontracting_inward_order/subcontracting_inward_order.js"
+code = "unknown-field"
+message = "`Subcontracting Inward Order Item` has no field `service_items`"
+count = 3
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/subcontracting/doctype/subcontracting_order/subcontracting_order.js"
+code = "unknown-field"
+message = "`Subcontracting Order Item` has no field `service_items`"
+count = 3
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/subcontracting/doctype/subcontracting_receipt/subcontracting_receipt.js"
+code = "unknown-field"
+message = "`Subcontracting Receipt Item` has no field `supplied_items`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
 file = "apps/erpnext/erpnext/subcontracting/doctype/subcontracting_receipt_item/subcontracting_receipt_item.json"
 code = "dangling-depends-on"
 message = "`is_fixed_asset` is not a field on `Subcontracting Receipt Item`"
@@ -279,11 +1091,60 @@ count = 1
 reason = "the source field is absent from the linked DocType, so the fetch silently stays empty"
 
 [[allow]]
+file = "apps/erpnext/erpnext/support/doctype/issue/issue.py"
+code = "unknown-field"
+message = "`Issue` has no field `communication_medium`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/support/doctype/issue/issue.py"
+code = "unknown-field"
+message = "`Issue` has no field `raised_by_phone`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
 file = "apps/erpnext/erpnext/support/doctype/service_level_agreement/service_level_agreement.json"
 code = "dangling-depends-on"
 message = "`default_contract` is not a field on `Service Level Agreement`"
 count = 1
 reason = "names a field no schema declares: either a leftover, or a Customize Form field only the live site can see, which is what Static confidence means"
+
+[[allow]]
+file = "apps/erpnext/erpnext/templates/pages/timelog_info.py"
+code = "unknown-doctype"
+message = "no DocType named `Time Log`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/www/payment_setup_certification.py"
+code = "unknown-doctype"
+message = "no DocType named `Certification Application`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/erpnext/erpnext/www/payment_setup_certification.py"
+code = "unknown-doctype"
+message = "no DocType named `Certified Consultant`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/frappe/frappe/core/doctype/background_task/background_task.js"
+code = "unknown-form-event"
+message = "`on_page_leave` is neither an event nor a field on `Background Task`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/frappe/frappe/core/doctype/doctype/doctype.py"
+code = "unknown-field"
+message = "`DocType` has no field `can_change_name_type`"
+count = 2
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
 
 [[allow]]
 file = "apps/frappe/frappe/core/doctype/package_import/package_import.py"
@@ -293,6 +1154,62 @@ count = 1
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
 
 [[allow]]
+file = "apps/frappe/frappe/core/doctype/success_action/success_action.js"
+code = "unknown-form-event"
+message = "`on_load` is neither an event nor a field on `Success Action`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/frappe/frappe/core/doctype/user/user.js"
+code = "unknown-field"
+message = "`User Email` has no field `user_emails`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/core/doctype/user/user.js"
+code = "unknown-field"
+message = "`User` has no field `modules_access`"
+count = 4
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/core/doctype/user/user.js"
+code = "unknown-form-event"
+message = "`role_profiles_add` is neither an event nor a field on `User Role Profile`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/frappe/frappe/core/doctype/user/user.js"
+code = "unknown-form-event"
+message = "`role_profiles_remove` is neither an event nor a field on `User Role Profile`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/frappe/frappe/core/doctype/user/user.py"
+code = "unknown-field"
+message = "`User` has no field `allow_in_mentions`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/core/doctype/user/user.py"
+code = "unknown-field"
+message = "`User` has no field `is_admin`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/core/doctype/user/user.py"
+code = "unknown-field"
+message = "`User` has no field `is_guest`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
 file = "apps/frappe/frappe/core/report/database_storage_usage_by_tables/database_storage_usage_by_tables.js"
 code = "translation-literal"
 message = "translations are extracted statically, so an f-string or template literal is never translated"
@@ -300,11 +1217,53 @@ count = 1
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
 
 [[allow]]
+file = "apps/frappe/frappe/custom/doctype/customize_form/customize_form.py"
+code = "unknown-field"
+message = "`Translation` has no field `language_code`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/desk/doctype/route_history/route_history.py"
+code = "unknown-field"
+message = "`Route History` has no field `count`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/desk/doctype/tag/tag.py"
+code = "unknown-field"
+message = "`DocType` has no field `tag_fields`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/desk/doctype/workspace_sidebar/workspace_sidebar.js"
+code = "unknown-field"
+message = "`Workspace Sidebar` has no field `link_to`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/desk/doctype/workspace_sidebar/workspace_sidebar.js"
+code = "unknown-form-event"
+message = "`link_type` is neither an event nor a field on `Workspace Sidebar`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
 file = "apps/frappe/frappe/desk/doctype_settings/settings_map.py"
 code = "translation-literal"
 message = "translations are extracted statically, so `.format()` applied inside the call is never translated"
 count = 1
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
+
+[[allow]]
+file = "apps/frappe/frappe/desk/page/setup_wizard/setup_wizard.js"
+code = "unknown-field"
+message = "`System Settings` has no field `timezone`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
 
 [[allow]]
 file = "apps/frappe/frappe/desk/reportview.py"
@@ -363,11 +1322,123 @@ count = 1
 reason = "names a field no schema declares: either a leftover, or a Customize Form field only the live site can see, which is what Static confidence means"
 
 [[allow]]
+file = "apps/frappe/frappe/integrations/doctype/webhook/webhook.js"
+code = "unknown-field"
+message = "`Webhook Data` has no field `webhook_data`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/model/delete_doc.py"
+code = "unknown-field"
+message = "`Comment` has no field `full_name`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
 file = "apps/frappe/frappe/model/document.py"
 code = "translation-literal"
 message = "translations are extracted statically, so an f-string or template literal is never translated"
 count = 1
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
+
+[[allow]]
+file = "apps/frappe/frappe/patches/v10_0/refactor_social_login_keys.py"
+code = "unknown-doctype"
+message = "no DocType named `Social Login Keys`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/frappe/frappe/patches/v11_0/set_dropbox_file_backup.py"
+code = "unknown-doctype"
+message = "no DocType named `Dropbox Settings`"
+count = 2
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/frappe/frappe/patches/v13_0/remove_custom_link.py"
+code = "unknown-doctype"
+message = "no DocType named `Custom Link`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/frappe/frappe/patches/v13_0/rename_list_view_setting_to_list_view_settings.py"
+code = "unknown-doctype"
+message = "no DocType named `List View Setting`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/frappe/frappe/patches/v13_0/set_read_times.py"
+code = "unknown-doctype"
+message = "no DocType named `Blog Post`"
+count = 3
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/frappe/frappe/patches/v13_0/set_route_for_blog_category.py"
+code = "unknown-doctype"
+message = "no DocType named `Blog Category`"
+count = 2
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/frappe/frappe/patches/v13_0/update_icons_in_customized_desk_pages.py"
+code = "unknown-doctype"
+message = "no DocType named `Desk Page`"
+count = 4
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/frappe/frappe/patches/v14_0/copy_mail_data.py"
+code = "unknown-field"
+message = "`IMAP Folder` has no field `uid_validity`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/patches/v14_0/setup_likes_from_feedback.py"
+code = "unknown-doctype"
+message = "no DocType named `Feedback`"
+count = 3
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/frappe/frappe/patches/v14_0/update_multistep_webforms.py"
+code = "unknown-field"
+message = "`Web Form` has no field `is_multi_step_form`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/permissions.py"
+code = "unknown-field"
+message = "`Custom DocPerm` has no field `parentfield`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/permissions.py"
+code = "unknown-field"
+message = "`Custom DocPerm` has no field `parenttype`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/public/js/frappe/form/formatters.js"
+code = "unknown-doctype"
+message = "no DocType named `:Currency`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
+file = "apps/frappe/frappe/public/js/frappe/form/grid_row.js"
+code = "unknown-doctype"
+message = "no DocType named `:Currency`"
+count = 1
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
 
 [[allow]]
 file = "apps/frappe/frappe/public/js/frappe/ui/toolbar/search_utils.js"
@@ -377,9 +1448,58 @@ count = 2
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
 
 [[allow]]
+file = "apps/frappe/frappe/public/js/frappe/utils/number_format.js"
+code = "unknown-doctype"
+message = "no DocType named `:Currency`"
+count = 4
+reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
+
+[[allow]]
 file = "apps/frappe/frappe/utils/data.py"
 code = "translation-literal"
 message = "translations are extracted statically, so an f-string or template literal is never translated"
 count = 1
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
+
+[[allow]]
+file = "apps/frappe/frappe/utils/pdf_generator/browser.py"
+code = "unknown-field"
+message = "`Print Format` has no field `print_designer`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/website/doctype/web_form/web_form.js"
+code = "unknown-field"
+message = "`Web Form Field` has no field `web_form_fields`"
+count = 2
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/website/doctype/web_form/web_form.js"
+code = "unknown-field"
+message = "`Web Form List Column` has no field `list_columns`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/website/doctype/web_form/web_form.js"
+code = "unknown-field"
+message = "`Web Form` has no field `amount_field`"
+count = 2
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/frappe/frappe/website/doctype/web_page/web_page.js"
+code = "unknown-form-event"
+message = "`insert_code` is neither an event nor a field on `Web Page`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+
+[[allow]]
+file = "apps/frappe/frappe/workflow/doctype/workflow/workflow.js"
+code = "unknown-form-event"
+message = "`states_remove` is neither an event nor a field on `Workflow Transition`; this handler never fires"
+count = 1
+reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
 

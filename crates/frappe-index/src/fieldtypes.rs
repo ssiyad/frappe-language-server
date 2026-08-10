@@ -440,6 +440,29 @@ pub const DOCUMENT_MEMBERS: [&str; 165] = [
     "validate_workflow",
 ];
 
+/// Tables frappe queries by name that are not DocTypes.
+///
+/// `frappe.db.delete("Singles", …)` and `frappe.db.sql("… from tabSeries")`
+/// are ordinary Frappe. None of these has a DocType JSON anywhere, and every
+/// one of them was reported as a DocType nobody has
+/// ([32](../../../docs/specs/32-testing.md)). Sorted for binary search.
+pub const RAW_TABLES: [&str; 8] = [
+    "Series",
+    "Sessions",
+    "Singles",
+    "__Auth",
+    "__UserSettings",
+    "__global_search",
+    "tabSeries",
+    "tabSingles",
+];
+
+/// Whether a name is one of frappe's own tables rather than a DocType.
+#[must_use]
+pub fn is_raw_table(name: &str) -> bool {
+    RAW_TABLES.binary_search(&name).is_ok()
+}
+
 /// Whether attribute access names a `Document` member rather than a field.
 ///
 /// Dunders are Python's own and never fieldnames; a single underscore is not

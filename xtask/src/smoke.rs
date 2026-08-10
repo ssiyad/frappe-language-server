@@ -62,7 +62,13 @@ impl Allowlist {
 type Finding = (String, String, String);
 
 /// Run the corpus check. Returns the number of findings that were not allowed.
-pub fn run(bench: &Path, allowlist: &Path, write: bool, all: bool) -> std::io::Result<usize> {
+pub fn run(
+    bench: &Path,
+    allowlist: &Path,
+    write: bool,
+    all: bool,
+    absence: bool,
+) -> std::io::Result<usize> {
     let started = Instant::now();
     let index = Index::build(bench);
     let status = index.status();
@@ -83,8 +89,21 @@ pub fn run(bench: &Path, allowlist: &Path, write: bool, all: bool) -> std::io::R
         .and_then(|text| toml::from_str(&text).ok())
         .unwrap_or_default();
 
-    let config = Config::default();
+    // The absence checks ship off, so measuring them means asking for them:
+    // `--absence` is the loop that decides whether they can ever ship on
+    // ([23](../../docs/specs/23-diagnostics.md)).
+    // `unknown-attribute` ships off: a Document is an open Python object, and
+    // deciding whether `doc.x` is a typo needs type information this server
+    // does not have. `--absence` turns it on to keep the number measured
+    // rather than assumed ([23](../../docs/specs/23-diagnostics.md)).
+    let mut config = Config::default();
+    if absence {
+        config.diagnostics.unknown_attribute = frappe_lsp::config::Level::Warning;
+    }
     let mut observed: BTreeMap<Finding, usize> = BTreeMap::new();
+    // The first line each finding lands on, so triage starts at the source
+    // rather than at a grep.
+    let mut lines: BTreeMap<Finding, u32> = BTreeMap::new();
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     let mut files = 0;
 
@@ -104,6 +123,9 @@ pub fn run(bench: &Path, allowlist: &Path, write: bool, all: bool) -> std::io::R
                 continue;
             };
             *counts.entry(code.clone()).or_default() += 1;
+            lines
+                .entry((relative.clone(), code.clone(), diagnostic.message.clone()))
+                .or_insert(diagnostic.range.start.line + 1);
             *observed
                 .entry((relative.clone(), code, diagnostic.message.clone()))
                 .or_default() += 1;
@@ -177,8 +199,10 @@ pub fn run(bench: &Path, allowlist: &Path, write: bool, all: bool) -> std::io::R
 
     let total: usize = unexpected.iter().map(|(_, over)| over).sum();
     eprintln!("\n{total} findings not on the allowlist:");
-    for ((file, code, message), over) in &unexpected {
-        eprintln!("  {file}\n    {code} (x{over}): {message}");
+    for (finding, over) in &unexpected {
+        let (file, code, message) = finding;
+        let line = lines.get(finding).copied().unwrap_or(0);
+        eprintln!("  {file}:{line}\n    {code} (x{over}): {message}");
     }
     Ok(total)
 }
@@ -266,6 +290,20 @@ fn reason(code: &str) -> &'static str {
              installed"
         }
         "table-not-child" => "the target DocType is not marked istable",
+        "unknown-doctype" => {
+            "no DocType of that name in this bench: erpnext links into apps \
+             this checkout does not install, and a name that resolves nowhere \
+             is what Static confidence can see"
+        }
+        "unknown-field" => {
+            "a fieldname written as a string, in a position frappe queries, \
+             that no schema declares — a dead reference that silently returns \
+             nothing"
+        }
+        "unknown-form-event" => {
+            "a handler that is not a lifecycle event, not a fieldname, not a \
+             grid event, and that nothing triggers: it never fires"
+        }
         _ => "REVIEW: no class reason recorded — decide before committing",
     }
 }

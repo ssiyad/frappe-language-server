@@ -25,6 +25,11 @@ pub struct Context<'a> {
     /// The DocType a controller file owns. Binds `self`
     /// ([06](../../../docs/specs/06-analysis-pipeline.md)).
     pub self_doctype: Option<&'a str>,
+    /// The controller class `self` belongs to. A controller file holds other
+    /// classes too — erpnext's `stock_entry_type.py` carries a plain
+    /// `ManufactureEntry` beside the `Document` subclass — and their `self` is
+    /// not a document at all.
+    pub self_class: Option<&'a str>,
 }
 
 /// Every recognized shape in a parsed buffer, in source order.
@@ -34,7 +39,13 @@ pub fn extract(language: Language, tree: &Tree, source: &str, context: Context<'
     let mut extractor = match language {
         Language::Python => {
             let imports = Imports::collect(root, source);
-            let scopes = python_scopes(root, source, &imports, context.self_doctype);
+            let scopes = python_scopes(
+                root,
+                source,
+                &imports,
+                context.self_doctype,
+                context.self_class,
+            );
             Extractor {
                 language,
                 source,
@@ -326,7 +337,22 @@ impl<'a> Extractor<'a> {
         }
 
         let mut slots = Vec::new();
-        let anchor = self.doctype_slot(index, &mut slots);
+        let mut anchor = self.doctype_slot(index, &mut slots);
+        // `locals[":Company"]` is frappe's own notation for a Single's cached
+        // record; the DocType is what follows the colon. Without this the
+        // client scripts that read defaults report a DocType nobody has.
+        if let Some(slot) = slots.last_mut()
+            && let Some(text) = slot.text.as_ref().and_then(|t| t.strip_prefix(':'))
+        {
+            let text = text.to_string();
+            slot.span = Span {
+                start: slot.span.start + 1,
+                end: slot.span.end,
+            };
+            slot.anchor = Anchor::DocType(text.clone());
+            slot.text = Some(text.clone());
+            anchor = Anchor::DocType(text);
+        }
         self.matches.push(Match {
             pattern: special::JS_LOCALS,
             span: node.into(),
@@ -346,8 +372,22 @@ impl<'a> Extractor<'a> {
         let anchor = self.doctype_slot(*first, &mut slots);
 
         match arguments.len() {
-            // `frappe.ui.form.on(D, fieldname, handler)`.
-            3 => self.push_field(arguments[1], &anchor, Role::Field, &mut slots),
+            // `frappe.ui.form.on(D, event, handler)`. The middle argument is
+            // the same namespace as a dict key — a lifecycle event, a
+            // fieldname or a table event — so it is read as one. Reading it as
+            // a fieldname reported `("Payment Request", "refresh", …)` as a
+            // missing field ([32](../../../docs/specs/32-testing.md)).
+            3 => {
+                let text = self.key_name(arguments[1]);
+                slots.push(Slot {
+                    role: Role::FormEvent,
+                    span: self
+                        .literal(arguments[1])
+                        .map_or_else(|| arguments[1].into(), |literal| literal.span),
+                    text,
+                    anchor: Anchor::Unknown,
+                });
+            }
             _ => {
                 if let Some(handlers) = arguments.get(1) {
                     self.form_events(*handlers, &mut slots);
@@ -849,7 +889,15 @@ mod tests {
     fn matched(language: Language, source: &str, self_doctype: Option<&str>) -> Vec<Match> {
         let buffer =
             Buffer::open(language, source, 1, PositionEncoding::Utf16).expect("a pinned grammar");
-        extract(language, buffer.tree(), source, Context { self_doctype })
+        extract(
+            language,
+            buffer.tree(),
+            source,
+            Context {
+                self_doctype,
+                self_class: None,
+            },
+        )
     }
 
     fn python(source: &str) -> Vec<Match> {
@@ -1192,7 +1240,7 @@ mod tests {
     }
 
     #[test]
-    fn form_on_anchors_its_keys_and_the_legacy_form_takes_a_fieldname() {
+    fn form_on_anchors_its_keys_in_both_the_object_and_the_legacy_form() {
         let found = javascript(
             "frappe.ui.form.on(\"Task\", {\n\
              \trefresh(frm) {},\n\
@@ -1210,11 +1258,20 @@ mod tests {
             .collect();
         assert_eq!(events, ["refresh", "subject"]);
 
+        // The legacy middle argument is the same namespace as an object key,
+        // not a fieldname: `("Payment Request", "refresh", fn)` is a lifecycle
+        // event, and reading it as a field called it missing (specs/11).
         let legacy = javascript("frappe.ui.form.on(\"Task\", \"subject\", function (frm) {});\n");
-        assert_eq!(
-            fields(of(&legacy, "frappe.ui.form.on")[0]),
-            [("subject", &field("Task", "subject"))]
-        );
+        let call = of(&legacy, "frappe.ui.form.on")[0];
+        assert_eq!(call.anchor, doctype("Task"));
+        let events: Vec<&str> = call
+            .slots
+            .iter()
+            .filter(|slot| slot.role == Role::FormEvent)
+            .filter_map(|slot| slot.text.as_deref())
+            .collect();
+        assert_eq!(events, ["subject"]);
+        assert!(fields(call).is_empty());
     }
 
     #[test]

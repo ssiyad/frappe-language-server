@@ -12,7 +12,7 @@
 //! alternative is the false positive [23](../../../docs/specs/23-diagnostics.md)
 //! exists to prevent.
 
-use frappe_syntax::{Anchor, Binding, Match, Role, Slot, Span};
+use frappe_syntax::{Anchor, Binding, Match, PatternId, Role, Slot, Span};
 
 use crate::doctype::Options;
 use crate::fieldtypes;
@@ -124,6 +124,8 @@ pub enum FormEventKind {
     Field,
     /// `<table>_add`, `<table>_remove`, `before_<table>_remove`.
     TableEvent,
+    /// Neither, but `frm.trigger("name")` or `frm.events.name` calls it.
+    Triggered,
     /// Neither. The handler is never called, and nothing else reports it.
     Unknown,
 }
@@ -131,6 +133,10 @@ pub enum FormEventKind {
 /// One resolved position.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Resolved {
+    /// The shape this position came from. A fieldname written as a string in a
+    /// named position and one written as `doc.x` are different claims, and
+    /// [23](../../../docs/specs/23-diagnostics.md) treats them differently.
+    pub pattern: PatternId,
     /// Where it is in the buffer.
     pub span: Span,
     /// What the position meant syntactically.
@@ -165,6 +171,7 @@ pub fn resolve(index: &Index, found: &Match) -> Vec<Resolved> {
         .slots
         .iter()
         .map(|slot| Resolved {
+            pattern: found.pattern,
             span: slot.span,
             role: slot.role,
             target: target(index, found, slot, receiver.as_deref(), child.as_deref()),
@@ -252,6 +259,11 @@ fn doctype_target(index: &Index, name: &str) -> Target {
             name: name.to_string(),
         };
     }
+    // Frappe queries several of its own tables by name. They are not DocTypes
+    // and never will be, so there is nothing to resolve and nothing to report.
+    if fieldtypes::is_raw_table(name) {
+        return Target::Unresolvable;
+    }
     Target::UnknownDocType {
         name: name.to_string(),
         similar: index
@@ -286,7 +298,7 @@ fn field_target(index: &Index, doctype: &str, fieldname: &str) -> Target {
 
     // Checked after the fields, so a DocType that really has a field called
     // `status` or `title` keeps it: members lose ties, never win them.
-    if fieldtypes::is_document_member(fieldname) {
+    if fieldtypes::is_document_member(fieldname) || index.has_attribute(doctype, fieldname) {
         return Target::DocumentMember {
             name: fieldname.to_string(),
         };
@@ -323,10 +335,14 @@ fn form_event(index: &Index, doctype: &str, name: &str) -> Target {
         FormEventKind::Lifecycle
     } else if index.has_field(doctype, name) {
         FormEventKind::Field
-    } else if frappe_syntax::generated::table_event(name)
-        .is_some_and(|(fieldname, _)| index.has_field(doctype, fieldname))
-    {
+    } else if frappe_syntax::generated::table_event(name).is_some_and(|(fieldname, _)| {
+        index.has_field(doctype, fieldname) || index.is_grid_field(fieldname, doctype)
+    }) {
         FormEventKind::TableEvent
+    } else if index.calls_handler(name) {
+        // Not an event and not a field, but something calls it by name, which
+        // is all a handler needs to fire.
+        FormEventKind::Triggered
     } else {
         FormEventKind::Unknown
     };

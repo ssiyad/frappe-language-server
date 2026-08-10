@@ -49,6 +49,9 @@ fn form_event(kind: FormEventKind, name: &str, doctype: &str) -> String {
         FormEventKind::TableEvent => format!(
             "**{name}** — table row event\n\nFires when a row of the table is added or removed."
         ),
+        FormEventKind::Triggered => format!(
+            "**{name}** — custom handler\n\nNot an event or a fieldname, but `frm.trigger(\"{name}\")` calls it."
+        ),
         // The classic typo'd handler: valid JavaScript, never called, and
         // invisible to every other tool (spec 11).
         FormEventKind::Unknown => format!(

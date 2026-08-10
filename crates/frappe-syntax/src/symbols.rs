@@ -79,6 +79,14 @@ pub struct Class {
     pub bases: Vec<String>,
     /// Methods declared directly in the body.
     pub methods: Vec<Function>,
+    /// Names the class assigns to `self`, anywhere in its body.
+    ///
+    /// A controller is an ordinary Python class and hangs working state off
+    /// `self` — `self._attachments`, `self.flags`, a cached total. None of
+    /// those is a field, and every one of them is read back later, so a field
+    /// check that does not know about them reports the controller's own
+    /// attributes as missing ([23](../../../docs/specs/23-diagnostics.md)).
+    pub attributes: Vec<String>,
 }
 
 impl Class {
@@ -376,13 +384,48 @@ fn read_class(
         }
     }
 
+    let mut attributes = Vec::new();
+    if let Some(body) = definition.child_by_field_name("body") {
+        read_attributes(body, source, &mut attributes);
+    }
+
     Some(Class {
         name: text(name, source),
         name_span: span(name),
         span: span(outer),
         bases,
         methods,
+        attributes,
     })
+}
+
+/// `self.x = …`, `self.x: T = …` and `self.x += …`, anywhere below `node`.
+///
+/// A nested class starts its own `self`, so its assignments are skipped
+/// rather than credited to the outer one.
+fn read_attributes(node: Node<'_>, source: &str, into: &mut Vec<String>) {
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        if child.kind() == "class_definition" {
+            continue;
+        }
+        if matches!(
+            child.kind(),
+            "assignment" | "augmented_assignment" | "named_expression"
+        ) && let Some(left) = child.child_by_field_name("left")
+            && left.kind() == "attribute"
+            && left
+                .child_by_field_name("object")
+                .is_some_and(|object| text(object, source) == "self")
+            && let Some(attribute) = left.child_by_field_name("attribute")
+        {
+            let name = text(attribute, source);
+            if !into.iter().any(|seen| seen == &name) {
+                into.push(name);
+            }
+        }
+        read_attributes(child, source, into);
+    }
 }
 
 fn read_function(

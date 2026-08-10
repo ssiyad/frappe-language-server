@@ -111,8 +111,10 @@ config_schema! {
     #[serde(rename_all = "kebab-case")]
     diagnostics: Diagnostics / DiagnosticsPatch {
         enabled: bool = true,
-        unknown_doctype: Level = Level::Off,
-        unknown_field: Level = Level::Off,
+        unknown_doctype: Level = Level::Warning,
+        unknown_field: Level = Level::Warning,
+        unknown_attribute: Level = Level::Off,
+        unknown_form_event: Level = Level::Warning,
         non_whitelisted_call: Level = Level::Error,
         unknown_hook: Level = Level::Warning,
         unknown_doc_event: Level = Level::Error,
@@ -195,7 +197,11 @@ mod tests {
         let config = Config::from_patch(&patch("[hover]\nenabled = false\n"));
         assert!(!config.hover.enabled);
         assert_eq!(config.completion.max_items, 1000);
-        assert_eq!(config.diagnostics.unknown_field, Level::Off);
+        assert_eq!(config.diagnostics.unknown_field, Level::Warning);
+        // The one absence check that still ships off, and the reason is in
+        // [23](../../../../docs/specs/23-diagnostics.md): a Document is an open
+        // Python object, so `doc.x` cannot be judged without type information.
+        assert_eq!(config.diagnostics.unknown_attribute, Level::Off);
     }
 
     #[test]

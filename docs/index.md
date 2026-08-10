@@ -22,11 +22,11 @@ Python and JavaScript surfaces and inside `hooks.py`; the index caches, follows
 the filesystem, and is measured against a real bench and driven from Neovim.
 
 Phase 3 is under way. Diagnostics publish: the checks decided by a vendored
-table or a parse failure are on, and the two absence checks ship off until they
-can be quiet on correct code. `cargo xtask smoke` measures this over `frappe`
-and `erpnext` on every run — 7 079 files, 54 findings, each one checked against
-the source and allowlisted with a reason. References and document symbols are
-next.
+table or a parse failure are on, and so are the absence checks — `doc.x` alone
+stays off, because a Frappe document is an open Python object. `cargo xtask
+smoke` measures this over `frappe` and `erpnext` on every run: 7 079 files, 214
+findings, each one checked against the source and allowlisted with a reason.
+References and document symbols are next.
 
 ## Decisions
 

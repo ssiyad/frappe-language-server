@@ -76,7 +76,7 @@ test.
 | Check | Code | Severity |
 | --- | --- | --- |
 | `frappe.call` to a resolvable method lacking `@frappe.whitelist()` | `non-whitelisted-call` | Error |
-| `frappe.ui.form.on` key matching no event and no fieldname | `unknown-form-event` | Warning |
+| `frappe.ui.form.on` key matching no event, fieldname, grid event or trigger | `unknown-form-event` | Warning |
 | `frm.set_value` on a nonexistent field | `unknown-field` | Warning |
 
 The first is the flagship check: it is a guaranteed runtime `PermissionError`,
@@ -105,29 +105,58 @@ DocType is dropped, the rest of the app still indexes.
 
 | Check | Code | Severity |
 | --- | --- | --- |
-| Unknown DocType in a literal position | `unknown-doctype` | **Off** |
-| Unknown field for a resolved DocType | `unknown-field` | **Off** |
+| Unknown DocType in a literal position | `unknown-doctype` | Warning |
+| Unknown field, written as a name | `unknown-field` | Warning |
+| Unknown field, reached as `doc.x` | `unknown-attribute` | **Off** |
 | Parent-only field used on a child DocType binding | `parent-field-on-child` | Warning |
 | `get_single_value` on a non-Single DocType | `not-single-doctype` | Warning |
 
-Both absence checks ship **off**, for the same reason `translation-dynamic`
-does. Measured over 300 files of `frappe` 17.0.0-dev: 135 hits on correct code,
-falling to 67 once test files are excluded from absence checks — a test creates
-its DocTypes at runtime, so absence is unknowable in a file whose job is to
-invent the thing being asked about. Whether a file is a test is judged **inside
-the app**, never on the absolute path: a bench can be cloned anywhere, and
-reading the prefix silences a whole workspace for where its owner happened to
-put it. The 67 that remain are attributes assigned
-at runtime (`self.custom_columns = …`) and raw table names Frappe queries
-directly (`Singles`). Learning the first from the controller's own `self.x =`
-assignments is what would make these defaults defensible; until then they stay
-available and quiet.
+#### A name is a claim; an attribute is not
+
+The two field checks are split by how the fieldname was written, because the
+two forms say different things.
+
+A fieldname written as a **string** — `frappe.db.get_value("Loan", name, "x")`,
+`fields=["x"]`, `frm.set_value("x", …)`, `set_query("x", …)` — is a claim
+frappe acts on. It becomes a column in a query, and a name that is not a field
+silently returns nothing. That is worth reporting, and `unknown-field` ships
+**on**.
+
+`doc.x` is Python being Python. A `Document` is an open object: controllers
+hang working state off `self`, `update()` attaches whatever a dict holds, and
+`as_dict` rows carry joined columns that belong to no schema. Deciding whether
+`doc.x` is a typo or a runtime attribute needs type information this server
+does not have, so `unknown-attribute` ships **off** and stays available for
+anyone who wants it.
+
+Measured over `frappe` and `erpnext` — 7 079 files — with everything else the
+implementation already knows: 127 named-position findings, against 261 on
+attribute access. Sampled against the schemas, the named ones are dead
+references: `Web Form` has no `amount_field`, `Contact` no
+`is_billing_contact`, `Item` no `page_name`. The attribute ones are dominated
+by `Email Digest.future_to_date` and `Payment Entry.company_currency`, which
+exist at runtime and in no JSON.
+
+What the check has to know before it can be quiet is written down in
+[04](04-metadata-index.md) and [11](11-surface-javascript.md): a controller's
+own `self.x =` assignments and those of every class it derives from; grid row
+events, which are registered against the child with the parent's fieldname;
+handlers reached by `frm.trigger` and `frm.events`; frappe's own tables
+(`Singles`, `Series`, `__global_search`), which are not DocTypes; and
+`locals[":Company"]`, which is. Each of those was a false positive before it
+was a rule.
+
+Test files are excluded from absence checks — a test creates its DocTypes at
+runtime, so absence is unknowable in a file whose job is to invent the thing
+being asked about. Whether a file is a test is judged **inside the app**, never
+on the absolute path: a bench can be cloned anywhere, and reading the prefix
+silences a whole workspace for where its owner happened to put it.
 
 When the generated stub in [24](24-type-integration.md) is active,
-`unknown-field` MUST be suppressed for **attribute access** on bound names —
-pyright reports it already, and more accurately. Field positions inside string
-literals are unaffected and remain ours. Two servers reporting the same error on
-one range is the fastest way to get both of them disabled.
+`unknown-attribute` MUST stay off regardless of configuration — pyright reports
+attribute access already, and more accurately. `unknown-field` is unaffected
+and remains ours. Two servers reporting the same error on one range is the
+fastest way to get both of them disabled.
 
 ### Translations
 

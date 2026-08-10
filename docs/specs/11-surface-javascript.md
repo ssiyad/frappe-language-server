@@ -80,3 +80,37 @@ it may live in an app outside the workspace.
 Vue/React sources under `<app>/public/js/**` that never touch `frm` or
 `frappe.ui.form` are indexed for `frappe.call` paths only. No framework-aware
 analysis; `ts-ls` and `volar` own those files.
+
+## When a handler fires
+
+A key in a `frappe.ui.form.on` block is live if any of these holds. A form
+missed here is an `unknown-form-event` on a handler that works, which is the
+failure [23](23-diagnostics.md) forbids; the corpus check in
+[32](32-testing.md) found 630 of them before these rules existed.
+
+| Form | Example |
+| --- | --- |
+| Lifecycle event | `refresh`, `validate`, `onload_post_render` |
+| Fieldname | fires when that field changes |
+| Grid row event | `<table_fieldname>` + `_add`, `_remove`, `_delete`, `_move`, `_on_form_rendered`, and `before_<f>_remove` |
+| Called by name | `frm.trigger("x")`, `frm.script_manager.trigger("x")`, `frm.events.x(frm)` |
+
+Grid row events are registered against the **child** DocType, with the
+*parent's* table fieldname: `grid.js` fires
+`script_manager.trigger(fieldname + "_add", row.doctype, row.name)`, so
+`items_add` written under `frappe.ui.form.on("Sales Order Item", …)` is the
+documented shape even though `items` is a field of `Sales Order`.
+
+Handlers called by name are collected from every `.js` under an app package,
+workspace-wide: erpnext triggers handlers across files, and a name that
+something calls is a real handler wherever it was written.
+
+The legacy three-argument form `frappe.ui.form.on(D, event, fn)` takes an
+**event**, not a fieldname — the same namespace as an object key. Reading it as
+a fieldname reported `("Payment Request", "refresh", …)` as a missing field.
+
+`locals[":Company"]` is frappe's own notation for a Single's cached record; the
+DocType is what follows the colon.
+
+`frm.doc` is the **parent** document even inside a child DocType's handler
+block, because `frm` is always the parent form.

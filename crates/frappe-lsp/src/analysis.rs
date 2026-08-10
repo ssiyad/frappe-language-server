@@ -71,10 +71,12 @@ pub fn at(index: &Index, buffer: &Buffer, offset: usize, context: Context<'_>) -
 /// this file is ([06](../../../docs/specs/06-analysis-pipeline.md)).
 #[must_use]
 pub fn context_for<'a>(index: &'a Index, path: Option<&std::path::Path>) -> Context<'a> {
+    let controller = path.and_then(|path| controller_doctype(index, path));
     Context {
-        self_doctype: path
-            .and_then(|path| controller_doctype(index, path))
-            .map(|doctype| doctype.name.as_str()),
+        self_doctype: controller.map(|doctype| doctype.name.as_str()),
+        self_class: controller
+            .and_then(|doctype| doctype.controller.as_ref())
+            .map(|controller| controller.class_name.as_str()),
     }
 }
 

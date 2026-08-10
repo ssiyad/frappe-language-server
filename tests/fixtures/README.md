@@ -80,6 +80,18 @@ built-in one ([12](../../docs/specs/12-surface-hooks.md)), and the two files are
 the negative case for `unknown-hook` that
 [32](../../docs/specs/32-testing.md) requires.
 
+## Runtime attributes and handlers
+
+`library_member.py` carries a `LoanTally` beside the controller: a plain class
+whose `self` is not a document, so none of its attributes is a field claim.
+`library/mixins.py` holds a base class the controller derives from, and what it
+assigns to `self` is the controller's state too. `library_member.js` covers the
+four ways a handler fires — a grid event on the child, `frm.trigger`,
+`frm.events`, and the legacy three-argument form — plus `locals[":Library
+Settings"]`. All of it must stay silent
+([04](../../docs/specs/04-metadata-index.md),
+[11](../../docs/specs/11-surface-javascript.md)).
+
 ## Annotations
 
 Sources that take comments carry the expectation inline:
@@ -93,7 +105,9 @@ frappe.get_doc(doctype, name)          # expect: clean, not a literal
 [23](../../docs/specs/23-diagnostics.md); `expect: clean` marks a near miss that
 MUST stay silent. `tests/fixture_bench.rs` in `frappe-index` fails if an
 annotation names a code the spec does not define — the fixture and the registry
-cannot drift apart.
+cannot drift apart — and `tests/annotations.rs` in `frappe-lsp` runs the real
+checks over every annotated file and fails if an expectation does not hold.
+Prose after the code is for the reader: `# expect: clean, a fieldname handler`.
 
 JSON takes no comments, so those expectations live here:
 

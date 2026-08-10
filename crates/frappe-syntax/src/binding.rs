@@ -134,6 +134,7 @@ pub(crate) fn python_scopes(
     source: &str,
     imports: &Imports,
     self_doctype: Option<&str>,
+    self_class: Option<&str>,
 ) -> Scopes {
     let mut scopes = Scopes::default();
     let mut stack = vec![root];
@@ -148,10 +149,13 @@ pub(crate) fn python_scopes(
         };
 
         let mut events = Vec::new();
-        // `self` in a controller file binds to the owning DocType, for the
-        // whole body — specs/06.
+        // `self` in a controller *class* binds to the owning DocType, for the
+        // whole body — specs/06. In any other class in the same file it binds
+        // to nothing: a helper's `self` is not a document, and treating it as
+        // one reports its attributes as missing fields.
         if let Some(doctype) = self_doctype
             && takes_self(node, source)
+            && self_class.is_none_or(|class| in_class(node, source, class))
         {
             events.push((
                 body.start_byte(),
@@ -169,6 +173,20 @@ pub(crate) fn python_scopes(
 /// Build the `frm` scopes of
 /// [11](../../../docs/specs/11-surface-javascript.md): `frm` and `cur_frm` are
 /// anchored to the enclosing `frappe.ui.form.on` DocType.
+/// Whether `node` sits inside the body of a class called `name`.
+fn in_class(node: Node<'_>, source: &str, name: &str) -> bool {
+    let mut current = node.parent();
+    while let Some(parent) = current {
+        if parent.kind() == "class_definition" {
+            return parent
+                .child_by_field_name("name")
+                .is_some_and(|identifier| read::text(identifier, source) == name);
+        }
+        current = parent.parent();
+    }
+    false
+}
+
 pub(crate) fn javascript_scopes(root: Node<'_>, source: &str) -> Scopes {
     let mut scopes = Scopes::default();
     let mut stack = vec![root];
@@ -453,7 +471,7 @@ mod tests {
         fn scopes(&self, self_doctype: Option<&str>) -> Scopes {
             let root = self.buffer.tree().root_node();
             let imports = Imports::collect(root, &self.source);
-            python_scopes(root, &self.source, &imports, self_doctype)
+            python_scopes(root, &self.source, &imports, self_doctype, None)
         }
 
         /// Byte offset just past the first occurrence of `needle`.

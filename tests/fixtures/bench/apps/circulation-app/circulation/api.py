@@ -11,6 +11,11 @@ def before_loan(doc, method=None):
 
 def mark_returned(loan: str) -> None:
 	frappe.db.set_value("Loan", loan, "status", "Closed")
+	doc = frappe.get_doc("Loan", loan)
+	# Attribute access, off by default: a Document is an open Python object, so
+	# this is a claim only when the user asks for it (specs/23).
+	print(doc.no_such_attribute)  # expect: unknown-attribute
+	print(doc.status)  # expect: clean
 
 
 def sweep_loans():

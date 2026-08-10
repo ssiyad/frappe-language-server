@@ -32,9 +32,10 @@ fn main() -> ExitCode {
                 .unwrap_or_default();
             let write = std::env::args().any(|argument| argument == "--write");
             let all = std::env::args().any(|argument| argument == "--all");
+            let absence = std::env::args().any(|argument| argument == "--absence");
             let allowlist = std::path::Path::new("tests/smoke-allowlist.toml").to_path_buf();
 
-            match smoke::run(&bench, &allowlist, write, all) {
+            match smoke::run(&bench, &allowlist, write, all, absence) {
                 Ok(0) => ExitCode::SUCCESS,
                 Ok(_) => ExitCode::FAILURE,
                 Err(error) => {

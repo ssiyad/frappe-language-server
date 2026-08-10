@@ -37,6 +37,14 @@ frappe.get_all("Sales Invoice", fields=["cust|"])
 Snapshot the result with `insta`. Reviewing a snapshot diff is how a behaviour
 change gets noticed; that is the point of the format.
 
+`tests/annotations.rs` is what makes the fixture's `expect:` comments
+load-bearing: it walks every annotated file, runs the real checks over it with
+the shipping defaults, and asserts the named code fires on that line — and that
+`expect: clean` lines produce nothing at all. A check that stops firing, or
+starts firing on the line beside it, fails there. Three codes are named as
+pending in that test rather than deleted from the fixture, because their
+extraction arms are the open half of task 012.
+
 Each check in [23](23-diagnostics.md) needs both directions:
 
 - a positive case that MUST fire, and
@@ -103,7 +111,7 @@ and are pruned when noticed.
 ### What is on it
 
 Measured with the shipping defaults over `frappe` `5a94ce8` and `erpnext`
-`02118e7`: 863 DocTypes, 14 303 fields, 7 079 files checked, **54 allowed
+`02118e7`: 863 DocTypes, 14 303 fields, 7 079 files checked, **214 allowed
 findings** and nothing else. By code:
 
 | Code | Entries | Why they are allowed |
@@ -117,13 +125,24 @@ findings** and nothing else. By code:
 | `missing-asset` | 3 | absent from the app, or served from a DocType at runtime |
 | `duplicate-patch` | 1 | listed twice |
 | `unknown-link-target` | 1 | `Payment Gateway` lives in the `payments` app, which this bench does not install |
+| `unknown-field` | 108 | a fieldname written as a string, in a position frappe queries, that no schema declares |
+| `unknown-doctype` | 33 | erpnext links into apps this checkout does not install |
+| `unknown-form-event` | 19 | a handler nothing triggers, on no field and no event: it never fires |
+
+The last three arrived when the absence checks were turned on, and they are the
+reason the list is 214 entries rather than 54. That is a long list, and the
+entry format is what keeps it from becoming wallpaper: matching on file, code,
+message **and** count means a second `unknown-field` in an already-listed file
+still fails the job. Shortening it means installing the apps erpnext links into
+— most of the 33 — and fixing the dead references in erpnext, which are real.
 
 Every one of these was checked against the source before it was written down.
 
 ### What it has already caught
 
 The corpus is not decoration. Its first run reported 90 findings, of which 36
-were the server's fault:
+were the server's fault; turning on the absence checks reported 2 524, of which
+2 065 were:
 
 - 33 `unknown-hook` on hooks that work. An app may invent a hook — nothing
   registers `invoice_doctypes` anywhere, and the only evidence it means
@@ -134,6 +153,17 @@ were the server's fault:
 - 1 stale-cache failure that turned out to be a bug in the cache rather than in
   the test: a file created while the server was off had no stamp to fail and
   appeared in no artifact list ([31](31-performance.md)).
+- 630 `unknown-form-event` on handlers that fire — grid row events registered
+  against the child, and handlers called through `frm.trigger` and `frm.events`
+  ([11](11-surface-javascript.md)).
+- 1 017 `unknown-field`, mostly a controller's own state: `self` was bound
+  inside every class in a controller file rather than only the controller, and
+  `self.x =` was read from neither the class nor its bases
+  ([04](04-metadata-index.md)).
+- 418 `unknown-doctype` — 372 of them hook map keys that name no DocType
+  (`from_route`, `defaults`, `icon`), because every map key defaulted to a
+  DocType claim instead of only the schemas written `Map<DocTypeName, …>`; the
+  rest frappe's own tables and `locals[":Company"]`.
 
 ## Stub completeness
 

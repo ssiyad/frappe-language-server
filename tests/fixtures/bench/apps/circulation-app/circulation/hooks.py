@@ -20,7 +20,12 @@ app_include_js = "/assets/circulation/js/missing.js"  # expect: missing-asset
 doc_events = {
 	"Loan": {
 		"on_validate": "circulation.api.before_loan",  # expect: unknown-doc-event
-		"validate": "circulation.api.no_such_handler",  # expect: unresolvable-path
+		# The module exists, so its symbol table is not proof of absence: a
+		# re-export is invisible to a reader that sees only top-level
+		# definitions (specs/23). expect: clean
+		"validate": "circulation.api.no_such_handler",
+		# No such module anywhere in the workspace, which is certainly wrong.
+		"before_save": "circulation.nowhere.at_all",  # expect: unresolvable-path
 		"on_update": "circulation.api.before_loan",  # expect: clean
 	},
 	"Libary Member": {  # expect: unknown-doctype

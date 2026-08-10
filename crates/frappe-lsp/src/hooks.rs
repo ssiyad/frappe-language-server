@@ -105,7 +105,7 @@ pub fn at(index: &Index, source: &str, offset: usize, path: &Path) -> Option<Loc
     let schema = generated::hook_schema(&assignment.key)?;
     let package = package_of(index, path);
     let app = app_of(index, path);
-    within(&assignment.value, offset, schema, Depth::Top, None).map(|mut located| {
+    within(&assignment.value, offset, schema, Depth::Top, None, None).map(|mut located| {
         // The asset case needs the package, which only the index knows.
         if let HookTarget::Asset { written, .. } = &located.target
             && let (Some(package), Some(app)) = (package.as_deref(), app.as_deref())
@@ -140,7 +140,14 @@ pub fn all(index: &Index, source: &str, path: &Path) -> Vec<Located> {
             },
         });
         if let Some(schema) = schema {
-            collect(&assignment.value, schema, Depth::Top, None, &mut found);
+            collect(
+                &assignment.value,
+                schema,
+                Depth::Top,
+                None,
+                None,
+                &mut found,
+            );
         }
     }
 
@@ -163,15 +170,16 @@ fn collect(
     schema: Schema,
     depth: Depth,
     doctype: Option<&str>,
+    under: Option<&str>,
     found: &mut Vec<Located>,
 ) {
     match value {
         Value::Text { text, span } => {
-            found.push(leaf(text, interior(*span), schema, depth, doctype))
+            found.push(leaf(text, interior(*span), schema, depth, doctype, under))
         }
         Value::List(items) => {
             for item in items {
-                collect(item, schema, depth, doctype, found);
+                collect(item, schema, depth, doctype, under, found);
             }
         }
         Value::Map(entries) => {
@@ -188,7 +196,14 @@ fn collect(
                 } else {
                     doctype
                 };
-                collect(value, schema, Depth::Inner, inner, found);
+                collect(
+                    value,
+                    schema,
+                    Depth::Inner,
+                    inner,
+                    Some(key.text.as_str()),
+                    found,
+                );
             }
         }
         Value::Scalar(_) | Value::Opaque(_) => {}
@@ -210,14 +225,15 @@ fn within(
     schema: Schema,
     depth: Depth,
     doctype: Option<&str>,
+    under: Option<&str>,
 ) -> Option<Located> {
     match value {
         Value::Text { text, span } if span.contains(offset) => {
-            Some(leaf(text, interior(*span), schema, depth, doctype))
+            Some(leaf(text, interior(*span), schema, depth, doctype, under))
         }
         Value::List(items) => items
             .iter()
-            .find_map(|item| within(item, offset, schema, depth, doctype)),
+            .find_map(|item| within(item, offset, schema, depth, doctype, under)),
         Value::Map(entries) => entries.iter().find_map(|(key, value)| {
             if key.span.contains(offset) {
                 return Some(map_key(
@@ -240,6 +256,7 @@ fn within(
                 } else {
                     doctype
                 },
+                Some(key.text.as_str()),
             )
         }),
         _ => None,
@@ -275,15 +292,28 @@ fn map_key(text: &str, span: Span, schema: Schema, depth: Depth, doctype: Option
             dotted: text.to_string(),
             kind: Kind::Whitelisted,
         },
-        _ => HookTarget::DocType(text.to_string()),
+        // Everything else is structure, not a name: `website_route_rules` keys
+        // its dicts by `from_route` and `defaults`, `standard_navbar_items` by
+        // `icon` and `condition`. Only the schemas above are written
+        // `Map<DocTypeName, …>` in [12](../../../docs/specs/12-surface-hooks.md),
+        // and defaulting the other way reported 57 structural keys in
+        // `frappe` and `erpnext` as DocTypes nobody has.
+        _ => HookTarget::Text(text.to_string()),
     };
 
     Located { span, target }
 }
 
 /// A leaf string's meaning.
-fn leaf(text: &str, span: Span, schema: Schema, depth: Depth, doctype: Option<&str>) -> Located {
-    let _ = (depth, doctype);
+fn leaf(
+    text: &str,
+    span: Span,
+    schema: Schema,
+    depth: Depth,
+    doctype: Option<&str>,
+    under: Option<&str>,
+) -> Located {
+    let _ = doctype;
     let target = match schema {
         Schema::File | Schema::MapToFile => HookTarget::Asset {
             written: text.to_string(),
@@ -299,7 +329,14 @@ fn leaf(text: &str, span: Span, schema: Schema, depth: Depth, doctype: Option<&s
             // Module resolution accepts both shapes without guessing.
             kind: Kind::Module,
         },
-        Schema::Fixtures => HookTarget::DocType(text.to_string()),
+        // `fixtures = ["Custom Field"]` names a DocType; the long form
+        // `{"dt": "Custom Field", "filters": [...]}` names one only under `dt`.
+        // The filter values are field names and literals, and calling those
+        // DocTypes is how a working fixtures block fills with errors.
+        Schema::Fixtures if depth == Depth::Top || under == Some("dt") => {
+            HookTarget::DocType(text.to_string())
+        }
+        Schema::Fixtures => HookTarget::Text(text.to_string()),
         Schema::AppNames => HookTarget::App(text.to_string()),
         // `app_title`, `app_license`, `website_context`: strings frappe reads
         // and nothing resolves. A route is a URL, not a module. Treating either
