@@ -40,6 +40,7 @@ non-whitelisted-call = "error"
 unknown-hook = "warning"
 unknown-doc-event = "error"
 translation-literal = "error"
+translation-dynamic = "off"    # 721 hits on frappe itself — see 23
 
 [types]                  # experimental — see spec 24
 stub = false             # generate frappe/model/document.pyi

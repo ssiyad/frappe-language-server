@@ -17,8 +17,17 @@ in-buffer positions. Only open buffers pay the tree-sitter cost.
 
 ## Recognition, not evaluation
 
-Matching is done with tree-sitter queries against call shapes. The server does
-**not** implement dataflow, imports, or constant folding.
+Matching is two layers, and the split is where the query DSL stops paying:
+
+1. **Location** — tree-sitter queries find call sites and decorators, and
+   nothing else. Queries are what the grammar is good at, and they keep node
+   kinds out of the rest of the pipeline.
+2. **Shape** — the argument reading is a table of call shapes in Rust. Which
+   kwarg is a fieldname list, which positional re-anchors, which dict keys are
+   child fields: none of it is expressible as a pattern over the tree, and a
+   query that captured every call would leave all of it in Rust anyway.
+
+The server does **not** implement dataflow, imports, or constant folding.
 
 Recognized:
 
@@ -97,3 +106,19 @@ Anchor::Unknown            // suppress everything downstream
 
 Field positions are resolved only when their DocType anchor resolved first —
 `fields=[...]` on an unknown DocType contributes nothing.
+
+`Anchor::Unknown` covers two cases that must not be confused, and extraction
+distinguishes them by whether the position carries text:
+
+| Case | Text | Downstream |
+| --- | --- | --- |
+| Nothing was statically knowable — a variable, a call, a f-string | absent | Suppress everything |
+| The literal read fine, but naming its DocType needs the index | present | Resolve, then treat as a normal position |
+
+The second case is every child-field position (`doc.append`, `frm.add_child`,
+the 3-argument `set_query`), form event keys, hook keys and field properties.
+Extraction cannot finish them without becoming an index, so it hands over what
+it knows: the match carries the receiver's binding — a DocType name, or a table
+row as `(parent doctype, table fieldname)` — and the server layer completes the
+join. Table-iteration binding is therefore extraction's half of a two-part
+answer, not a complete one.

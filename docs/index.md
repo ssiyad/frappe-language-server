@@ -17,9 +17,10 @@ bench and turns those strings into links.
 
 ## Status
 
-Phase 1 (design) complete. Phase 2 started: the workspace, the server lifecycle,
-configuration and the fixture bench are in place. The server negotiates
-capabilities and tracks buffers; it does not index anything yet.
+Phase 1 (design) complete. Phase 2 is most of the way: workspace discovery, the
+metadata index and syntax extraction all work and are measured against a real
+bench. What is missing is the join between them and the protocol — go-to-
+definition, hover and completion — so the server still answers nothing.
 
 ## Decisions
 

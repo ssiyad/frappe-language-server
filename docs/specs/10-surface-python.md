@@ -19,9 +19,9 @@ literal; anything else yields `Anchor::Unknown`.
 | `frappe.db.exists(D, …)`, `frappe.db.count(D, …)`, `frappe.db.delete(D, …)` | |
 | `frappe.db.get_single_value(D, F)`, `frappe.db.set_single_value(D, F, v)` | Single DocTypes only |
 | `frappe.get_value(D, …)`, `frappe.get_cached_value(D, name, F)` | |
-| `frappe.get_meta(D)`, `frappe.get_single(D)`, `frappe.get_hooks(...)` | |
+| `frappe.get_meta(D)`, `frappe.get_single(D)` | |
 | `frappe.delete_doc(D, name)`, `frappe.rename_doc(D, old, new)` | |
-| `frappe.has_permission(D, …)`, `frappe.get_doc_before_save(...)` | |
+| `frappe.has_permission(D, …)` | |
 | `frappe.qb.DocType(D)` | Builder root; field access on the result is `F` |
 
 `frappe.get_all` and `frappe.db.get_all` differ only in permission handling —
@@ -40,7 +40,13 @@ Resolved against the anchor of the enclosing call:
 | `group_by` | `F` |
 
 Dotted (`"customer.name"`), backticked (`` "`tabItem`.name" ``) and
-function-wrapped entries are skipped rather than reported.
+function-wrapped entries are skipped rather than reported. Skipped means **no
+position at all**, not an unresolved one: a position that exists is a position
+some later check can decide to report on.
+
+A `(D, …)` row reads argument 0 and the kwargs named above. Positional arguments
+past the first are not read — the signatures differ across the family, and a
+wrong guess invents fieldname positions rather than missing them.
 
 ## Document methods
 

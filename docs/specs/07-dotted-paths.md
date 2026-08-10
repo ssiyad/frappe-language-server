@@ -7,7 +7,10 @@
 
 Given `a.b.c.d` and the app roots from [03](03-workspace-model.md):
 
-1. Longest prefix matching an app package directory wins.
+1. Longest prefix matching an app package directory wins. The first segment is
+   the **package directory** name, not `app_name` — on the fixture bench
+   `circulation.api.before_loan` resolves and `circulation_app.api.before_loan`
+   does not ([03](03-workspace-model.md)).
 2. Walk remaining segments as directories while they exist.
 3. The next segment resolves to `<segment>.py`, else `<segment>/__init__.py`.
 4. Remaining segments are symbols inside that module: a top-level `def`/`class`,

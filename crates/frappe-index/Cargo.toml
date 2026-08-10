@@ -9,11 +9,15 @@ repository.workspace = true
 
 [dependencies]
 frappe-bridge.workspace = true
+# The DocType JSON scan is embarrassingly parallel — spec 31.
+rayon.workspace = true
 # DocType discovery has to parse each candidate to apply the third rule of
 # spec 03, so the JSON reader is a discovery dependency, not just a test one.
 serde_json.workspace = true
 
 [dev-dependencies]
+# Golden snapshots of the merged graph — spec 32.
+insta.workspace = true
 # The fixture-bench guards re-serialize JSON to compare it byte for byte.
 serde.workspace = true
 

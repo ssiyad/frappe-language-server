@@ -62,12 +62,19 @@ Nightly CI clones `frappe` and `erpnext` at `develop` and asserts:
 
 - index builds without panic;
 - DocType count is within an expected range;
-- **zero diagnostics** across both apps.
+- **zero diagnostics** across both apps, save for a committed allowlist.
 
 Frappe's own code is the best available corpus of valid Frappe code. Any
 diagnostic it produces is, by default, a false positive — and this job is what
 turns [23](23-diagnostics.md)'s precision rule into something enforced rather
 than merely stated.
+
+The allowlist is for the other case: a diagnostic that is right about code that
+is wrong. It holds 8 `translation-literal` hits at frappe `5a94ce8` — f-strings
+and `.format()` inside `_()`, which break string extraction. Each entry names a
+file, a code and the upstream issue; an entry without one is a false positive
+wearing a disguise, and the list must not grow to accommodate a noisy check.
+Anything not on it fails the job.
 
 ## Stub completeness
 

@@ -22,10 +22,18 @@ editor ──stdio(JSON-RPC)──> frappe-lsp
 | `frappe-syntax` | tree-sitter grammars + queries; surface pattern extraction. |
 | `frappe-bridge` | Live site client. Optional at runtime, always compiled. |
 
-Dependency direction is strictly `frappe-lsp → {frappe-index, frappe-syntax} → frappe-bridge`.
-`frappe-syntax` MUST NOT depend on `frappe-index`: pattern extraction yields
-unresolved names, resolution happens in the server layer. This keeps surface
-extraction unit-testable without a bench.
+Dependency direction is `frappe-lsp → frappe-index → frappe-syntax`, with
+`frappe-bridge` at the bottom. `frappe-syntax` MUST NOT depend on
+`frappe-index`: pattern extraction yields unresolved names, resolution happens
+in the server layer. This keeps surface extraction unit-testable without a
+bench, and that ban is the whole of the rule.
+
+The other direction is allowed, and the index uses it. Controller methods and
+the whitelisted-method registry ([04](04-metadata-index.md)) are read out of
+Python source, and there must be exactly one Python reader in the workspace: a
+second one written to dodge a dependency edge would disagree with the first
+about what a decorator is, and the disagreement would surface as a diagnostic
+on correct code.
 
 ## Concurrency
 
@@ -71,7 +79,7 @@ same key. See [04](04-metadata-index.md) for the merge algebra and
 | Malformed DocType JSON | Drop that DocType, log, continue. Publish a diagnostic on the file. |
 | No bench detected | Serve nothing Frappe-specific; do not error the session. |
 | Bridge unreachable | Fall back to static layers, downgrade confidence, no user-facing error after the first. |
-| Grammar parse error | Use the last good tree for that buffer. |
+| Grammar returns no tree | Use the last good tree for that buffer. A tree carrying `ERROR` nodes is **not** this case: a half-typed buffer always has them, and refusing it would stop completion mid-keystroke. |
 
 ## Resolved
 

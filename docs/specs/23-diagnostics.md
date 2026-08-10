@@ -113,12 +113,25 @@ Carried over from [`frappe/intellisense`](https://github.com/frappe/intellisense
 which had it right: `_()` and `__()` must receive a literal, because strings are
 extracted statically.
 
+`translation-dynamic` ships **off**. Measured against `frappe` 17.0.0-dev it
+fires 721 times, almost all of it `_(variable)` in code that is doing nothing
+wrong; `translation-literal` fires 8 times on the same corpus, and those 8 are
+real. A check that fires 721 times on the reference corpus fails the governing
+rule above, whatever its merits as advice — it stays defined and configurable,
+and nobody has to disable the server to escape it.
+
+Two forms look like violations and are not, and both cost false Errors on
+`frappe` before they were excluded: Python implicit adjacent concatenation
+(`_("one " "string")`) is a single literal to the language and to the
+extractor, and a JavaScript fallback (`__(label || "ID")`) is not a
+concatenation. Only `+` concatenates.
+
 | Check | Code | Severity |
 | --- | --- | --- |
 | f-string inside `_()` | `translation-literal` | Error |
 | `.format()` applied inside `_()` rather than outside | `translation-literal` | Error |
 | Concatenation inside `_()` | `translation-literal` | Error |
-| Non-literal argument to `_()` / `__()` | `translation-dynamic` | Warning |
+| Non-literal argument to `_()` / `__()` | `translation-dynamic` | **Off** |
 
 ### Patches — [07](07-dotted-paths.md)
 

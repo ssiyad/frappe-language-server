@@ -21,10 +21,20 @@ Field {
   reqd, hidden, read_only, unique, is_virtual, permlevel,
   depends_on, mandatory_depends_on, read_only_depends_on, collapsible_depends_on,
   fetch_from, link_filters,
-  range: Range,           // location inside the owning JSON
-  provenance: Layer,
+  range: Range,           // byte offsets into the owning file
+  provenance: Provenance,
 }
+
+Provenance { layer: Layer, app: AppName, source: Option<Path> }
 ```
+
+`Range` is a byte offset pair into the file named by `provenance.source`. Line
+and character conversion happens at the protocol edge, which is the only place
+that knows the session's `positionEncoding` ([30](30-configuration.md)).
+
+A layer alone cannot answer "where did this field come from" — the app and the
+file are what hover ([22](22-hover.md)) needs. `source` is `None` only for
+Layer 3, which has no file.
 
 Also indexed: `App`, `Module`, `ControllerClass` (methods + ranges),
 `WhitelistedMethod` (dotted path, `allow_guest`, HTTP methods, range), `Report`,
@@ -52,13 +62,19 @@ resolvable and both are checked in [23](23-diagnostics.md).
 Every DocType carries fields absent from its JSON. They MUST be completable and
 MUST NOT be reported as unknown.
 
-- Standard: `name`, `owner`, `creation`, `modified`, `modified_by`, `docstatus`, `idx`
+- Standard: `doctype`, `name`, `owner`, `creation`, `modified`, `modified_by`,
+  `docstatus`, `idx`
 - Child DocTypes additionally: `parent`, `parentfield`, `parenttype`
 - Optional/meta: `_user_tags`, `_comments`, `_assign`, `_liked_by`, `_seen`
 
-Source of truth: `frappe/model/__init__.py`. Fieldtype tables (`data_fieldtypes`,
-`no_value_fields`, `table_fields`, `numeric_fieldtypes`) are vendored from the
-same module and version-pinned per [31](31-performance.md).
+Source of truth: `frappe/model/__init__.py`, whose `default_fields` leads with
+`doctype`. Fieldtype tables (`data_fieldtypes`, `no_value_fields`,
+`table_fields`, `numeric_fieldtypes`) are vendored from the same module and
+version-pinned per [31](31-performance.md).
+
+Implicit fields carry no range and no provenance: there is no file to point at,
+and a synthetic range would send go-to-definition to byte 0. They are therefore
+queryable but absent from `fields`.
 
 ## Keys and lookup
 
@@ -111,5 +127,6 @@ Both are indexed from [12](12-surface-hooks.md) and resolved via
 
 Serialize to `<bench>/.frappe-lsp/index.v<N>.bin`. Validity key: schema version +
 `(path, mtime, len)` for every indexed file. Any mismatch re-indexes only the
-changed files. Cache is an optimisation — a corrupt or absent cache MUST fall
+changed files. Adding or removing an **app** is not incremental — install order
+decides the merge, so a change to the installed set is a full rebuild. Cache is an optimisation — a corrupt or absent cache MUST fall
 back to a full scan. Budgets in [31](31-performance.md).

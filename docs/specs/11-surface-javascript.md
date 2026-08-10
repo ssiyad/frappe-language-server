@@ -18,13 +18,21 @@ frappe.ui.form.on("Task", {
 
 | Event group | Names |
 | --- | --- |
-| Lifecycle | `setup`, `onload`, `before_load`, `refresh`, `onload_post_render`, `form_render`, `render_complete`, `validate`, `before_save`, `after_save`, `before_submit`, `on_submit`, `before_cancel`, `after_cancel`, `before_discard`, `after_discard`, `before_workflow_action`, `after_workflow_action`, `timeline_refresh`, `dashboard_update`, `attachments_change`, `on_tab_change`, `rename`, `dirty` |
+| Lifecycle | `setup`, `onload`, `before_load`, `refresh`, `onload_post_render`, `form_render`, `render_complete`, `validate`, `before_save`, `after_save`, `before_submit`, `on_submit`, `before_cancel`, `after_cancel`, `before_discard`, `after_discard`, `before_workflow_action`, `after_workflow_action`, `timeline_refresh`, `dashboard_update`, `on_hide`, `on_tab_change`, `rename`, `dirty` |
 | Per-field | Any `fieldname` — fires on change |
 | Per-table | `<table_fieldname>_add`, `<table_fieldname>_remove`, `before_<table_fieldname>_remove` |
 
 Lifecycle names are vendored from `frappe/public/js/frappe/form/` and pinned per
 [31](31-performance.md). A key matching neither group is a diagnostic — this
 catches the classic typo'd fieldname handler that silently never fires.
+
+The generator takes the union of `script_manager.trigger("…")` and the form
+object's own `this.trigger("…")` sites, minus control-level events. Neither
+call site alone is the list: scraping only `script_manager` drops `setup`,
+`rename`, `dirty`, `dashboard_update`, `render_complete` and `timeline_refresh`,
+while scraping every `.trigger(` picks up `click`, `focus` and `input` from
+controls. Measured at frappe `5a94ce8`: `attachments_change` appears nowhere in
+the tree and `on_hide` does (`form.js:101`).
 
 `frappe.ui.form.on(D, fieldname, handler)` is a legacy 3-argument form; argument
 2 is `F`.
@@ -40,7 +48,8 @@ catches the classic typo'd fieldname handler that silently never fires.
 | `frm.get_field(F)`, `frm.refresh_field(F)`, `frm.get_docfield(F)` | |
 | `frm.set_df_property(F, prop, v)` | `prop` completes from the field-property set |
 | `frm.toggle_display(F, c)`, `toggle_enable`, `toggle_reqd` | `F` or `[F, …]` |
-| `frm.set_query(F, fn)`, `frm.set_query(F, table_F, fn)` | 2-arg form: `F` on the child |
+| `frm.set_query(F, fn)` | `F` on the form |
+| `frm.set_query(child_F, table_F, fn)` | 3-arg form: `table_F` is on the form, `child_F` on its child DocType |
 | `frm.add_child(F, {…})` | dict keys are child fields |
 | `frm.add_custom_button(...)`, `frm.set_intro(...)` | no positions; hover only |
 | `frm.call({ method, args })` | controller method on the anchored DocType |

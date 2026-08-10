@@ -1,6 +1,6 @@
 # 007 — Python surface
 
-**Phase** 2 · **Depends on** 005, 006 · **Blocks** 008
+**Phase** 2 · **Depends on** — · **Blocks** 008
 
 Queries for every pattern in [10](../specs/10-surface-python.md), plus anchor
 resolution joining extraction to the index.

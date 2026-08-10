@@ -169,3 +169,111 @@ fn a_whole_bench_discovers_in_well_under_a_second() {
     // catches an accidental full-bench walk.
     assert!(elapsed.as_secs() < 5, "discovery took {elapsed:?}");
 }
+
+// --- The metadata graph, task 005 --------------------------------------------
+
+#[test]
+fn the_whole_bench_indexes_within_the_cold_budget() {
+    let bench = bench_or_skip!();
+
+    let start = Instant::now();
+    let index = frappe_index::Index::build(&bench);
+    let elapsed = start.elapsed();
+    let status = index.status();
+
+    eprintln!(
+        "{} apps, {} DocTypes, {} fields, {} controllers, {} whitelisted methods, {} modules, {} interned names in {elapsed:?}",
+        status.apps,
+        status.doctypes,
+        status.fields,
+        status.controllers,
+        status.whitelisted_methods,
+        status.modules,
+        index.interned(),
+    );
+    for conflict in index.conflicts() {
+        eprintln!("conflict {} {}", conflict.code.as_str(), conflict.doctype);
+    }
+
+    // The 5 s ceiling of spec 31 is stated for frappe + erpnext + hrms +
+    // payments; this bench is frappe plus two custom apps, so the ceiling is
+    // the only honest assertion to make against it.
+    assert!(elapsed.as_secs() < 5, "cold index took {elapsed:?}");
+    assert!(status.doctypes > 280, "only {} DocTypes", status.doctypes);
+    assert!(status.fields > 3000, "only {} fields", status.fields);
+    assert!(
+        status.whitelisted_methods > 300,
+        "only {} whitelisted methods",
+        status.whitelisted_methods
+    );
+}
+
+#[test]
+fn a_frappe_doctype_merges_with_its_controller_and_implicit_fields() {
+    let bench = bench_or_skip!();
+    let index = frappe_index::Index::build(&bench);
+
+    let user = index.doctype("User").expect("frappe defines User");
+    assert_eq!(&*user.app, "frappe");
+    assert!(!user.fields.is_empty());
+    assert!(user.controller.is_some(), "user.py is beside user.json");
+
+    for fieldname in ["name", "owner", "creation", "modified", "docstatus", "idx"] {
+        assert!(index.has_field("User", fieldname), "{fieldname}");
+    }
+    assert!(!index.has_field("User", "no_such_field_anywhere"));
+}
+
+#[test]
+fn frappes_own_whitelisted_methods_resolve_as_whitelisted() {
+    use frappe_index::paths::{Kind, Outcome};
+
+    let bench = bench_or_skip!();
+    let index = frappe_index::Index::build(&bench);
+
+    let sample: Vec<&str> = index
+        .whitelisted_methods()
+        .map(|method| method.dotted.as_str())
+        .take(5)
+        .collect();
+    eprintln!("first whitelisted paths: {sample:?}");
+
+    for dotted in sample {
+        assert_eq!(
+            index.resolve(dotted, Kind::Whitelisted).outcome,
+            Outcome::Resolved,
+            "{dotted} is in the registry but does not resolve"
+        );
+    }
+
+    // A path that cannot exist must not resolve, on a bench this size either.
+    assert_eq!(
+        index
+            .resolve("frappe.no_such_module.no_such_function", Kind::Callable)
+            .outcome,
+        Outcome::Unresolved
+    );
+}
+
+#[test]
+fn re_indexing_one_doctype_json_stays_inside_the_incremental_budget() {
+    let bench = bench_or_skip!();
+    let mut index = frappe_index::Index::build(&bench);
+
+    let path = index
+        .doctype("User")
+        .expect("frappe defines User")
+        .path
+        .to_path_buf();
+
+    // Warm the page cache, then measure the steady state.
+    index.reindex(&path);
+    let start = Instant::now();
+    let outcome = index.reindex(&path);
+    let elapsed = start.elapsed();
+
+    eprintln!("re-indexed {:?} in {elapsed:?}", outcome.doctypes);
+    assert_eq!(outcome.doctypes, ["User"]);
+    // 20 ms is the ceiling in spec 31.
+    assert!(elapsed.as_millis() < 20, "re-index took {elapsed:?}");
+}

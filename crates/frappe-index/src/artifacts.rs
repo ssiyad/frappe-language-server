@@ -166,7 +166,10 @@ pub fn scan(package: &Path) -> (Artifacts, Vec<Problem>) {
 }
 
 /// The three-part filter of spec 03, generalized past `doctype`.
-fn classify(path: &Path) -> Result<Record, (Rejection, Option<Problem>)> {
+///
+/// The incremental re-index of 005 applies the same filter to one file, so a
+/// JSON that appears beside a DocType does not become one.
+pub(crate) fn classify(path: &Path) -> Result<Record, (Rejection, Option<Problem>)> {
     let Some(kind_directory) = kind_directory(path) else {
         return Err((Rejection::StemMismatch, None));
     };
