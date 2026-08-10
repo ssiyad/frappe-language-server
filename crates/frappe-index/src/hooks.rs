@@ -14,7 +14,7 @@ use frappe_syntax::hooks::{Assignment, Value};
 use frappe_syntax::matches::Span;
 
 /// One hook value, and what it turned out to name.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct HookAssignment {
     /// The hook name.
     pub key: String,
@@ -32,7 +32,7 @@ pub struct HookAssignment {
 }
 
 /// What one app's `hooks.py` contributes to the index.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Hooks {
     /// Every module-level assignment, in file order.
     pub assignments: Vec<HookAssignment>,

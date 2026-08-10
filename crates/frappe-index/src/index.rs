@@ -84,6 +84,35 @@ pub struct IndexStatus {
     pub build_time: Duration,
 }
 
+/// A controller class contributed by `hooks.py` rather than by sitting beside
+/// the DocType JSON.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ControllerExtra {
+    /// Whether it replaces the base controller or extends it.
+    pub kind: ExtraKind,
+    /// The dotted path as written in `hooks.py`.
+    pub dotted: String,
+    /// The file holding the class.
+    pub path: PathBuf,
+    /// The class name.
+    pub class_name: String,
+    /// The class statement and its body.
+    pub range: Range,
+    /// The class name alone.
+    pub name_range: Range,
+    /// Methods it declares, which join the DocType's method set (spec 04).
+    pub methods: Vec<String>,
+}
+
+/// How a hook contributes a class.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ExtraKind {
+    /// `override_doctype_class`: replaces the base controller.
+    Override,
+    /// `extend_doctype_class`: adds a mixin.
+    Mixin,
+}
+
 /// A merge conflict. Both codes are from
 /// [23](../../../docs/specs/23-diagnostics.md).
 #[derive(
@@ -159,6 +188,9 @@ pub struct Index {
     modules: BTreeMap<PathBuf, python::Module>,
     packages: Vec<(String, PathBuf)>,
     whitelisted: BTreeMap<String, WhitelistedMethod>,
+    hooks: BTreeMap<String, crate::hooks::Hooks>,
+    controller_extras: BTreeMap<String, Vec<ControllerExtra>>,
+    remapped: BTreeMap<String, String>,
     conflicts: Vec<Conflict>,
     problems: Vec<Problem>,
     confidence: Confidence,
@@ -204,6 +236,9 @@ impl Index {
             whitelisted: BTreeMap::new(),
             conflicts: Vec::new(),
             problems: Vec::new(),
+            hooks: BTreeMap::new(),
+            controller_extras: BTreeMap::new(),
+            remapped: BTreeMap::new(),
             confidence: Confidence::Partial,
             build_time: Duration::ZERO,
         }
@@ -229,6 +264,9 @@ impl Index {
             // Discovery's problems are already diagnostics; the index adds to
             // them rather than starting a second list.
             problems: workspace.problems.clone(),
+            hooks: BTreeMap::new(),
+            controller_extras: BTreeMap::new(),
+            remapped: BTreeMap::new(),
             workspace,
             interner: Interner::new(),
             doctypes: BTreeMap::new(),
@@ -253,6 +291,10 @@ impl Index {
             index.assemble(&name, &mut raws);
         }
         index.rebuild_whitelist();
+        // After the controllers and the whitelist registry exist, because it
+        // alters both: hooks feed the index rather than only being validated
+        // ([12](../../../docs/specs/12-surface-hooks.md)).
+        index.apply_hooks();
         index.sort_reports();
 
         index.build_time = started.elapsed();
@@ -544,6 +586,81 @@ impl Index {
         let module = self.modules.get(&path)?;
         let dotted = paths::dotted_module(&source.package, &path)?;
         controller::resolve(module, &path, &dotted, &doctype.name)
+    }
+
+    /// Read every app's `hooks.py` and let it change the graph.
+    ///
+    /// Spec 12's cross-hook effects: a DocType's controller can be replaced or
+    /// extended from another app entirely, and a whitelisted path can be
+    /// remapped to a different function. Neither is visible in the file the
+    /// user is reading, which is exactly why the server has to know.
+    fn apply_hooks(&mut self) {
+        self.hooks.clear();
+        self.controller_extras.clear();
+        self.remapped.clear();
+
+        let apps: Vec<(String, PathBuf)> = self
+            .workspace
+            .apps
+            .iter()
+            .map(|app| (app.name.clone(), app.package.join("hooks.py")))
+            .collect();
+
+        for (app, path) in apps {
+            if !path.is_file() {
+                continue;
+            }
+            let hooks = crate::hooks::read(&path, &app);
+
+            for (doctype, class) in &hooks.overrides {
+                self.record_extra(doctype, class, ExtraKind::Override);
+            }
+            for (doctype, classes) in &hooks.mixins {
+                for class in classes {
+                    self.record_extra(doctype, class, ExtraKind::Mixin);
+                }
+            }
+            for (original, effective) in &hooks.remapped {
+                self.remapped.insert(original.clone(), effective.clone());
+            }
+
+            self.hooks.insert(app, hooks);
+        }
+    }
+
+    /// Resolve a hook's class path to something navigable.
+    fn record_extra(&mut self, doctype: &str, class: &str, kind: ExtraKind) {
+        let resolution = self.resolve(class, Kind::Class);
+        // `best()` falls back to a candidate of the wrong kind so a caller can
+        // say *what* it found instead. Here the kind is the whole point: a
+        // function is not a controller class, and treating one as a class puts
+        // go-to-definition on the wrong symbol and invents methods for the
+        // DocType. An unresolvable or wrong-kind path is a diagnostic
+        // ([23](../../../docs/specs/23-diagnostics.md)), not a target.
+        let Some(candidate) = resolution
+            .candidates
+            .iter()
+            .find(|candidate| candidate.matches_kind)
+        else {
+            return;
+        };
+        self.controller_extras
+            .entry(doctype.to_string())
+            .or_default()
+            .push(ControllerExtra {
+                kind,
+                dotted: class.to_string(),
+                path: candidate.path.clone(),
+                class_name: candidate.name.clone(),
+                range: candidate.range,
+                name_range: candidate.selection_range,
+                methods: self
+                    .modules
+                    .get(&candidate.path)
+                    .and_then(|module| module.class(&candidate.name))
+                    .map(|class| class.methods.iter().map(|m| m.name.clone()).collect())
+                    .unwrap_or_default(),
+            });
     }
 
     fn rebuild_whitelist(&mut self) {
@@ -916,6 +1033,54 @@ pub struct Reindexed {
 }
 
 impl Index {
+    /// Classes `hooks.py` contributes to a DocType's controller, override
+    /// first ([21](../../../docs/specs/21-navigation.md) offers both).
+    #[must_use]
+    pub fn controller_extras(&self, doctype: &str) -> &[ControllerExtra] {
+        self.controller_extras
+            .get(doctype)
+            .map_or(&[][..], Vec::as_slice)
+    }
+
+    /// Whether a DocType's controller declares a method, counting the classes
+    /// `extend_doctype_class` and `override_doctype_class` bring in.
+    #[must_use]
+    pub fn has_controller_method(&self, doctype: &str, name: &str) -> bool {
+        let declared = self
+            .doctype(doctype)
+            .and_then(|doctype| doctype.controller.as_ref())
+            .is_some_and(|controller| controller.methods.iter().any(|m| m.name == name));
+
+        declared
+            || self
+                .controller_extras(doctype)
+                .iter()
+                .any(|extra| extra.methods.iter().any(|method| method == name))
+    }
+
+    /// The effective target of a whitelisted path.
+    ///
+    /// `override_whitelisted_methods` remaps a path, and a `frappe.call` to the
+    /// original lands on the replacement at runtime — so navigation must too
+    /// ([07](../../../docs/specs/07-dotted-paths.md)).
+    #[must_use]
+    pub fn effective_method<'a>(&'a self, dotted: &'a str) -> &'a str {
+        self.remapped
+            .get(dotted)
+            .map_or(dotted, std::string::String::as_str)
+    }
+
+    /// One app's hooks.
+    #[must_use]
+    pub fn hooks(&self, app: &str) -> Option<&crate::hooks::Hooks> {
+        self.hooks.get(app)
+    }
+
+    /// Every app's hooks, by app name.
+    pub fn all_hooks(&self) -> impl Iterator<Item = (&String, &crate::hooks::Hooks)> {
+        self.hooks.iter()
+    }
+
     /// Every file the index read, for the cache's validity key
     /// ([31](../../../docs/specs/31-performance.md)).
     pub fn indexed_files(&self) -> impl Iterator<Item = PathBuf> + '_ {
@@ -1266,4 +1431,74 @@ impl Index {
 #[must_use]
 pub fn vendored_snapshot() -> &'static str {
     fieldtypes::SNAPSHOT_VERSION
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture() -> Index {
+        Index::build(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .ancestors()
+                .nth(2)
+                .expect("repo root")
+                .join("tests/fixtures/bench"),
+        )
+    }
+
+    #[test]
+    fn override_doctype_class_reaches_the_controller() {
+        let index = fixture();
+        let extras = index.controller_extras("Library Member");
+
+        assert_eq!(extras.len(), 1, "{extras:?}");
+        assert_eq!(extras[0].kind, ExtraKind::Override);
+        assert_eq!(extras[0].class_name, "CustomLibraryMember");
+        assert!(extras[0].path.ends_with("overrides.py"));
+    }
+
+    #[test]
+    fn a_mixins_methods_join_the_method_set() {
+        let index = fixture();
+        let extras = index.controller_extras("Library Membership");
+
+        assert_eq!(extras[0].kind, ExtraKind::Mixin);
+        assert_eq!(extras[0].class_name, "MembershipMixin");
+        // `recalculate` is declared by the mixin, not by the controller, and is
+        // on the document at runtime either way.
+        assert!(index.has_controller_method("Library Membership", "recalculate"));
+        assert!(!index.has_controller_method("Library Membership", "no_such_method"));
+    }
+
+    #[test]
+    fn a_remapped_whitelisted_path_reports_its_effective_target() {
+        let index = fixture();
+        assert_eq!(
+            index.effective_method("library.api.get_member_summary"),
+            "library.api.get_member_summary_v2"
+        );
+        assert_eq!(
+            index.effective_method("library.api.ping"),
+            "library.api.ping"
+        );
+    }
+
+    #[test]
+    fn an_unresolvable_override_contributes_nothing() {
+        // circulation's `override_doctype_class` names a function where spec 12
+        // requires a class. Nothing navigable comes of a wrong path kind.
+        let index = fixture();
+        assert!(index.controller_extras("Loan").is_empty());
+    }
+
+    #[test]
+    fn hooks_are_read_for_every_installed_app() {
+        let index = fixture();
+        let apps: Vec<&String> = index.all_hooks().map(|(app, _)| app).collect();
+        assert!(apps.contains(&&"library".to_string()), "{apps:?}");
+        assert!(apps.contains(&&"circulation_app".to_string()), "{apps:?}");
+        // The uninstalled app's hooks are not read at all.
+        assert!(!apps.contains(&&"library_archive".to_string()), "{apps:?}");
+    }
 }

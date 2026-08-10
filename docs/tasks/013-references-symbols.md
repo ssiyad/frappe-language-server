@@ -1,6 +1,6 @@
 # 013 — References and symbols
 
-**Phase** 3 · **Depends on** 011
+**Phase** 3 · **Depends on** —
 
 [21](../specs/21-navigation.md).
 

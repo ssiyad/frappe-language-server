@@ -10,6 +10,7 @@ pub mod cli;
 pub mod completion;
 pub mod config;
 pub mod definition;
+pub mod hooks;
 pub mod hover;
 pub mod locations;
 pub mod logging;

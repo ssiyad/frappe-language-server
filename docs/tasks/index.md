@@ -12,9 +12,8 @@ Open work only. Delete a file when its task is done.
 
 | # | Task | Depends on |
 | --- | --- | --- |
-| 011 | [JavaScript surface](011-javascript-surface.md) | 010 |
-| 013 | [References and symbols](013-references-symbols.md) | 011 |
-| 012 | [Diagnostics](012-diagnostics.md) | 011 |
+| 013 | [References and symbols](013-references-symbols.md) | — |
+| 012 | [Diagnostics](012-diagnostics.md) | — |
 | 018 | [Test running](018-test-runner.md) | — · independent |
 
 ## Phase 4 — Bridge and templates
@@ -34,8 +33,9 @@ Open work only. Delete a file when its task is done.
 
 ## Critical path
 
-`010` — everything below it is done: the Python surface answers in an editor,
-warm start is 37 ms, and the index follows the filesystem.
+`012` and `013` — the Python and JavaScript surfaces both answer, the index
+follows the filesystem, and warm start is 37 ms. `010` holds only what needs
+completion for hook keys.
 
 `010` (hooks) sits in phase 2 rather than 3: dotted-path navigation is a large
 share of the grepping this project exists to remove, and hooks feed the index

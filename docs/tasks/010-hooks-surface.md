@@ -14,21 +14,19 @@ scheduler frequencies, cron validation), the cross-hook effects as data, asset
 path resolution, duplicate and unknown-key detection. `frappe` validates clean:
 66 assignments, zero unknown keys.
 
+The Python side is done: the effects are applied to the graph, and `hooks.py`
+navigates and hovers. What remains needs the JavaScript surface or completion.
+
 ## Scope
 
-- Apply the cross-hook effects to the graph, rather than only reading them:
-  `override_doctype_class` and `extend_doctype_class` into controller
-  resolution ([04](../specs/04-metadata-index.md)), `override_whitelisted_methods`
-  into the whitelist registry, `doctype_js` into the DocType's script list so
-  [21](../specs/21-navigation.md) can offer it.
+- `doctype_js` into the DocType's script list, so [21](../specs/21-navigation.md)
+  can offer a form script bound from elsewhere in the app. Needs 011 to be worth
+  anything.
 - Ordering: `hooks.py` indexed before any JS or template in the same app.
-- Definition and hover on hook values — the dotted paths and assets already
-  resolve; nothing surfaces them yet.
-- Completion and hover for hook keys, doc events and frequencies
-  ([20](../specs/20-completion.md), [22](../specs/22-hover.md)).
+- Completion for hook keys, doc events and frequencies
+  ([20](../specs/20-completion.md)).
 
 ## Done when
 
-Go-to-definition on a `doc_events` handler path lands on the function, hover on
-a hook key names its schema, and a DocType whose controller is replaced by
-`override_doctype_class` navigates to both classes.
+Completion inside a `doc_events` inner key offers the lifecycle events, and a
+form script bound by `doctype_js` is a go-to-definition target on its DocType.

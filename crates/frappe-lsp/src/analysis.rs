@@ -120,9 +120,12 @@ pub fn completable(role: Role) -> bool {
     matches!(role, Role::DocType | Role::Field | Role::ChildField)
 }
 
-/// The language a buffer must be for this surface to apply. Python only until
-/// 011 brings the client-script surface.
+/// Whether this buffer is a surface the server reads.
+///
+/// DocType JSON is excluded on purpose: the index reads it with `serde_json`,
+/// and the tree exists only for in-buffer positions
+/// ([06](../../../docs/specs/06-analysis-pipeline.md)).
 #[must_use]
 pub fn supported(language: Language) -> bool {
-    language == Language::Python
+    matches!(language, Language::Python | Language::JavaScript)
 }

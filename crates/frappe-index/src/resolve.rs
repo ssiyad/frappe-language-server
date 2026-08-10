@@ -70,6 +70,17 @@ pub enum Target {
         /// The fieldname as written.
         fieldname: String,
     },
+    /// A `frappe.ui.form.on` object key — spec 11's two namespaces share one
+    /// keyspace, and a key matching neither is the typo'd handler that
+    /// silently never fires.
+    FormEvent {
+        /// The key as written.
+        name: String,
+        /// The DocType the handler is registered on.
+        doctype: String,
+        /// What the key turned out to be.
+        kind: FormEventKind,
+    },
     /// Nothing can be said: the argument was not a literal, or its anchor
     /// never settled. Downstream MUST stay silent.
     Unresolvable,
@@ -85,6 +96,7 @@ impl Target {
             Self::DocType { name } => Some(name),
             Self::Field { doctype, .. }
             | Self::Method { doctype, .. }
+            | Self::FormEvent { doctype, .. }
             | Self::UnknownField { doctype, .. } => Some(doctype),
             Self::Path(_)
             | Self::DocumentMember { .. }
@@ -101,6 +113,19 @@ impl Target {
             Self::DocType { .. } | Self::Field { .. } | Self::Method { .. }
         ) || matches!(self, Self::Path(resolution) if resolution.best().is_some())
     }
+}
+
+/// Which namespace a form event key falls into — spec 11.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FormEventKind {
+    /// A vendored lifecycle name: `refresh`, `validate`, `on_submit`.
+    Lifecycle,
+    /// A fieldname, which fires when that field changes.
+    Field,
+    /// `<table>_add`, `<table>_remove`, `before_<table>_remove`.
+    TableEvent,
+    /// Neither. The handler is never called, and nothing else reports it.
+    Unknown,
 }
 
 /// One resolved position.
@@ -200,11 +225,14 @@ fn target(
             _ => Target::Unresolvable,
         },
 
-        // Not this surface's business: form events and hook keys resolve
-        // against vendored tables, translations against nothing at all.
-        Role::FormEvent | Role::HookKey | Role::Translation(_) | Role::Property => {
-            Target::Unresolvable
-        }
+        Role::FormEvent => match (slot.text.as_deref(), anchored_doctype(found, receiver)) {
+            (Some(name), Some(doctype)) => form_event(index, doctype, name),
+            _ => Target::Unresolvable,
+        },
+
+        // Hook keys resolve in the binary crate against the vendored registry,
+        // and a translation argument names nothing at all.
+        Role::HookKey | Role::Translation(_) | Role::Property => Target::Unresolvable,
     }
 }
 
@@ -280,13 +308,40 @@ fn field_target(index: &Index, doctype: &str, fieldname: &str) -> Target {
     }
 }
 
-fn method_target(index: &Index, doctype: &str, name: &str) -> Target {
-    let has_method = index
-        .doctype(doctype)
-        .and_then(|doctype| doctype.controller.as_ref())
-        .is_some_and(|controller| controller.methods.iter().any(|method| method.name == name));
+/// Classify a `frappe.ui.form.on` key against its DocType.
+///
+/// The two namespaces share one keyspace, so a key is checked against both
+/// before it can be called unknown ([11](../../../docs/specs/11-surface-javascript.md)).
+fn form_event(index: &Index, doctype: &str, name: &str) -> Target {
+    // A DocType the index does not have cannot say which of its fieldnames
+    // this is, so nothing is said at all.
+    if index.doctype(doctype).is_none() {
+        return Target::Unresolvable;
+    }
 
-    if has_method {
+    let kind = if frappe_syntax::generated::is_form_lifecycle_event(name) {
+        FormEventKind::Lifecycle
+    } else if index.has_field(doctype, name) {
+        FormEventKind::Field
+    } else if frappe_syntax::generated::table_event(name)
+        .is_some_and(|(fieldname, _)| index.has_field(doctype, fieldname))
+    {
+        FormEventKind::TableEvent
+    } else {
+        FormEventKind::Unknown
+    };
+
+    Target::FormEvent {
+        name: name.to_string(),
+        doctype: doctype.to_string(),
+        kind,
+    }
+}
+
+fn method_target(index: &Index, doctype: &str, name: &str) -> Target {
+    // Counting the classes hooks.py contributes: a mixin's methods are on the
+    // document at runtime, so reporting them unknown would be wrong (spec 04).
+    if index.has_controller_method(doctype, name) {
         Target::Method {
             doctype: doctype.to_string(),
             name: name.to_string(),

@@ -8,7 +8,9 @@ use frappe_index::Index;
 use frappe_index::resolve::Target as Resolved;
 
 use crate::analysis::Found;
+use crate::hooks::HookTarget;
 use crate::locations::Target;
+use frappe_index::paths::Kind;
 
 /// Where a resolved position leads, in the order spec 21 lists.
 ///
@@ -24,24 +26,28 @@ pub fn targets(index: &Index, found: &Found) -> Vec<Target> {
             implicit,
         } => field_targets(index, doctype, fieldname, *implicit),
         Resolved::Method { doctype, name } => method_targets(index, doctype, name),
-        Resolved::Path(resolution) => resolution
-            .candidates
-            .iter()
-            .map(|candidate| {
-                if candidate.name.is_empty() {
-                    // A module: the file is the target.
-                    Target::file(candidate.path.clone())
-                } else {
-                    Target::named(
-                        candidate.path.clone(),
-                        candidate.range,
-                        candidate.selection_range,
-                    )
-                }
-            })
-            .collect(),
+        // A remapped path lands where the call actually goes at runtime, so
+        // that is where navigation goes first; the original stays reachable
+        // behind it ([21](../../../docs/specs/21-navigation.md)).
+        Resolved::Path(resolution) => {
+            let effective = index.effective_method(&resolution.dotted);
+            if effective == resolution.dotted {
+                resolution
+                    .candidates
+                    .iter()
+                    .map(target_of)
+                    .collect()
+            } else {
+                let mut targets = candidates(index, effective, Kind::Whitelisted);
+                targets.extend(resolution.candidates.iter().map(target_of));
+                targets
+            }
+        }
+        // A form event names a vendored constant or a field; the field case
+        // is reachable through the DocType, and neither is a location.
+        Resolved::FormEvent { .. }
         // Nothing to point at, and a guess would be worse than silence.
-        Resolved::DocumentMember { .. }
+        | Resolved::DocumentMember { .. }
         | Resolved::UnknownDocType { .. }
         | Resolved::UnknownField { .. }
         | Resolved::Unresolvable => Vec::new(),
@@ -55,6 +61,9 @@ fn doctype_targets(index: &Index, name: &str) -> Vec<Target> {
     };
     let mut targets = Vec::new();
 
+    // The DocType's own controller, not whatever `override_doctype_class`
+    // replaces it with: spec 21 puts those on `implementation`, which is the
+    // question they answer.
     if let Some(controller) = &doctype.controller {
         targets.push(Target::named(
             controller.path.clone(),
@@ -97,13 +106,91 @@ fn field_targets(index: &Index, doctype: &str, fieldname: &str, implicit: bool) 
 }
 
 fn method_targets(index: &Index, doctype: &str, name: &str) -> Vec<Target> {
-    let Some(controller) = index.doctype(doctype).and_then(|d| d.controller.as_ref()) else {
-        return Vec::new();
-    };
-    controller
-        .methods
+    let mut targets = Vec::new();
+
+    if let Some(controller) = index.doctype(doctype).and_then(|d| d.controller.as_ref()) {
+        targets.extend(
+            controller
+                .methods
+                .iter()
+                .filter(|method| method.name == name)
+                .map(|method| {
+                    Target::named(controller.path.clone(), method.range, method.name_range)
+                }),
+        );
+    }
+
+    // A mixin's methods are on the document at runtime; the class is the best
+    // target available without re-reading its file.
+    targets.extend(
+        index
+            .controller_extras(doctype)
+            .iter()
+            .filter(|extra| extra.methods.iter().any(|method| method == name))
+            .map(|extra| Target::named(extra.path.clone(), extra.range, extra.name_range)),
+    );
+
+    targets
+}
+
+/// Where a `hooks.py` position leads — [12](../../../docs/specs/12-surface-hooks.md).
+#[must_use]
+pub fn hook_targets(index: &Index, target: &HookTarget) -> Vec<Target> {
+    match target {
+        HookTarget::DocType(name) => doctype_targets(index, name),
+
+        HookTarget::Path { dotted, kind } => {
+            let effective = index.effective_method(dotted);
+            let mut targets = candidates(index, effective, *kind);
+            if effective != dotted {
+                targets.extend(candidates(index, dotted, *kind));
+            }
+            targets
+        }
+
+        HookTarget::Asset { file, .. } => file
+            .as_ref()
+            .map(|path| vec![Target::file(path.clone())])
+            .unwrap_or_default(),
+
+        // A hook key's documentation is a URL, which hover carries; an event
+        // name and a frequency are vendored constants with nowhere to go.
+        HookTarget::Key { .. }
+        | HookTarget::DocEvent { .. }
+        | HookTarget::Frequency { .. }
+        | HookTarget::Cron { .. } => Vec::new(),
+    }
+}
+
+/// `textDocument/implementation` on a DocType: the classes `hooks.py`
+/// contributes to its controller — spec 21.
+#[must_use]
+pub fn implementations(index: &Index, doctype: &str) -> Vec<Target> {
+    index
+        .controller_extras(doctype)
         .iter()
-        .filter(|method| method.name == name)
-        .map(|method| Target::named(controller.path.clone(), method.range, method.name_range))
+        .map(|extra| Target::named(extra.path.clone(), extra.range, extra.name_range))
         .collect()
+}
+
+fn candidates(index: &Index, dotted: &str, kind: Kind) -> Vec<Target> {
+    index
+        .resolve(dotted, kind)
+        .candidates
+        .iter()
+        .map(target_of)
+        .collect()
+}
+
+/// A module has no symbol to select, so the file itself is the target.
+fn target_of(candidate: &frappe_index::paths::Candidate) -> Target {
+    if candidate.name.is_empty() {
+        Target::file(candidate.path.clone())
+    } else {
+        Target::named(
+            candidate.path.clone(),
+            candidate.range,
+            candidate.selection_range,
+        )
+    }
 }

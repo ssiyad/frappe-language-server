@@ -100,7 +100,7 @@ pub fn table_event(key: &str) -> Option<(&str, TableEvent)> {
 
 /// What a hook's value is expected to name — the schemas of
 /// [12](../../../docs/specs/12-surface-hooks.md).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Schema {
     /// `Path(Callable)`.
     Callable,

@@ -17,10 +17,11 @@ bench and turns those strings into links.
 
 ## Status
 
-Phase 1 (design) complete. Phase 2 answers: go-to-definition, hover and
-completion work on the Python surface, measured against a real bench and
-driven from Neovim. What remains in the phase is the on-disk cache and file
-watching, then the hooks surface.
+Phase 1 (design) complete. Phase 2 done: go-to-definition, hover and completion
+answer on the Python and JavaScript surfaces and inside `hooks.py`, the index
+caches and follows the filesystem, and it is all measured against a real bench
+and driven from Neovim. Phase 3 continues with references, symbols and
+diagnostics.
 
 ## Decisions
 

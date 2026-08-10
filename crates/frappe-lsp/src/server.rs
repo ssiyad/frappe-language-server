@@ -66,6 +66,42 @@ impl Backend {
         }
     }
 
+    /// Run `f` against a `hooks.py` position.
+    ///
+    /// A separate path from [`Self::with_position`] because `hooks.py` is not
+    /// a call surface: the meaning of a string there comes from the hook it
+    /// sits under, not from a call shape
+    /// ([12](../../../docs/specs/12-surface-hooks.md)).
+    fn with_hook<T>(
+        &self,
+        uri: &Uri,
+        position: Position,
+        f: impl FnOnce(&Index, &crate::hooks::Located, Range) -> Option<T>,
+    ) -> Option<T> {
+        let path = uri.to_file_path().map(|path| path.into_owned())?;
+        if !crate::hooks::is_hooks_file(&path) {
+            return None;
+        }
+
+        let index = self.index.read().expect("index lock poisoned by a panic");
+        let state = self.state.read().expect("state lock poisoned by a panic");
+        let buffer = state.buffers.get(uri)?;
+
+        let source = buffer.text();
+        let offset = buffer.offset(frappe_syntax::Position::new(
+            position.line,
+            position.character,
+        ));
+        let located = crate::hooks::at(&index, &source, offset, &path)?;
+
+        let lines = locations::LineIndex::new(&source, state.support.position_encoding);
+        let range = Range {
+            start: lines.position(located.span.start),
+            end: lines.position(located.span.end),
+        };
+        f(&index, &located, range)
+    }
+
     /// Run `f` against whatever sits at `position`.
     ///
     /// The three features differ only in what they do with the answer, so the
@@ -472,28 +508,50 @@ impl LanguageServer for Backend {
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let position = params.text_document_position_params;
-        Ok(
-            self.with_position(&position.text_document.uri, position.position, |ctx| {
-                let body = hover::markdown(ctx.index, &ctx.found)?;
-                let range = ctx.origin_range();
+        let uri = &position.text_document.uri;
+        let markdown_client = self.write(|state| state.support.markdown);
 
-                let contents = if ctx.support.markdown {
-                    HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::Markdown,
-                        value: body,
-                    })
-                } else {
-                    HoverContents::Markup(MarkupContent {
-                        kind: MarkupKind::PlainText,
-                        value: hover::as_plain_text(&body),
-                    })
-                };
-                Some(Hover {
-                    contents,
-                    range: Some(range),
+        if let Some(found) = self.with_hook(uri, position.position, |index, located, range| {
+            let body = hover::hook_markdown(index, &located.target)?;
+            Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: if markdown_client {
+                        MarkupKind::Markdown
+                    } else {
+                        MarkupKind::PlainText
+                    },
+                    value: if markdown_client {
+                        body
+                    } else {
+                        hover::as_plain_text(&body)
+                    },
+                }),
+                range: Some(range),
+            })
+        }) {
+            return Ok(Some(found));
+        }
+
+        Ok(self.with_position(uri, position.position, |ctx| {
+            let body = hover::markdown(ctx.index, &ctx.found)?;
+            let range = ctx.origin_range();
+
+            let contents = if ctx.support.markdown {
+                HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: body,
                 })
-            }),
-        )
+            } else {
+                HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::PlainText,
+                    value: hover::as_plain_text(&body),
+                })
+            };
+            Some(Hover {
+                contents,
+                range: Some(range),
+            })
+        }))
     }
 
     async fn goto_definition(
@@ -501,18 +559,37 @@ impl LanguageServer for Backend {
         params: GotoDefinitionParams,
     ) -> Result<Option<GotoDefinitionResponse>> {
         let position = params.text_document_position_params;
-        Ok(
-            self.with_position(&position.text_document.uri, position.position, |ctx| {
-                let targets = definition::targets(ctx.index, &ctx.found);
-                locations::links(
-                    &targets,
-                    Some(ctx.origin_range()),
-                    ctx.support.position_encoding,
-                    ctx.support.location_link,
-                )
-                .map(Into::into)
-            }),
-        )
+        let uri = &position.text_document.uri;
+
+        // Read before the call, never inside it: `with_hook` holds a read
+        // guard on the state lock for the whole closure, and asking for the
+        // write guard in there deadlocks the thread against itself.
+        let support = self.write(|state| state.support);
+
+        // `hooks.py` is never a call surface, so it is asked first and the
+        // shape tables are not consulted for it at all (spec 12).
+        if let Some(response) = self.with_hook(uri, position.position, |index, located, range| {
+            locations::links(
+                &definition::hook_targets(index, &located.target),
+                Some(range),
+                support.position_encoding,
+                support.location_link,
+            )
+            .map(Into::into)
+        }) {
+            return Ok(Some(response));
+        }
+
+        Ok(self.with_position(uri, position.position, |ctx| {
+            let targets = definition::targets(ctx.index, &ctx.found);
+            locations::links(
+                &targets,
+                Some(ctx.origin_range()),
+                ctx.support.position_encoding,
+                ctx.support.location_link,
+            )
+            .map(Into::into)
+        }))
     }
 
     /// The DocType JSON of whatever the position is anchored to — spec 21.
@@ -539,11 +616,25 @@ impl LanguageServer for Backend {
         )
     }
 
+    /// The classes `override_doctype_class` and `extend_doctype_class`
+    /// contribute to a DocType's controller — spec 21.
     async fn goto_implementation(
         &self,
-        _: GotoImplementationParams,
+        params: GotoImplementationParams,
     ) -> Result<Option<GotoImplementationResponse>> {
-        Ok(None)
+        let position = params.text_document_position_params;
+        Ok(
+            self.with_position(&position.text_document.uri, position.position, |ctx| {
+                let doctype = ctx.found.target.doctype()?;
+                locations::links(
+                    &definition::implementations(ctx.index, doctype),
+                    Some(ctx.origin_range()),
+                    ctx.support.position_encoding,
+                    ctx.support.location_link,
+                )
+                .map(Into::into)
+            }),
+        )
     }
 
     async fn references(&self, _: ReferenceParams) -> Result<Option<Vec<Location>>> {

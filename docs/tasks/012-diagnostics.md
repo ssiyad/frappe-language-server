@@ -1,6 +1,6 @@
 # 012 — Diagnostics
 
-**Phase** 3 · **Depends on** 011
+**Phase** 3 · **Depends on** —
 
 [23](../specs/23-diagnostics.md). The riskiest task in the project; sequenced
 last in phase 3 so it runs on resolution that has already been validated.

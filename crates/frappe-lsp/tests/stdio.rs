@@ -1131,3 +1131,342 @@ fn installing_an_app_is_noticed_without_a_restart() {
 
     std::fs::remove_dir_all(&bench).expect("cleanup");
 }
+
+/// Open an app's real `hooks.py` from the fixture bench.
+fn hooks_session(app: &str) -> (Session, String, String) {
+    let bench = fixture_bench();
+    let relative = format!("apps/{app}/hooks.py");
+    let path = bench.join(&relative);
+    let text = std::fs::read_to_string(&path).expect("a hooks.py");
+
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let uri = format!("file://{}", path.display());
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {
+            "uri": uri, "languageId": "python", "version": 1, "text": text
+        }}),
+    );
+    (session, uri, text)
+}
+
+/// The position of `needle` in `text`, offset by `within`.
+fn position_of(text: &str, needle: &str, within: usize) -> Value {
+    let at = text.find(needle).expect("the needle is in the file") + within;
+    let before = &text[..at];
+    json!({
+        "line": before.matches('\n').count(),
+        "character": before.len() - before.rfind('\n').map_or(0, |n| n + 1),
+    })
+}
+
+#[test]
+fn definition_on_a_doc_events_handler_lands_on_the_function() {
+    let (mut session, uri, text) = hooks_session("library/library");
+    let position = position_of(&text, "library.events.validate_member", 4);
+
+    let result = definition_at(&mut session, 100, &uri, &position);
+    let links = result.as_array().expect("LocationLink[]");
+    assert!(
+        links[0]["targetUri"]
+            .as_str()
+            .expect("uri")
+            .ends_with("events.py"),
+        "{links:?}"
+    );
+    // The function, not the top of the file.
+    assert!(
+        links[0]["targetRange"]["start"]["line"]
+            .as_u64()
+            .expect("line")
+            > 0
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn definition_on_a_doc_events_doctype_key_lands_on_the_doctype() {
+    let (mut session, uri, text) = hooks_session("library/library");
+    // The DocType key of the doc_events map, not the DocType anywhere else.
+    let at = text.find("doc_events").expect("doc_events");
+    let key = text[at..].find("\"Library Member\"").expect("the key") + at + 2;
+    let before = &text[..key];
+    let position = json!({
+        "line": before.matches('\n').count(),
+        "character": before.len() - before.rfind('\n').map_or(0, |n| n + 1),
+    });
+
+    let result = definition_at(&mut session, 100, &uri, &position);
+    let links = result.as_array().expect("LocationLink[]");
+    assert!(
+        links.iter().any(|link| link["targetUri"]
+            .as_str()
+            .is_some_and(|uri| uri.ends_with("library_member.json"))),
+        "{links:?}"
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn hover_on_a_doc_event_says_when_it_fires() {
+    let (mut session, uri, text) = hooks_session("library/library");
+    let position = position_of(&text, "\"on_update\"", 2);
+
+    let response = session.request(
+        100,
+        "textDocument/hover",
+        json!({"textDocument": {"uri": uri}, "position": position}),
+    );
+    let value = response["result"]["contents"]["value"]
+        .as_str()
+        .expect("a body");
+    assert!(value.contains("on_update"), "{value}");
+    assert!(value.contains("After every write"), "{value}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn hover_on_a_hook_key_names_its_schema() {
+    let (mut session, uri, text) = hooks_session("library/library");
+    let position = position_of(&text, "override_doctype_class", 4);
+
+    let response = session.request(
+        100,
+        "textDocument/hover",
+        json!({"textDocument": {"uri": uri}, "position": position}),
+    );
+    let value = response["result"]["contents"]["value"]
+        .as_str()
+        .expect("a body");
+    assert!(value.contains("override_doctype_class"), "{value}");
+    assert!(value.contains("replaces its controller"), "{value}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_wrong_doc_event_and_a_dead_submit_event_are_named() {
+    // circulation's hooks are deliberately wrong — `on_validate` is not an
+    // event, and `on_submit` on a non-submittable DocType never fires.
+    let (mut session, uri, text) = hooks_session("circulation-app/circulation");
+
+    let response = session.request(
+        100,
+        "textDocument/hover",
+        json!({"textDocument": {"uri": uri},
+               "position": position_of(&text, "\"on_validate\"", 2)}),
+    );
+    let value = response["result"]["contents"]["value"]
+        .as_str()
+        .expect("body");
+    assert!(value.contains("never runs"), "{value}");
+
+    let response = session.request(
+        101,
+        "textDocument/hover",
+        json!({"textDocument": {"uri": uri},
+               "position": position_of(&text, "\"on_submit\"", 2)}),
+    );
+    let value = response["result"]["contents"]["value"]
+        .as_str()
+        .expect("body");
+    assert!(value.contains("not submittable"), "{value}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn implementation_on_a_doctype_lists_what_replaces_its_controller() {
+    let source = "import frappe\nfrappe.get_doc(\"Library Mem|ber\", name)\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = session_on(&fixture_bench(), "apps/library/library/probe.py", &text);
+
+    // Spec 21: `definition` goes to the DocType's own controller, and the
+    // class that replaces it answers `implementation` instead.
+    let response = session.request(
+        100,
+        "textDocument/implementation",
+        json!({"textDocument": {"uri": uri}, "position": position}),
+    );
+    let links = response["result"].as_array().expect("LocationLink[]");
+    assert_eq!(links.len(), 1, "{links:?}");
+    assert!(
+        links[0]["targetUri"]
+            .as_str()
+            .expect("uri")
+            .ends_with("overrides.py"),
+        "{links:?}"
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+/// Open a JavaScript buffer in a bench.
+fn js_session(bench: &std::path::Path, relative: &str, text: &str) -> (Session, String) {
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let uri = format!("file://{}", bench.join(relative).display());
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {
+            "uri": uri, "languageId": "javascript", "version": 1, "text": text
+        }}),
+    );
+    (session, uri)
+}
+
+#[test]
+fn definition_on_a_doctype_in_a_form_script_works() {
+    let source = "frappe.ui.form.on(\"Library Mem|ber\", {\n\trefresh(frm) {},\n});\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = js_session(
+        &fixture_bench(),
+        "apps/library/library/public/js/probe.js",
+        &text,
+    );
+
+    let result = definition_at(&mut session, 100, &uri, &position);
+    let links = result.as_array().expect("LocationLink[]");
+    assert!(
+        links.iter().any(|link| link["targetUri"]
+            .as_str()
+            .is_some_and(|uri| uri.ends_with("library_member.json"))),
+        "{links:?}"
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn hover_tells_a_typod_handler_from_a_real_one() {
+    // The classic silent failure spec 11 exists to catch.
+    let source = "frappe.ui.form.on(\"Library Member\", {\n\trefresh(frm) {},\n\tmember_name(frm) {},\n\tloans_add(frm) {},\n\tmemebr_name(frm) {},\n});\n";
+    let (mut session, uri) = js_session(
+        &fixture_bench(),
+        "apps/library/library/public/js/probe.js",
+        source,
+    );
+
+    let hover_at = |session: &mut Session, id: i64, needle: &str| -> String {
+        let at = source.find(needle).expect("needle") + 2;
+        let before = &source[..at];
+        let response = session.request(
+            id,
+            "textDocument/hover",
+            json!({"textDocument": {"uri": uri}, "position": {
+                "line": before.matches('\n').count(),
+                "character": before.len() - before.rfind('\n').map_or(0, |n| n + 1)
+            }}),
+        );
+        response["result"]["contents"]["value"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string()
+    };
+
+    assert!(hover_at(&mut session, 100, "refresh(frm)").contains("lifecycle"));
+    assert!(hover_at(&mut session, 101, "member_name(frm)").contains("when `member_name` changes"));
+    assert!(hover_at(&mut session, 102, "loans_add(frm)").contains("table row"));
+    // Neither an event nor a fieldname: valid JavaScript that never runs.
+    assert!(hover_at(&mut session, 103, "memebr_name(frm)").contains("never fires"));
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn completion_inside_a_handler_map_offers_both_namespaces() {
+    let source = "frappe.ui.form.on(\"Library Member\", {\n\t\"|\": function(frm) {},\n});\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = js_session(
+        &fixture_bench(),
+        "apps/library/library/public/js/probe.js",
+        &text,
+    );
+
+    let response = session.request(
+        100,
+        "textDocument/completion",
+        json!({"textDocument": {"uri": uri}, "position": position,
+               "context": {"triggerKind": 1}}),
+    );
+    let items = response["result"]["items"].as_array().expect("items");
+    let labels: Vec<&str> = items.iter().filter_map(|i| i["label"].as_str()).collect();
+
+    // Spec 11's two namespaces share one keyspace, so completion must too.
+    assert!(labels.contains(&"refresh"), "{labels:?}");
+    assert!(labels.contains(&"member_name"), "{labels:?}");
+    assert!(labels.contains(&"loans_add"), "{labels:?}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn frappe_call_in_javascript_navigates_to_its_python_definition() {
+    let source = "frappe.ui.form.on(\"Library Member\", {\n\trefresh(frm) {\n\t\tfrappe.call({ method: \"library.api.get_member|_summary\" });\n\t},\n});\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = js_session(
+        &fixture_bench(),
+        "apps/library/library/public/js/probe.js",
+        &text,
+    );
+
+    let result = definition_at(&mut session, 100, &uri, &position);
+    let links = result.as_array().expect("LocationLink[]");
+    assert!(
+        links[0]["targetUri"]
+            .as_str()
+            .expect("uri")
+            .ends_with("api.py"),
+        "{links:?}"
+    );
+    // `override_whitelisted_methods` remaps this one, and the call lands on
+    // the replacement at runtime — so navigation goes there first (spec 21).
+    let first = links[0]["targetRange"]["start"]["line"]
+        .as_u64()
+        .expect("line");
+    let v2 = std::fs::read_to_string(fixture_bench().join("apps/library/library/api.py"))
+        .expect("api.py");
+    let expected = v2[..v2.find("def get_member_summary_v2").expect("v2")]
+        .matches('\n')
+        .count();
+    assert!(
+        first as usize >= expected - 1,
+        "expected the remapped target, got line {first}"
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}

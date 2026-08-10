@@ -5,7 +5,7 @@
 //! everything below the fold is the same as absent.
 
 use frappe_index::doctype::Options;
-use frappe_index::resolve::Target as Resolved;
+use frappe_index::resolve::{FormEventKind, Target as Resolved};
 use frappe_index::{DocType, Index, Layer};
 
 use crate::analysis::Found;
@@ -26,9 +26,34 @@ pub fn markdown(index: &Index, found: &Found) -> Option<String> {
         Resolved::DocumentMember { name } => Some(format!(
             "**{name}** — `Document` attribute\n\nDeclared by the framework, not by this DocType."
         )),
+        Resolved::FormEvent {
+            name,
+            doctype,
+            kind,
+        } => Some(form_event(*kind, name, doctype)),
         Resolved::UnknownDocType { .. }
         | Resolved::UnknownField { .. }
         | Resolved::Unresolvable => None,
+    }
+}
+
+/// A form event key, and which of spec 11's two namespaces it came from.
+fn form_event(kind: FormEventKind, name: &str, doctype: &str) -> String {
+    match kind {
+        FormEventKind::Lifecycle => {
+            format!("**{name}** — form lifecycle event\n\nFires on the {doctype} form.")
+        }
+        FormEventKind::Field => format!(
+            "**{name}** — field handler\n\nFires when `{name}` changes on the {doctype} form."
+        ),
+        FormEventKind::TableEvent => format!(
+            "**{name}** — table row event\n\nFires when a row of the table is added or removed."
+        ),
+        // The classic typo'd handler: valid JavaScript, never called, and
+        // invisible to every other tool (spec 11).
+        FormEventKind::Unknown => format!(
+            "**{name}**\n\nNeither an event nor a fieldname on {doctype}. This handler never fires."
+        ),
     }
 }
 
@@ -220,4 +245,146 @@ fn workspace_relative(index: &Index, path: &std::path::Path) -> String {
 #[must_use]
 pub fn as_plain_text(markdown: &str) -> String {
     markdown.replace("**", "").replace('`', "")
+}
+
+/// Hover for a `hooks.py` position.
+///
+/// The value here is orientation: `doc_events` ordering is the single most
+/// common source of confusion, and the answer is otherwise a documentation
+/// page ([22](../../../docs/specs/22-hover.md)).
+#[must_use]
+pub fn hook_markdown(index: &Index, target: &crate::hooks::HookTarget) -> Option<String> {
+    use crate::hooks::HookTarget;
+
+    Some(match target {
+        HookTarget::Key { name, schema } => match schema {
+            Some(schema) => format!(
+                "**{name}** — `{schema:?}`\n\n{}\n\n[Hooks documentation](https://docs.frappe.io/framework/user/en/basics/hooks)",
+                describe(*schema)
+            ),
+            // Reported rather than guessed at: a name frappe never reads does
+            // nothing, silently, which is the whole point of the check.
+            None => format!("**{name}**\n\nNot a hook `frappe` reads. Setting it has no effect."),
+        },
+
+        HookTarget::DocType(name) => {
+            if name == "*" {
+                "**\\*** — every DocType\n\nHandlers registered here run for every document type."
+                    .to_string()
+            } else {
+                return doctype_summary(index, name);
+            }
+        }
+
+        HookTarget::DocEvent {
+            name,
+            known,
+            doctype,
+        } => {
+            let mut out = if *known {
+                format!(
+                    "**{name}** — controller lifecycle event\n\n{}\n",
+                    when(name)
+                )
+            } else {
+                format!("**{name}**\n\nNot an event `frappe` fires; the handler never runs.\n")
+            };
+            // Registering a submit event on a DocType that cannot be submitted
+            // is dead code — spec 12.
+            if let Some(doctype) = doctype
+                && frappe_syntax::generated::is_submit_only(name)
+                && index.doctype(doctype).is_some_and(|d| !d.is_submittable)
+            {
+                out.push_str(&format!(
+                    "\n`{doctype}` is not submittable, so this never fires.\n"
+                ));
+            }
+            out
+        }
+
+        HookTarget::Frequency { name, known } => {
+            if *known {
+                format!("**{name}** — scheduler frequency")
+            } else {
+                format!("**{name}**\n\nNot a frequency the scheduler knows; nothing runs.")
+            }
+        }
+
+        HookTarget::Cron { expression, valid } => {
+            if *valid {
+                format!("`{expression}` — cron expression")
+            } else {
+                format!(
+                    "`{expression}`\n\nNot a valid 5-field cron expression. The scheduler raises on this at sync time, far from here."
+                )
+            }
+        }
+
+        HookTarget::Path { dotted, kind } => {
+            let effective = index.effective_method(dotted);
+            let mut out = format!("**{dotted}** — {kind:?}");
+            if effective != dotted {
+                out.push_str(&format!("\n\nRemapped to `{effective}`."));
+            }
+            match index.resolve(effective, *kind).best() {
+                Some(candidate) => {
+                    out.push_str(&format!("\n\n`{}`", candidate.path.display()));
+                }
+                None => out.push_str("\n\nResolves to nothing in this workspace."),
+            }
+            out
+        }
+
+        HookTarget::Asset { written, file } => match file {
+            Some(path) => format!("**{written}**\n\n`{}`", path.display()),
+            None => format!("**{written}**\n\nNo such file in this app."),
+        },
+    })
+}
+
+fn doctype_summary(index: &Index, name: &str) -> Option<String> {
+    doctype(index, index.doctype(name)?)
+}
+
+fn describe(schema: frappe_syntax::generated::Schema) -> &'static str {
+    use frappe_syntax::generated::Schema;
+    match schema {
+        Schema::Callable => "A dotted path to a function.",
+        Schema::File => "A path to an asset in this app.",
+        Schema::DocEvents => "DocType, then event, then the handler to run.",
+        Schema::MapToClass => "DocType to the class that replaces its controller.",
+        Schema::MapToClasses => "DocType to the classes mixed into its controller.",
+        Schema::MapToCallable => "DocType to a function.",
+        Schema::MapToFile => "DocType to a client script in this app.",
+        Schema::MapPathToPath => "A whitelisted path to the one that replaces it.",
+        Schema::Scheduler => "Frequency to the functions run at it; `cron` takes expressions.",
+        Schema::Fixtures => "DocTypes exported with the app.",
+        Schema::Jinja => "Modules and functions exposed to templates.",
+        Schema::Routes => "Website routes.",
+        Schema::AppNames => "Apps this one requires.",
+        Schema::Unknown => "Read by frappe; nothing here validates its value.",
+    }
+}
+
+/// Where an event sits relative to its neighbours — spec 22 calls the ordering
+/// of `validate` / `before_save` / `on_update` the most common confusion.
+fn when(event: &str) -> &'static str {
+    match event {
+        "before_validate" => "Before `validate`, on every save.",
+        "validate" => "On every save, before the document is written.",
+        "before_save" => "After `validate`, immediately before the write.",
+        "autoname" | "before_naming" => "While the name is being decided, before the first insert.",
+        "before_insert" => "Before the first write only.",
+        "after_insert" => "After the first write only.",
+        "on_update" => "After every write, including the first.",
+        "before_submit" => "Before docstatus moves to 1.",
+        "on_submit" => "After docstatus moves to 1.",
+        "before_cancel" => "Before docstatus moves to 2.",
+        "on_cancel" => "After docstatus moves to 2.",
+        "on_update_after_submit" => "After a write to a submitted document.",
+        "on_change" => "After any write, including `db_set`.",
+        "on_trash" => "Before the row is deleted.",
+        "after_delete" => "After the row is deleted.",
+        _ => "See the hooks documentation for when this fires.",
+    }
 }

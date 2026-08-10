@@ -35,6 +35,7 @@ pub fn complete(
     let mut items = match found.slot.role {
         Role::DocType => doctypes(index, &typed),
         Role::Field | Role::ChildField => fields(index, found, &typed)?,
+        Role::FormEvent => form_events(index, found, &typed)?,
         _ => return None,
     };
 
@@ -173,6 +174,56 @@ fn fields(index: &Index, found: &Found, typed: &str) -> Option<Vec<CompletionIte
     });
 
     Some(items.into_iter().map(|(_, _, item)| item).collect())
+}
+
+/// The keyspace of a `frappe.ui.form.on` handler map — spec 11's two
+/// namespaces plus the table events, which is what makes the typo'd handler
+/// avoidable rather than merely reportable.
+fn form_events(index: &Index, found: &Found, typed: &str) -> Option<Vec<CompletionItem>> {
+    let doctype = index.doctype(found.target.doctype()?)?;
+    let lowered = typed.to_ascii_lowercase();
+    let matches = |name: &str| typed.is_empty() || name.to_ascii_lowercase().contains(&lowered);
+
+    let mut items = Vec::new();
+
+    for event in frappe_syntax::generated::FORM_LIFECYCLE_EVENTS {
+        if matches(event) {
+            items.push(CompletionItem {
+                label: event.to_string(),
+                kind: Some(CompletionItemKind::EVENT),
+                detail: Some("lifecycle".to_string()),
+                ..Default::default()
+            });
+        }
+    }
+
+    for field in &doctype.fields {
+        let fieldname = index.fieldname(field);
+        if matches(fieldname) {
+            items.push(CompletionItem {
+                label: fieldname.to_string(),
+                kind: Some(CompletionItemKind::FIELD),
+                detail: Some(format!("on change · {}", index.fieldtype(field))),
+                ..Default::default()
+            });
+        }
+        // A table field also carries its row events.
+        if matches!(index.options(field), Options::ChildDocType(_)) {
+            for suffix in ["_add", "_remove"] {
+                let name = format!("{fieldname}{suffix}");
+                if matches(&name) {
+                    items.push(CompletionItem {
+                        label: name,
+                        kind: Some(CompletionItemKind::EVENT),
+                        detail: Some("table row".to_string()),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
+    }
+
+    Some(items)
 }
 
 /// Exact prefix matches first — spec 20's first ranking rule.
