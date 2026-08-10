@@ -98,8 +98,363 @@ pub fn table_event(key: &str) -> Option<(&str, TableEvent)> {
     None
 }
 
+/// What a hook's value is expected to name — the schemas of
+/// [12](../../../docs/specs/12-surface-hooks.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Schema {
+    /// `Path(Callable)`.
+    Callable,
+    /// A file path, resolved as an asset ([07](../../../docs/specs/07-dotted-paths.md)).
+    File,
+    /// `Map<DocTypeName, Map<DocEvent, Path | [Path]>>`.
+    DocEvents,
+    /// `Map<DocTypeName, Path(Class)>`.
+    MapToClass,
+    /// `Map<DocTypeName, [Path(Class)]>`.
+    MapToClasses,
+    /// `Map<DocTypeName, Path(Callable)>`.
+    MapToCallable,
+    /// `Map<DocTypeName, File | [File]>`.
+    MapToFile,
+    /// `Map<Path(Whitelisted), Path(Callable)>`.
+    MapPathToPath,
+    /// `Map<Frequency, [Path]>`, with a `cron` sub-map.
+    Scheduler,
+    /// `[DocTypeName | {dt, filters}]`.
+    Fixtures,
+    /// `{methods: [Path], filters: [Path]}`.
+    Jinja,
+    /// `[{from_route, to_route}]`.
+    Routes,
+    /// `[AppName]`.
+    AppNames,
+    /// A known hook with no schema worth checking. Present, never reported.
+    Unknown,
+}
+
+/// Every hook name `frappe` reads, with what its value should name.
+///
+/// The generator takes the union of three sources, because no one of them is
+/// the list: `get_hooks("name")` call sites, `…hooks.get("name")` reads of a
+/// whole hook dict, and the assignments in `frappe/hooks.py`. Missing the
+/// second costs a false `unknown-hook` on `app_color`, which frappe reads that
+/// way and nowhere else. Sorted, so lookup is a binary search.
+pub const HOOKS: [(&str, Schema); 125] = [
+    ("add_to_apps_screen", Schema::Unknown),
+    ("additional_timeline_content", Schema::Unknown),
+    ("after_app_install", Schema::Callable),
+    ("after_app_uninstall", Schema::Callable),
+    ("after_build", Schema::Callable),
+    ("after_file_upload", Schema::Callable),
+    ("after_install", Schema::Callable),
+    ("after_job", Schema::Callable),
+    ("after_migrate", Schema::Callable),
+    ("after_request", Schema::Callable),
+    ("allowed_roles", Schema::Unknown),
+    ("app_color", Schema::Unknown),
+    ("app_description", Schema::Unknown),
+    ("app_email", Schema::Unknown),
+    ("app_home", Schema::Unknown),
+    ("app_include_css", Schema::File),
+    ("app_include_icons", Schema::File),
+    ("app_include_js", Schema::File),
+    ("app_license", Schema::Unknown),
+    ("app_logo_url", Schema::Unknown),
+    ("app_name", Schema::Unknown),
+    ("app_publisher", Schema::Unknown),
+    ("app_title", Schema::Unknown),
+    ("auth_hooks", Schema::Unknown),
+    ("auto_cancel_exempted_doctypes", Schema::Unknown),
+    ("base_template", Schema::File),
+    ("base_template_map", Schema::Unknown),
+    ("before_app_install", Schema::Callable),
+    ("before_app_uninstall", Schema::Callable),
+    ("before_install", Schema::Callable),
+    ("before_job", Schema::Callable),
+    ("before_migrate", Schema::Callable),
+    ("before_request", Schema::Callable),
+    ("before_tests", Schema::Callable),
+    ("calendars", Schema::Unknown),
+    ("clear_cache", Schema::Callable),
+    ("comment_rate_limit", Schema::Unknown),
+    ("communication_doctypes", Schema::Unknown),
+    ("default_log_clearing_doctypes", Schema::Unknown),
+    ("default_mail_footer", Schema::Unknown),
+    ("develop_version", Schema::Unknown),
+    ("doc_events", Schema::DocEvents),
+    ("doctype_js", Schema::MapToFile),
+    ("domains", Schema::Unknown),
+    ("email_append_to", Schema::Unknown),
+    ("email_css", Schema::File),
+    ("export_python_type_annotations", Schema::Unknown),
+    ("extend_bootinfo", Schema::Callable),
+    ("extend_doctype_class", Schema::MapToClasses),
+    ("filters_config", Schema::Unknown),
+    ("fixture_auto_order", Schema::Unknown),
+    ("fixtures", Schema::Fixtures),
+    ("get_print_format_template", Schema::Unknown),
+    ("get_site_info", Schema::Unknown),
+    ("get_web_pages_with_dynamic_routes", Schema::Unknown),
+    ("get_website_user_home_page", Schema::Unknown),
+    ("global_search_doctypes", Schema::Unknown),
+    ("has_comment_permission", Schema::Unknown),
+    ("has_permission", Schema::MapToCallable),
+    ("has_website_permission", Schema::MapToCallable),
+    ("home_page", Schema::Unknown),
+    ("ignore_links_on_delete", Schema::Unknown),
+    ("ignore_translatable_strings_from", Schema::Unknown),
+    ("importable_doctypes", Schema::Unknown),
+    ("jenv", Schema::Unknown),
+    ("jinja", Schema::Jinja),
+    ("look_for_sidebar_json", Schema::Unknown),
+    ("make_email_body_message", Schema::Unknown),
+    ("naming_series_variables", Schema::Unknown),
+    ("notification_config", Schema::Callable),
+    ("notification_self_notify_types", Schema::Unknown),
+    ("notification_skip_email_types", Schema::Unknown),
+    ("on_login", Schema::Callable),
+    ("on_logout", Schema::Callable),
+    ("on_print_pdf", Schema::Unknown),
+    ("on_session_creation", Schema::Callable),
+    ("otp_methods", Schema::Unknown),
+    ("override_doctype_class", Schema::MapToClass),
+    ("override_doctype_dashboards", Schema::Unknown),
+    ("override_whitelisted_methods", Schema::MapPathToPath),
+    ("page_js", Schema::File),
+    ("page_renderer", Schema::Unknown),
+    ("pdf_body_html", Schema::Unknown),
+    ("pdf_footer_html", Schema::Unknown),
+    ("pdf_generator", Schema::Unknown),
+    ("pdf_header_html", Schema::Unknown),
+    ("permission_query_conditions", Schema::MapToCallable),
+    ("persistent_cache_keys", Schema::Unknown),
+    ("portal_menu_items", Schema::Unknown),
+    ("require_type_annotated_api_methods", Schema::Unknown),
+    ("required_apps", Schema::AppNames),
+    ("role_home_page", Schema::Unknown),
+    ("scheduler_events", Schema::Scheduler),
+    ("send_sms", Schema::Unknown),
+    ("send_token_via_sms", Schema::Unknown),
+    ("setup_wizard_complete", Schema::Callable),
+    ("setup_wizard_exception", Schema::Unknown),
+    ("setup_wizard_requires", Schema::Callable),
+    ("setup_wizard_success", Schema::Unknown),
+    ("signup_form_template", Schema::Unknown),
+    ("sounds", Schema::Unknown),
+    ("sqlite_search", Schema::Unknown),
+    ("standard_help_items", Schema::Unknown),
+    ("standard_navbar_items", Schema::Unknown),
+    ("standard_portal_menu_items", Schema::Unknown),
+    ("standard_queries", Schema::MapToCallable),
+    ("template_apps", Schema::Unknown),
+    ("treeviews", Schema::Unknown),
+    ("update_website_context", Schema::Unknown),
+    ("use_json_request_body", Schema::Unknown),
+    ("user_data_fields", Schema::Unknown),
+    ("user_invitation", Schema::Unknown),
+    ("web_include_css", Schema::File),
+    ("web_include_icons", Schema::Unknown),
+    ("web_include_js", Schema::File),
+    ("webform_list_context", Schema::Unknown),
+    ("website_clear_cache", Schema::Unknown),
+    ("website_generators", Schema::Unknown),
+    ("website_path_resolver", Schema::Unknown),
+    ("website_redirects", Schema::Unknown),
+    ("website_route_rules", Schema::Routes),
+    ("website_user_home_page", Schema::Unknown),
+    ("welcome_email", Schema::Unknown),
+    ("workflow_methods", Schema::Unknown),
+    ("write_file_keys", Schema::Unknown),
+];
+
+/// Whether `name` is a hook `frappe` reads.
+#[must_use]
+pub fn is_hook(name: &str) -> bool {
+    HOOKS.binary_search_by_key(&name, |(hook, _)| *hook).is_ok()
+}
+
+/// The schema for a hook, or `None` when the name is not a hook at all.
+#[must_use]
+pub fn hook_schema(name: &str) -> Option<Schema> {
+    HOOKS
+        .binary_search_by_key(&name, |(hook, _)| *hook)
+        .ok()
+        .map(|at| HOOKS[at].1)
+}
+
+/// Controller lifecycle methods a `doc_events` map may name — spec 12.
+pub const DOC_EVENTS: [&str; 21] = [
+    "after_delete",
+    "after_insert",
+    "after_rename",
+    "autoname",
+    "before_cancel",
+    "before_insert",
+    "before_naming",
+    "before_print",
+    "before_rename",
+    "before_save",
+    "before_save_after_submit",
+    "before_submit",
+    "before_update_after_submit",
+    "before_validate",
+    "on_cancel",
+    "on_change",
+    "on_submit",
+    "on_trash",
+    "on_update",
+    "on_update_after_submit",
+    "validate",
+];
+
+/// Events that only fire on a submittable DocType. Registering one elsewhere
+/// is dead code — spec 12.
+pub const SUBMIT_ONLY_EVENTS: [&str; 6] = [
+    "before_cancel",
+    "before_submit",
+    "before_update_after_submit",
+    "on_cancel",
+    "on_submit",
+    "on_update_after_submit",
+];
+
+/// `scheduler_events` keys — spec 12.
+pub const SCHEDULER_FREQUENCIES: [&str; 14] = [
+    "all",
+    "annual",
+    "annual_long",
+    "cron",
+    "daily",
+    "daily_long",
+    "daily_maintenance",
+    "hourly",
+    "hourly_long",
+    "hourly_maintenance",
+    "monthly",
+    "monthly_long",
+    "weekly",
+    "weekly_long",
+];
+
+/// Whether a name is a controller lifecycle event.
+#[must_use]
+pub fn is_doc_event(name: &str) -> bool {
+    DOC_EVENTS.binary_search(&name).is_ok()
+}
+
+/// Whether an event only fires on a submittable DocType.
+#[must_use]
+pub fn is_submit_only(name: &str) -> bool {
+    SUBMIT_ONLY_EVENTS.binary_search(&name).is_ok()
+}
+
+/// Whether a name is a scheduler frequency.
+#[must_use]
+pub fn is_frequency(name: &str) -> bool {
+    SCHEDULER_FREQUENCIES.binary_search(&name).is_ok()
+}
+
+/// Whether a 5-field cron expression is one `croniter` would accept.
+///
+/// Deliberately shallow: ranges, steps and lists are checked for shape and
+/// bounds, names for membership. An expression this rejects is one the
+/// scheduler would refuse at sync time, far from the edit — spec 12.
+#[must_use]
+pub fn is_cron(expression: &str) -> bool {
+    let fields: Vec<&str> = expression.split_whitespace().collect();
+    if fields.len() != 5 {
+        return false;
+    }
+    const BOUNDS: [(u32, u32); 5] = [(0, 59), (0, 23), (1, 31), (1, 12), (0, 7)];
+    fields
+        .iter()
+        .zip(BOUNDS)
+        .all(|(field, bounds)| cron_field(field, bounds))
+}
+
+fn cron_field(field: &str, (low, high): (u32, u32)) -> bool {
+    field.split(',').all(|part| {
+        let (range, step) = match part.split_once('/') {
+            Some((range, step)) => (range, step.parse::<u32>().ok().filter(|s| *s > 0)),
+            None => (part, Some(1)),
+        };
+        if step.is_none() {
+            return false;
+        }
+        if range == "*" {
+            return true;
+        }
+        let within = |value: &str| {
+            value
+                .parse::<u32>()
+                .is_ok_and(|number| number >= low && number <= high)
+        };
+        match range.split_once('-') {
+            Some((from, to)) => within(from) && within(to),
+            None => within(range),
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_vendored_tables_are_sorted_for_binary_search() {
+        let hooks = HOOKS.map(|(name, _)| name);
+        assert!(hooks.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(DOC_EVENTS.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(SUBMIT_ONLY_EVENTS.windows(2).all(|pair| pair[0] < pair[1]));
+        assert!(
+            SCHEDULER_FREQUENCIES
+                .windows(2)
+                .all(|pair| pair[0] < pair[1])
+        );
+    }
+
+    #[test]
+    fn the_hooks_spec_12_names_all_carry_their_schema() {
+        for (name, expected) in [
+            ("doc_events", Schema::DocEvents),
+            ("override_doctype_class", Schema::MapToClass),
+            ("extend_doctype_class", Schema::MapToClasses),
+            ("override_whitelisted_methods", Schema::MapPathToPath),
+            ("scheduler_events", Schema::Scheduler),
+            ("fixtures", Schema::Fixtures),
+            ("jinja", Schema::Jinja),
+            ("app_include_js", Schema::File),
+            ("after_install", Schema::Callable),
+        ] {
+            assert_eq!(hook_schema(name), Some(expected), "{name}");
+        }
+        // A name frappe never reads is not a hook, whatever it looks like.
+        assert_eq!(hook_schema("doctype_javascript"), None);
+        assert!(is_hook("doctype_js"));
+    }
+
+    #[test]
+    fn submit_only_events_are_a_subset_of_doc_events() {
+        for event in SUBMIT_ONLY_EVENTS {
+            assert!(is_doc_event(event), "{event}");
+        }
+    }
+
+    #[test]
+    fn cron_accepts_what_the_scheduler_accepts() {
+        for good in ["0 3 * * *", "*/15 * * * *", "0 0 1 1 0", "5,20 1-4 * * mon"] {
+            let expected = !good.contains("mon");
+            assert_eq!(is_cron(good), expected, "{good}");
+        }
+        for bad in [
+            "0 25 * * *",
+            "* * * *",
+            "60 * * * *",
+            "0 0 32 * *",
+            "*/0 * * * *",
+        ] {
+            assert!(!is_cron(bad), "{bad}");
+        }
+    }
+
     use super::*;
 
     #[test]

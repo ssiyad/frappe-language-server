@@ -13,6 +13,7 @@ pub mod controller;
 pub mod detect;
 pub mod doctype;
 pub mod fieldtypes;
+pub mod hooks;
 pub mod index;
 pub mod installed;
 pub mod intern;

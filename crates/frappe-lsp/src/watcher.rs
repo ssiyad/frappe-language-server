@@ -40,7 +40,11 @@ impl std::fmt::Debug for FileWatcher {
 /// When the platform watcher cannot be created or the root cannot be watched.
 /// A workspace with no watcher still works; it just goes stale, so this is
 /// reported and not fatal.
-pub fn start(roots: &[PathBuf], index: Arc<RwLock<Index>>) -> notify::Result<FileWatcher> {
+pub fn start(
+    roots: &[PathBuf],
+    bench: Option<PathBuf>,
+    index: Arc<RwLock<Index>>,
+) -> notify::Result<FileWatcher> {
     let (sender, receiver) = channel();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<Event>| {
         if let Ok(event) = event {
@@ -54,12 +58,19 @@ pub fn start(roots: &[PathBuf], index: Arc<RwLock<Index>>) -> notify::Result<Fil
     // inotify handles for directories the index never reads, and on a real
     // bench establishing them takes about a second.
     for root in roots {
-        watcher.watch(root, RecursiveMode::Recursive)?;
+        // `sites/` is watched flat: apps.txt and apps.json live directly in it,
+        // and everything below is logs, backups and private files.
+        let mode = if root.file_name().is_some_and(|name| name == "sites") {
+            RecursiveMode::NonRecursive
+        } else {
+            RecursiveMode::Recursive
+        };
+        watcher.watch(root, mode)?;
     }
 
     std::thread::Builder::new()
         .name("frappe-lsp-watcher".to_string())
-        .spawn(move || drain(&receiver, &index))
+        .spawn(move || drain(&receiver, &index, bench.as_deref()))
         .map_err(notify::Error::io)?;
 
     Ok(FileWatcher { _watcher: watcher })
@@ -70,7 +81,7 @@ pub fn start(roots: &[PathBuf], index: Arc<RwLock<Index>>) -> notify::Result<Fil
 /// A single save can produce several events — write, chmod, rename-into-place —
 /// and a `git checkout` produces thousands. Re-indexing per event would spend
 /// more time in the index than the editor spends waiting for it.
-fn drain(receiver: &Receiver<Event>, index: &Arc<RwLock<Index>>) {
+fn drain(receiver: &Receiver<Event>, index: &Arc<RwLock<Index>>, bench: Option<&Path>) {
     let mut pending: HashMap<PathBuf, Instant> = HashMap::new();
 
     loop {
@@ -106,27 +117,57 @@ fn drain(receiver: &Receiver<Event>, index: &Arc<RwLock<Index>>) {
             .map(|(path, _)| path.clone())
             .collect();
 
-        for path in ready {
-            pending.remove(&path);
-            apply(index, &path);
+        for path in &ready {
+            pending.remove(path);
+        }
+        if !ready.is_empty() {
+            apply(index, &ready, bench);
         }
     }
 }
 
-/// Re-index one path. Held guard, short critical section: `reindex` re-parses
-/// one file, and requests block on this lock.
-fn apply(index: &Arc<RwLock<Index>>, path: &Path) {
+/// Re-index a batch under one lock.
+///
+/// One acquisition per batch, not per file: a `git checkout` produces hundreds
+/// of ready paths at once, and taking the write lock for each starves every
+/// reader in between — the index would be unavailable for the whole sweep
+/// rather than once at the end of it.
+fn apply(index: &Arc<RwLock<Index>>, paths: &[PathBuf], bench: Option<&Path>) {
+    // A change to the installed apps changes the merge order behind every app
+    // after it, which no per-file patch expresses (spec 04).
+    if let Some(bench) = bench
+        && paths.iter().any(|path| decides_the_app_set(path))
+    {
+        tracing::info!("the installed apps changed; rebuilding the index");
+        let rebuilt = Index::build(bench);
+        if let Ok(mut index) = index.write() {
+            *index = rebuilt;
+        }
+        return;
+    }
+
     let Ok(mut index) = index.write() else {
         return;
     };
-    let reindexed = index.reindex(path);
-    if reindexed.known {
-        tracing::debug!(
-            path = %path.display(),
-            doctypes = ?reindexed.doctypes,
-            "re-indexed from the filesystem"
-        );
+    let mut touched = 0;
+    for path in paths {
+        if index.reindex(path).known {
+            touched += 1;
+        }
     }
+    if touched > 0 {
+        tracing::debug!(files = touched, "re-indexed from the filesystem");
+    }
+}
+
+/// `sites/apps.txt` and `sites/apps.json` decide which apps exist at all.
+fn decides_the_app_set(path: &Path) -> bool {
+    path.file_name().is_some_and(|name| {
+        (name == "apps.txt" || name == "apps.json" || name == "modules.txt")
+            && path.parent().is_some_and(|parent| {
+                parent.file_name().is_some_and(|dir| dir == "sites") || name == "modules.txt"
+            })
+    })
 }
 
 /// Whether an event means the file's contents changed.
@@ -163,7 +204,10 @@ pub fn interesting(path: &Path) -> bool {
     // or a log rotating under `sites/` is not a schema change.
     match path.extension().and_then(|extension| extension.to_str()) {
         Some("json" | "py") => true,
-        Some("txt") => path.file_name().is_some_and(|name| name == "patches.txt"),
+        Some("txt") => path.file_name().is_some_and(|name| {
+            // `apps.txt` is not indexed content, but it decides what is.
+            name == "patches.txt" || name == "apps.txt" || name == "modules.txt"
+        }),
         _ => false,
     }
 }
@@ -178,9 +222,29 @@ mod tests {
         assert!(interesting(Path::new("/bench/apps/x/x/api.py")));
         assert!(interesting(Path::new("/bench/apps/x/x/patches.txt")));
 
+        // Not indexed content, but they decide what is.
+        assert!(interesting(Path::new("/bench/sites/apps.txt")));
+        assert!(interesting(Path::new("/bench/apps/x/x/modules.txt")));
+
         assert!(!interesting(Path::new("/bench/apps/x/x/README.md")));
-        assert!(!interesting(Path::new("/bench/apps/x/x/modules.txt")));
         assert!(!interesting(Path::new("/bench/sites/x/logs/web.log")));
+    }
+
+    #[test]
+    fn the_files_that_decide_the_app_set_are_recognized() {
+        // These force a rebuild rather than a patch: install order decides the
+        // merge, so no per-file patch can express a change to them.
+        assert!(decides_the_app_set(Path::new("/bench/sites/apps.txt")));
+        assert!(decides_the_app_set(Path::new("/bench/sites/apps.json")));
+        assert!(decides_the_app_set(Path::new(
+            "/bench/apps/x/x/modules.txt"
+        )));
+
+        assert!(!decides_the_app_set(Path::new(
+            "/bench/apps/x/x/patches.txt"
+        )));
+        // A site's own apps.txt is not the bench's.
+        assert!(!decides_the_app_set(Path::new("/bench/sites/x/apps.txt")));
     }
 
     #[test]

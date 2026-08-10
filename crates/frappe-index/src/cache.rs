@@ -44,9 +44,22 @@ impl Stamp {
         })
     }
 
+    /// A stamp for a file that is not there. An input that stays absent is
+    /// unchanged; one that appears is not.
+    fn absent(path: &Path) -> Self {
+        Self {
+            path: path.to_path_buf(),
+            modified: None,
+            len: 0,
+        }
+    }
+
     /// Whether the file on disk still matches.
     fn current(&self) -> bool {
-        Stamp::of(&self.path).is_some_and(|now| now == *self)
+        match Stamp::of(&self.path) {
+            Some(now) => now == *self,
+            None => self.modified.is_none() && self.len == 0,
+        }
     }
 }
 
@@ -56,6 +69,9 @@ struct Cached {
     root: PathBuf,
     index: Index,
     stamps: Vec<Stamp>,
+    /// The files that decide the app set. Stamped separately because a change
+    /// to one cannot be patched — it invalidates the whole cache.
+    discovery: Vec<Stamp>,
 }
 
 /// The cache file for a bench.
@@ -82,6 +98,12 @@ pub fn save(index: &Index, root: &Path, directory: &Path) -> std::io::Result<()>
         stamps: index
             .indexed_files()
             .filter_map(|p| Stamp::of(&p))
+            .collect(),
+        // A missing input stamps as absent, and staying absent is a match.
+        discovery: index
+            .discovery_inputs()
+            .iter()
+            .map(|path| Stamp::of(path).unwrap_or_else(|| Stamp::absent(path)))
             .collect(),
         index: index.clone(),
     };
@@ -113,6 +135,14 @@ pub fn load(root: &Path, directory: &Path) -> Option<Index> {
         bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).ok()?;
 
     if cached.schema != SCHEMA_VERSION || cached.root != root {
+        return None;
+    }
+
+    // An app installed or uninstalled since the cache was written changes both
+    // the app set and the merge order. Reusing the cache then serves a bench
+    // that no longer exists, silently, which is worse than any slow start.
+    if !cached.discovery.iter().all(Stamp::current) {
+        tracing::debug!("the installed apps changed; rebuilding rather than patching");
         return None;
     }
 
@@ -222,6 +252,25 @@ mod tests {
         assert!(loaded.doctype("Library Settings").is_none());
         // And it matches what a full rebuild would have produced.
         assert_eq!(loaded.fingerprint(), Index::build(&bench).fingerprint());
+
+        std::fs::remove_dir_all(&bench).expect("cleanup");
+    }
+
+    #[test]
+    fn installing_an_app_invalidates_the_whole_cache() {
+        let bench = fixture_copy("installed");
+        let built = Index::build(&bench);
+        save(&built, &bench, Path::new(DIRECTORY)).expect("save");
+        assert!(load(&bench, Path::new(DIRECTORY)).is_some());
+
+        // `library-old` is on disk and uninstalled; installing it changes both
+        // the app set and the merge order behind it.
+        let apps = bench.join("sites/apps.txt");
+        let text = std::fs::read_to_string(&apps).expect("apps.txt");
+        std::fs::write(&apps, format!("{text}\nlibrary_archive")).expect("write");
+
+        // No patch can express this, so the cache refuses itself.
+        assert!(load(&bench, Path::new(DIRECTORY)).is_none());
 
         std::fs::remove_dir_all(&bench).expect("cleanup");
     }

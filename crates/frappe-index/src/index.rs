@@ -928,6 +928,26 @@ impl Index {
         doctypes.chain(fixtures).chain(modules)
     }
 
+    /// The files that decide *which* apps are indexed and in what order.
+    ///
+    /// A change to any of these changes the app set or the merge order, which
+    /// no per-file patch can express: install an app and every later app's
+    /// overrides shift behind it.
+    pub fn discovery_inputs(&self) -> Vec<PathBuf> {
+        let mut inputs = Vec::new();
+        if let Some(bench) = self.workspace.detection.bench_root() {
+            inputs.push(bench.join("sites/apps.txt"));
+            inputs.push(bench.join("sites/apps.json"));
+        }
+        inputs.extend(
+            self.workspace
+                .apps
+                .iter()
+                .map(|app| app.package.join("modules.txt")),
+        );
+        inputs
+    }
+
     /// Every file a fresh scan would read. Compared against the cached set so
     /// a file that appeared since has something to be missing from.
     pub fn discoverable_files(&self) -> impl Iterator<Item = PathBuf> + '_ {

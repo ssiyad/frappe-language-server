@@ -154,12 +154,19 @@ impl Backend {
                 .collect();
             // Before the first build finishes there are no packages yet, and
             // the bench root is the only directory known to exist.
-            let roots = if packages.is_empty() {
-                vec![fallback]
+            let mut roots = if packages.is_empty() {
+                vec![fallback.clone()]
             } else {
                 packages
             };
-            watcher::start(&roots, Arc::clone(&index))
+            // `sites/` itself, so an app installed while the editor is open is
+            // noticed. Not recursively: site directories churn constantly and
+            // hold nothing the index reads.
+            let sites = fallback.join("sites");
+            if sites.is_dir() {
+                roots.push(sites);
+            }
+            watcher::start(&roots, Some(fallback), Arc::clone(&index))
         })
         .await;
 

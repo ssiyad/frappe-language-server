@@ -1064,3 +1064,70 @@ fn a_doctype_created_outside_the_editor_is_picked_up() {
 
     std::fs::remove_dir_all(&bench).expect("cleanup");
 }
+
+/// Installing an app while the editor is open.
+///
+/// `library-old` sits in the fixture bench uninstalled, defining two DocTypes
+/// the installed apps also define. Adding it to `apps.txt` changes the app set
+/// and the merge order behind it, which no per-file patch expresses — the
+/// server has to notice and rebuild.
+#[test]
+fn installing_an_app_is_noticed_without_a_restart() {
+    let bench = std::env::temp_dir().join(format!("frappe-lsp-install-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&bench);
+    copy_tree(&fixture_bench(), &bench);
+
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+
+    let before = settled(&mut session, 10);
+    assert_eq!(before["apps"], 3, "{before}");
+    assert_eq!(before["conflicts"], 2, "{before}");
+
+    // `bench install-app` writes both, and apps.json is the authoritative one
+    // (spec 03), so editing only apps.txt would correctly change nothing.
+    let apps_txt = bench.join("sites/apps.txt");
+    let text = std::fs::read_to_string(&apps_txt).expect("apps.txt");
+    std::fs::write(&apps_txt, format!("{text}\nlibrary_archive")).expect("write");
+
+    let apps_json = bench.join("sites/apps.json");
+    let mut installed: Value =
+        serde_json::from_str(&std::fs::read_to_string(&apps_json).expect("apps.json"))
+            .expect("valid JSON");
+    installed["library_archive"] = json!({
+        "idx": 4, "version": "0.0.9", "required": [],
+        "resolution": {"commit_hash": null, "branch": "main"}
+    });
+    std::fs::write(
+        &apps_json,
+        serde_json::to_string_pretty(&installed).expect("json"),
+    )
+    .expect("write");
+
+    let mut after = Value::Null;
+    for attempt in 0..80 {
+        after =
+            session.request(300 + attempt, "frappe-lsp/indexStatus", json!(null))["result"].clone();
+        if after["apps"] == 4 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    assert_eq!(after["apps"], 4, "the install was never noticed: {after}");
+    // Its two DocTypes now collide with the installed ones, which is exactly
+    // what indexing a fourth app is supposed to mean.
+    assert!(
+        after["conflicts"].as_u64().expect("conflicts") > 2,
+        "{after}"
+    );
+
+    session.request(500, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+
+    std::fs::remove_dir_all(&bench).expect("cleanup");
+}

@@ -35,9 +35,13 @@ the build completes.
 - **Debounce.** Watcher events coalesce at 250 ms per path; diagnostics recompute
   at most every 150 ms per buffer. Access events are ignored: the index reads
   every file it indexes, so acting on a read makes indexing trigger indexing.
+- **Batch the re-index.** One write-lock acquisition per debounce batch, not
+  per file. A `git checkout` readies hundreds of paths at once, and taking the
+  lock for each starves readers for the whole sweep rather than once at its end.
 - **Watch the packages, not the bench.** A recursive watch on a bench root also
   covers `sites/`, `node_modules` and `.git`, and establishing it costs about a
-  second of startup for directories the index never reads.
+  second of startup for directories the index never reads. `sites/` itself is
+  watched flat, for `apps.txt` and `apps.json` and nothing below them.
 - **Cancellation.** Honour `$/cancelRequest`. A completion superseded by a newer
   keystroke MUST stop early.
 - **No allocation in the hot path.** Completion filtering reuses a scratch buffer.
@@ -47,7 +51,10 @@ the build completes.
 `<bench>/.frappe-lsp/index.v<N>.bin`, `bincode`. Invalidated by schema version,
 by a different bench root, or by any `(path, mtime, len)` mismatch; only changed
 files are re-parsed, and past half the file set a rebuild is cheaper than a
-patch. Corruption falls back to a full scan and MUST NOT surface an error.
+patch. `sites/apps.txt`, `sites/apps.json` and every `modules.txt` are stamped
+separately and invalidate the cache **whole**: they decide which apps exist and
+in what order, and install order decides the merge, so no per-file patch can
+express a change to one. Corruption falls back to a full scan and MUST NOT surface an error.
 
 Written *after* the index is published, never before: encoding a few MiB and
 stamping every file read takes longer than the build, and doing it first would
