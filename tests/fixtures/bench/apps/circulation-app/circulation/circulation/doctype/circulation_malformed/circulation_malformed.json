@@ -1,0 +1,17 @@
+{
+ "actions": [],
+ "creation": "2026-01-14 09:12:44.201375",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title"
+  }
+ ],
+ "module": "Circulation",
+ "name": "Circulation Malformed",

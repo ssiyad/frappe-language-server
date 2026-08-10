@@ -1,0 +1,33 @@
+[
+ {
+  "creation": "2026-01-14 09:12:44.201375",
+  "docstatus": 0,
+  "doctype": "Custom Field",
+  "dt": "Library Member",
+  "fieldname": "loyalty_points",
+  "fieldtype": "Int",
+  "idx": 1,
+  "insert_after": "loans",
+  "label": "Loyalty Points",
+  "modified": "2026-02-03 11:47:02.884913",
+  "module": "Library",
+  "name": "Library Member-loyalty_points",
+  "owner": "Administrator"
+ },
+ {
+  "creation": "2026-01-14 09:12:44.201375",
+  "docstatus": 0,
+  "doctype": "Custom Field",
+  "dt": "Library Membership",
+  "fieldname": "renewal_of",
+  "fieldtype": "Link",
+  "idx": 2,
+  "insert_after": "to_date",
+  "label": "Renewal Of",
+  "modified": "2026-02-03 11:47:02.884913",
+  "module": "Library",
+  "name": "Library Membership-renewal_of",
+  "options": "Library Membership",
+  "owner": "Administrator"
+ }
+]

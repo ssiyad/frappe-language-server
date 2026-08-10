@@ -6,10 +6,9 @@ Open work only. Delete a file when its task is done.
 
 | # | Task | Depends on |
 | --- | --- | --- |
-| 003 | [Fixture bench](003-fixture-bench.md) | — |
-| 004 | [Workspace discovery](004-workspace-discovery.md) | 003 |
+| 004 | [Workspace discovery](004-workspace-discovery.md) | — |
 | 005 | [DocType index](005-doctype-index.md) | 004 |
-| 006 | [Syntax extraction](006-syntax-extraction.md) | 003 |
+| 006 | [Syntax extraction](006-syntax-extraction.md) | — |
 | 007 | [Python surface](007-python-surface.md) | 005, 006 |
 | 008 | [Definition, hover, completion](008-definition-hover-completion.md) | 007 |
 | 009 | [Index cache and file watching](009-index-cache.md) | 008 |
@@ -41,7 +40,7 @@ Open work only. Delete a file when its task is done.
 
 ## Critical path
 
-`003 → 004 → 005 → 007 → 008` — 006 runs parallel to 004/005.
+`004 → 005 → 007 → 008` — 006 runs parallel to 004/005.
 
 `010` (hooks) sits in phase 2 rather than 3: dotted-path navigation is a large
 share of the grepping this project exists to remove, and hooks feed the index

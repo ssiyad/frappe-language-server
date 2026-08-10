@@ -36,57 +36,70 @@ are checkable without a version.
 
 ## Checks
 
-Severity defaults; all individually configurable ([30](30-configuration.md)).
+The code column is the registry: it is the complete set, and every one is
+configurable with the `frappe-lsp/` prefix dropped ([30](30-configuration.md)).
+Two checks share a code only where they mean the same thing at the same
+severity — `unknown-doctype` covers every code position naming a DocType, while
+a `Link` target in schema JSON gets its own code because it is an Error.
 
 ### Hooks — [12](12-surface-hooks.md)
 
-| Check | Severity |
-| --- | --- |
-| Unknown hook key | Warning |
-| Unknown doc event name | Error |
-| Submit-only event on a non-submittable DocType | Warning |
-| Invalid `scheduler_events` frequency | Error |
-| Invalid cron expression | Error |
-| Unresolvable dotted path | Warning |
-| Wrong path kind (class expected, function found) | Warning |
-| Unknown DocType as a map key | Warning |
-| Missing asset file (`doctype_js`, `app_include_js`) | Warning |
-| Duplicate assignment to one hook key | Warning |
+| Check | Code | Severity |
+| --- | --- | --- |
+| Unknown hook key | `unknown-hook` | Warning |
+| Unknown doc event name | `unknown-doc-event` | Error |
+| Submit-only event on a non-submittable DocType | `non-submittable-event` | Warning |
+| Invalid `scheduler_events` frequency | `unknown-frequency` | Error |
+| Invalid cron expression | `invalid-cron` | Error |
+| Unresolvable dotted path | `unresolvable-path` | Warning |
+| Wrong path kind (class expected, function found) | `wrong-path-kind` | Warning |
+| Unknown DocType as a map key | `unknown-doctype` | Warning |
+| Missing asset file (`doctype_js`, `app_include_js`) | `missing-asset` | Warning |
+| Duplicate assignment to one hook key | `duplicate-hook` | Warning |
+| `app_name` not matching the package directory | `app-name-mismatch` | Warning |
+| `required_apps` naming an app absent from the workspace | `unknown-required-app` | Warning |
+
+The last two are the app-level checks of [12](12-surface-hooks.md); they read
+`hooks.py` but describe the app, not a hook value.
 
 ### Cross-language — [11](11-surface-javascript.md)
 
-| Check | Severity |
-| --- | --- |
-| `frappe.call` to a resolvable method lacking `@frappe.whitelist()` | Error |
-| `frappe.ui.form.on` key matching no event and no fieldname | Warning |
-| `frm.set_value` on a nonexistent field | Warning |
+| Check | Code | Severity |
+| --- | --- | --- |
+| `frappe.call` to a resolvable method lacking `@frappe.whitelist()` | `non-whitelisted-call` | Error |
+| `frappe.ui.form.on` key matching no event and no fieldname | `unknown-form-event` | Warning |
+| `frm.set_value` on a nonexistent field | `unknown-field` | Warning |
 
 The first is the flagship check: it is a guaranteed runtime `PermissionError`,
 provably wrong, and invisible to every other tool.
 
 ### Schema — [04](04-metadata-index.md)
 
-| Check | Severity |
-| --- | --- |
-| `Link`/`Table` `options` naming an unknown DocType | Error |
-| `Table` `options` naming a non-child DocType | Error |
-| `Dynamic Link` `options` naming a nonexistent sibling field | Error |
-| `fetch_from` with an unresolvable half | Warning |
-| `depends_on` referencing a nonexistent sibling field | Warning |
-| `field_order` disagreeing with `fields` | Warning |
-| Duplicate `fieldname` | Error |
-| `title_field` / `sort_field` / `image_field` nonexistent | Warning |
-| Same DocType defined in two apps | Warning, on both |
-| Custom Field colliding with a schema field | Warning |
+| Check | Code | Severity |
+| --- | --- | --- |
+| `Link`/`Table` `options` naming an unknown DocType | `unknown-link-target` | Error |
+| `Table` `options` naming a non-child DocType | `table-not-child` | Error |
+| `Dynamic Link` `options` naming a nonexistent sibling field | `dangling-dynamic-link` | Error |
+| `fetch_from` with an unresolvable half | `unresolvable-fetch-from` | Warning |
+| `depends_on` referencing a nonexistent sibling field | `dangling-depends-on` | Warning |
+| `field_order` disagreeing with `fields` | `field-order-mismatch` | Warning |
+| Duplicate `fieldname` | `duplicate-fieldname` | Error |
+| `title_field` / `sort_field` / `image_field` nonexistent | `unknown-meta-field` | Warning |
+| Same DocType defined in two apps | `duplicate-doctype` | Warning, on both |
+| Custom Field colliding with a schema field | `custom-field-collision` | Warning |
+| DocType JSON that does not parse | `malformed-json` | Error |
+
+`malformed-json` is the file-level diagnostic of [02](02-architecture.md): the
+DocType is dropped, the rest of the app still indexes.
 
 ### Python — [10](10-surface-python.md)
 
-| Check | Severity |
-| --- | --- |
-| Unknown DocType in a literal position | Warning |
-| Unknown field for a resolved DocType | Warning |
-| Parent-only field used on a child DocType binding | Warning |
-| `get_single_value` on a non-Single DocType | Warning |
+| Check | Code | Severity |
+| --- | --- | --- |
+| Unknown DocType in a literal position | `unknown-doctype` | Warning |
+| Unknown field for a resolved DocType | `unknown-field` | Warning |
+| Parent-only field used on a child DocType binding | `parent-field-on-child` | Warning |
+| `get_single_value` on a non-Single DocType | `not-single-doctype` | Warning |
 
 When the generated stub in [24](24-type-integration.md) is active,
 `unknown-field` MUST be suppressed for **attribute access** on bound names —
@@ -100,17 +113,20 @@ Carried over from [`frappe/intellisense`](https://github.com/frappe/intellisense
 which had it right: `_()` and `__()` must receive a literal, because strings are
 extracted statically.
 
-| Check | Severity |
-| --- | --- |
-| f-string inside `_()` | Error |
-| `.format()` applied inside `_()` rather than outside | Error |
-| Concatenation inside `_()` | Error |
-| Non-literal argument to `_()` / `__()` | Warning |
+| Check | Code | Severity |
+| --- | --- | --- |
+| f-string inside `_()` | `translation-literal` | Error |
+| `.format()` applied inside `_()` rather than outside | `translation-literal` | Error |
+| Concatenation inside `_()` | `translation-literal` | Error |
+| Non-literal argument to `_()` / `__()` | `translation-dynamic` | Warning |
 
 ### Patches — [07](07-dotted-paths.md)
 
-Unresolvable patch module (Error), duplicate patch entry (Warning), patch module
-without `execute()` (Warning).
+| Check | Code | Severity |
+| --- | --- | --- |
+| Unresolvable patch module | `unresolvable-patch` | Error |
+| Patch listed twice | `duplicate-patch` | Warning |
+| Patch module without `execute()` | `patch-without-execute` | Warning |
 
 ## Suppression
 
@@ -118,8 +134,10 @@ without `execute()` (Warning).
 - `# frappe-lsp: ignore <code>` for one code.
 - Per-rule severity, including `off`, in configuration.
 
-Every diagnostic MUST carry a stable `code` (`frappe-lsp/unknown-doctype`) and a
-`codeDescription` URL. Without a code, suppression is unusable.
+Every diagnostic MUST carry its `code` from the tables above, prefixed
+(`frappe-lsp/unknown-doctype`), and a `codeDescription` URL. Without a code,
+suppression is unusable. Codes are stable once published: renaming one silently
+disables every suppression comment that names it.
 
 ## Quick fixes
 

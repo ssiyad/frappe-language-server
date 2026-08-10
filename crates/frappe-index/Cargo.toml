@@ -10,5 +10,10 @@ repository.workspace = true
 [dependencies]
 frappe-bridge.workspace = true
 
+[dev-dependencies]
+# Fixture-bench guards re-serialize DocType JSON to compare it byte for byte.
+serde.workspace = true
+serde_json.workspace = true
+
 [lints]
 workspace = true

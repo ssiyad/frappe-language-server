@@ -1,0 +1,17 @@
+[
+ {
+  "creation": "2026-01-14 09:12:44.201375",
+  "docstatus": 0,
+  "doctype": "Custom Field",
+  "dt": "Library Member",
+  "fieldname": "member_name",
+  "fieldtype": "Data",
+  "idx": 1,
+  "insert_after": "loans",
+  "label": "Member Name",
+  "modified": "2026-02-03 11:47:02.884913",
+  "module": "Circulation",
+  "name": "Library Member-member_name",
+  "owner": "Administrator"
+ }
+]

@@ -1,0 +1,17 @@
+{
+ "creation": "2026-01-14 09:12:44.201375",
+ "doctype": "Report",
+ "is_standard": "Yes",
+ "modified": "2026-02-03 11:47:02.884913",
+ "module": "Library",
+ "name": "Member Activity Report",
+ "owner": "Administrator",
+ "ref_doctype": "Library Member",
+ "report_name": "Member Activity Report",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "System Manager"
+  }
+ ]
+}

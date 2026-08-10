@@ -1,0 +1,30 @@
+{
+    "frappe": {
+        "resolution": {
+            "commit_hash": null,
+            "branch": "develop"
+        },
+        "required": [],
+        "idx": 1,
+        "version": "17.0.0-dev"
+    },
+    "library": {
+        "is_repo": true,
+        "resolution": {
+            "commit_hash": "0b2d4e6f8a1c3e5d7f9b1d3f5a7c9e1b3d5f7a9c",
+            "branch": "main"
+        },
+        "required": [],
+        "idx": 2,
+        "version": "0.1.0"
+    },
+    "circulation_app": {
+        "is_repo": false,
+        "resolution": "not a repo",
+        "required": [
+            "library"
+        ],
+        "idx": 3,
+        "version": "0.0.1"
+    }
+}

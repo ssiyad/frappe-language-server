@@ -1,0 +1,13 @@
+{
+ "allow_tests": true,
+ "db_name": "_fixture_library",
+ "db_password": "fixture-not-a-real-password",
+ "db_type": "mariadb",
+ "db_user": "_fixture_library",
+ "developer_mode": 1,
+ "installed_apps": [
+  "frappe",
+  "library",
+  "circulation"
+ ]
+}

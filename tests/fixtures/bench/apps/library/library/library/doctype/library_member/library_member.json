@@ -1,0 +1,96 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:member_name",
+ "creation": "2026-01-14 09:12:44.201375",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "member_name",
+  "email_id",
+  "referred_by",
+  "referred_by_email",
+  "column_break_hkxb",
+  "reference_type",
+  "reference_name",
+  "loans"
+ ],
+ "fields": [
+  {
+   "fieldname": "member_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Member Name",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.member_name",
+   "fieldname": "email_id",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "referred_by",
+   "fieldtype": "Link",
+   "label": "Referred By",
+   "options": "Library Member"
+  },
+  {
+   "fetch_from": "referred_by.email_id",
+   "fieldname": "referred_by_email",
+   "fieldtype": "Data",
+   "label": "Referred By Email",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_hkxb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reference_type",
+   "fieldtype": "Select",
+   "label": "Reference Type",
+   "options": "\nLibrary Membership\nLibrary Loan Item"
+  },
+  {
+   "fieldname": "reference_name",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_type"
+  },
+  {
+   "fieldname": "loans",
+   "fieldtype": "Table",
+   "label": "Loans",
+   "options": "Library Loan Item"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-02-03 11:47:02.884913",
+ "modified_by": "Administrator",
+ "module": "Library",
+ "name": "Library Member",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "member_name",
+ "track_changes": 1
+}

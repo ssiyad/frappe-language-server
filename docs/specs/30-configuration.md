@@ -56,7 +56,8 @@ enabled = true
 ```
 
 Diagnostic keys mirror the codes in [23](23-diagnostics.md) with the
-`frappe-lsp/` prefix dropped.
+`frappe-lsp/` prefix dropped. The block above shows the defaults worth stating;
+every code in [23](23-diagnostics.md) is settable the same way.
 
 ## Credentials
 

@@ -1,0 +1,6 @@
+app_name = "frappe"
+app_title = "Frappe Framework"
+app_publisher = "Frappe Technologies"
+app_description = "Stub app. Real frappe is exercised by the smoke test in specs/32, not here."
+app_email = "developers@frappe.io"
+app_license = "mit"

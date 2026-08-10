@@ -1,6 +1,6 @@
 # 004 — Workspace discovery
 
-**Phase** 2 · **Depends on** 003 · **Blocks** 005
+**Phase** 2 · **Depends on** — · **Blocks** 005
 
 Implements [03](../specs/03-workspace-model.md) in `frappe-index`.
 

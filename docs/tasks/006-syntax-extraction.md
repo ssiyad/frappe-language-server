@@ -1,6 +1,6 @@
 # 006 — Syntax extraction
 
-**Phase** 2 · **Depends on** 003 · **Blocks** 007
+**Phase** 2 · **Depends on** — · **Blocks** 007
 
 `frappe-syntax`: source text → unresolved matches. No index dependency, per
 [02](../specs/02-architecture.md).

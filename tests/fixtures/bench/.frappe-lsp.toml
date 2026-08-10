@@ -1,0 +1,12 @@
+# Committed, team-wide configuration — specs/30 source 1.
+
+[workspace]
+root = "auto"
+exclude = ["**/vendor/**"]
+
+[index]
+cache = true
+
+[diagnostics]
+# The fixture keeps every check on: the point of the tree is that they fire.
+enabled = true

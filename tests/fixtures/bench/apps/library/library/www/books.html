@@ -1,0 +1,10 @@
+{% extends "templates/web.html" %}
+
+{% block page_content %}
+<h1>{{ _("Books") }}</h1>
+<ul>
+	{% for loan in loans %}
+	<li>{{ loan.book_title }} — {{ loan.due_date }}</li>
+	{% endfor %}
+</ul>
+{% endblock %}
