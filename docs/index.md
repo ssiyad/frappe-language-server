@@ -17,11 +17,14 @@ bench and turns those strings into links.
 
 ## Status
 
-Phase 1 (design) complete. Phase 2 done: go-to-definition, hover and completion
-answer on the Python and JavaScript surfaces and inside `hooks.py`, the index
-caches and follows the filesystem, and it is all measured against a real bench
-and driven from Neovim. Phase 3 continues with references, symbols and
-diagnostics.
+Phases 1 and 2 complete. Go-to-definition, hover and completion answer on the
+Python and JavaScript surfaces and inside `hooks.py`; the index caches, follows
+the filesystem, and is measured against a real bench and driven from Neovim.
+
+Phase 3 is under way. Diagnostics publish: the checks decided by a vendored
+table or a parse failure are on, and the two absence checks ship off until they
+can be quiet on correct code — 300 files of `frappe` produce exactly one
+diagnostic, and it is a real bug. References and document symbols are next.
 
 ## Decisions
 

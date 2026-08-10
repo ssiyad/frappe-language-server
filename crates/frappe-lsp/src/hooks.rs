@@ -114,6 +114,82 @@ pub fn at(index: &Index, source: &str, offset: usize, path: &Path) -> Option<Loc
     })
 }
 
+/// Every position in a `hooks.py`, for checks that read the whole file rather
+/// than one cursor.
+#[must_use]
+pub fn all(index: &Index, source: &str, path: &Path) -> Vec<Located> {
+    let Ok(assignments) = frappe_syntax::hooks::read(source) else {
+        return Vec::new();
+    };
+    let package = package_of(index, path);
+    let app = app_of(index, path);
+
+    let mut found = Vec::new();
+    for assignment in &assignments {
+        let schema = generated::hook_schema(&assignment.key);
+        found.push(Located {
+            span: assignment.key_span,
+            target: HookTarget::Key {
+                name: assignment.key.clone(),
+                schema,
+            },
+        });
+        if let Some(schema) = schema {
+            collect(&assignment.value, schema, Depth::Top, None, &mut found);
+        }
+    }
+
+    for located in &mut found {
+        if let HookTarget::Asset { written, .. } = &located.target
+            && let (Some(package), Some(app)) = (package.as_deref(), app.as_deref())
+        {
+            located.target = HookTarget::Asset {
+                written: written.clone(),
+                file: frappe_index::hooks::asset_path(package, app, written),
+            };
+        }
+    }
+    found
+}
+
+/// The same walk as [`within`], collecting instead of stopping.
+fn collect(
+    value: &Value,
+    schema: Schema,
+    depth: Depth,
+    doctype: Option<&str>,
+    found: &mut Vec<Located>,
+) {
+    match value {
+        Value::Text { text, span } => {
+            found.push(leaf(text, interior(*span), schema, depth, doctype))
+        }
+        Value::List(items) => {
+            for item in items {
+                collect(item, schema, depth, doctype, found);
+            }
+        }
+        Value::Map(entries) => {
+            for (key, value) in entries {
+                found.push(map_key(
+                    key.text.as_str(),
+                    interior(key.span),
+                    schema,
+                    depth,
+                    doctype,
+                ));
+                let inner = if depth == Depth::Top && matches!(schema, Schema::DocEvents) {
+                    Some(key.text.as_str())
+                } else {
+                    doctype
+                };
+                collect(value, schema, Depth::Inner, inner, found);
+            }
+        }
+        Value::Scalar(_) | Value::Opaque(_) => {}
+    }
+}
+
 /// How deep into a hook's shape a position is. The same string means different
 /// things at different depths: a `doc_events` key is a DocType, its inner key
 /// is an event, and the leaf is a handler.

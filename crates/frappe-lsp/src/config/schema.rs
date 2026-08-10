@@ -111,8 +111,8 @@ config_schema! {
     #[serde(rename_all = "kebab-case")]
     diagnostics: Diagnostics / DiagnosticsPatch {
         enabled: bool = true,
-        unknown_doctype: Level = Level::Warning,
-        unknown_field: Level = Level::Warning,
+        unknown_doctype: Level = Level::Off,
+        unknown_field: Level = Level::Off,
         non_whitelisted_call: Level = Level::Error,
         unknown_hook: Level = Level::Warning,
         unknown_doc_event: Level = Level::Error,
@@ -195,7 +195,7 @@ mod tests {
         let config = Config::from_patch(&patch("[hover]\nenabled = false\n"));
         assert!(!config.hover.enabled);
         assert_eq!(config.completion.max_items, 1000);
-        assert_eq!(config.diagnostics.unknown_field, Level::Warning);
+        assert_eq!(config.diagnostics.unknown_field, Level::Off);
     }
 
     #[test]

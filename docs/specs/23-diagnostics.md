@@ -96,10 +96,23 @@ DocType is dropped, the rest of the app still indexes.
 
 | Check | Code | Severity |
 | --- | --- | --- |
-| Unknown DocType in a literal position | `unknown-doctype` | Warning |
-| Unknown field for a resolved DocType | `unknown-field` | Warning |
+| Unknown DocType in a literal position | `unknown-doctype` | **Off** |
+| Unknown field for a resolved DocType | `unknown-field` | **Off** |
 | Parent-only field used on a child DocType binding | `parent-field-on-child` | Warning |
 | `get_single_value` on a non-Single DocType | `not-single-doctype` | Warning |
+
+Both absence checks ship **off**, for the same reason `translation-dynamic`
+does. Measured over 300 files of `frappe` 17.0.0-dev: 135 hits on correct code,
+falling to 67 once test files are excluded from absence checks — a test creates
+its DocTypes at runtime, so absence is unknowable in a file whose job is to
+invent the thing being asked about. Whether a file is a test is judged **inside
+the app**, never on the absolute path: a bench can be cloned anywhere, and
+reading the prefix silences a whole workspace for where its owner happened to
+put it. The 67 that remain are attributes assigned
+at runtime (`self.custom_columns = …`) and raw table names Frappe queries
+directly (`Singles`). Learning the first from the controller's own `self.x =`
+assignments is what would make these defaults defensible; until then they stay
+available and quiet.
 
 When the generated stub in [24](24-type-integration.md) is active,
 `unknown-field` MUST be suppressed for **attribute access** on bound names —

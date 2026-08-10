@@ -43,8 +43,15 @@ only be absent or wrong where the user asked a question; a diagnostic speaks
 unprompted about code somebody else wrote, and spec 23's precision rule is what
 keeps that welcome.
 
+Diagnostics publish today, with the check set split by what can be known: a
+name decided by a vendored table or a file that does not parse is reported; a
+name the index merely cannot find is not, until absence is knowable enough to
+be quiet on correct code. Measured, the shipping defaults produce one diagnostic
+across 300 files of `frappe`, and it is a real bug.
+
 **Done when** the nightly real-bench smoke test reports zero diagnostics across
-`frappe` and a custom app ([32](specs/32-testing.md)).
+`frappe` and a custom app ([32](specs/32-testing.md)), with every check carrying
+both a positive and a negative case.
 
 ## Phase 4 — Bridge and templates
 

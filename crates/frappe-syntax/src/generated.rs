@@ -134,14 +134,15 @@ pub enum Schema {
 
 /// Every hook name `frappe` reads, with what its value should name.
 ///
-/// The generator takes the union of three sources, because no one of them is
-/// the list: `get_hooks("name")` call sites, `…hooks.get("name")` reads of a
-/// whole hook dict, and the assignments in `frappe/hooks.py`. Missing the
-/// second costs a false `unknown-hook` on `app_color`, which frappe reads that
-/// way and nowhere else. Sorted, so lookup is a binary search.
-pub const HOOKS: [(&str, Schema); 125] = [
+/// No single source is the list. The generator takes the union of
+/// `get_hooks("name")` call sites, `…hooks.get("name")` reads of a whole hook
+/// dict, the `…via_hook("name")` wrappers that read the `doctype_*_js` family,
+/// and the assignments in `frappe/hooks.py`. Each omission costs a false
+/// `unknown-hook` on correct code: the second source alone accounts for
+/// `app_color`, the third for `doctype_list_js`. Sorted, so lookup is a binary
+/// search.
+pub const HOOKS: [(&str, Schema); 130] = [
     ("add_to_apps_screen", Schema::Unknown),
-    ("additional_timeline_content", Schema::Unknown),
     ("after_app_install", Schema::Callable),
     ("after_app_uninstall", Schema::Callable),
     ("after_build", Schema::Callable),
@@ -182,7 +183,10 @@ pub const HOOKS: [(&str, Schema); 125] = [
     ("default_mail_footer", Schema::Unknown),
     ("develop_version", Schema::Unknown),
     ("doc_events", Schema::DocEvents),
+    ("doctype_calendar_js", Schema::MapToFile),
     ("doctype_js", Schema::MapToFile),
+    ("doctype_list_js", Schema::MapToFile),
+    ("doctype_tree_js", Schema::MapToFile),
     ("domains", Schema::Unknown),
     ("email_append_to", Schema::Unknown),
     ("email_css", Schema::File),
@@ -255,8 +259,11 @@ pub const HOOKS: [(&str, Schema); 125] = [
     ("web_include_css", Schema::File),
     ("web_include_icons", Schema::Unknown),
     ("web_include_js", Schema::File),
+    ("webform_include_css", Schema::File),
+    ("webform_include_js", Schema::File),
     ("webform_list_context", Schema::Unknown),
     ("website_clear_cache", Schema::Unknown),
+    ("website_context", Schema::Unknown),
     ("website_generators", Schema::Unknown),
     ("website_path_resolver", Schema::Unknown),
     ("website_redirects", Schema::Unknown),

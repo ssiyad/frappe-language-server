@@ -25,7 +25,8 @@ use crate::buffers::Buffers;
 use crate::capabilities::{ClientSupport, server_capabilities};
 use crate::config::{Config, ConfigError, ConfigSources};
 use crate::watcher::{self, FileWatcher};
-use crate::{completion, definition, hover, locations};
+use crate::{completion, definition, diagnostics, hover, locations};
+use std::time::Duration;
 
 pub const SERVER_NAME: &str = "frappe-lsp";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -33,7 +34,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Debug)]
 pub struct Backend {
     client: Client,
-    state: RwLock<State>,
+    state: Arc<RwLock<State>>,
     /// Read by every request, replaced once by the background build. Requests
     /// arriving before it finishes are served against the partial index and
     /// say so, rather than blocking or lying
@@ -61,7 +62,7 @@ impl Backend {
     pub fn new(client: Client) -> Self {
         Self {
             client,
-            state: RwLock::new(State::default()),
+            state: Arc::new(RwLock::new(State::default())),
             index: Arc::new(RwLock::new(Index::partial())),
         }
     }
@@ -215,6 +216,62 @@ impl Backend {
             Ok(Err(error)) => tracing::warn!(%error, "could not watch the workspace"),
             Err(error) => tracing::warn!(%error, "watcher setup panicked"),
         }
+    }
+
+    /// Compute and publish diagnostics for one buffer.
+    ///
+    /// Push, because pull is advertised only to clients that asked for it and
+    /// the fallback has to work either way
+    /// ([30](../../../docs/specs/30-configuration.md)).
+    async fn publish(&self, uri: Uri) {
+        let Some(path) = uri.to_file_path().map(|path| path.into_owned()) else {
+            return;
+        };
+
+        let computed = {
+            let index = self.index.read().expect("index lock poisoned by a panic");
+            let state = self.state.read().expect("state lock poisoned by a panic");
+            let Some(buffer) = state.buffers.get(&uri) else {
+                return;
+            };
+            diagnostics::for_buffer(&index, &state.config, &path, &buffer.text())
+        };
+
+        self.client.publish_diagnostics(uri, computed, None).await;
+    }
+
+    /// Publish after a quiet period.
+    ///
+    /// Spec 31 puts diagnostics at most every 150 ms per buffer: recomputing
+    /// per keystroke spends the whole budget on text the user has already
+    /// replaced. A newer edit supersedes an older one by version.
+    fn publish_debounced(&self, uri: &Uri, version: i32) {
+        let uri = uri.clone();
+        let client = self.client.clone();
+        let index = Arc::clone(&self.index);
+        let state = Arc::clone(&self.state);
+
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(150)).await;
+
+            let Some(path) = uri.to_file_path().map(|path| path.into_owned()) else {
+                return;
+            };
+            let computed = {
+                let index = index.read().expect("index lock poisoned by a panic");
+                let state = state.read().expect("state lock poisoned by a panic");
+                let Some(buffer) = state.buffers.get(&uri) else {
+                    return;
+                };
+                // Superseded: a later edit publishes for itself, and this one
+                // would overwrite it with an older answer.
+                if buffer.version() != version {
+                    return;
+                }
+                diagnostics::for_buffer(&index, &state.config, &path, &buffer.text())
+            };
+            client.publish_diagnostics(uri, computed, None).await;
+        });
     }
 
     /// The status of the index as it stands — spec 30's `indexStatus`.
@@ -376,7 +433,10 @@ impl LanguageServer for Backend {
         });
 
         match opened {
-            Ok(true) => tracing::debug!(uri = uri.as_str(), "opened"),
+            Ok(true) => {
+                tracing::debug!(uri = uri.as_str(), "opened");
+                self.publish(uri.clone()).await;
+            }
             Ok(false) => tracing::trace!(
                 uri = uri.as_str(),
                 language = document.language_id,
@@ -404,7 +464,9 @@ impl LanguageServer for Backend {
         // diverged; every position from here on would be computed against the
         // wrong text. A buffer with no grammar was never opened either, and
         // that is the common case, so this stays below warning.
-        if !known {
+        if known {
+            self.publish_debounced(&uri, version);
+        } else {
             tracing::debug!(uri = uri.as_str(), "change for an unopened buffer");
         }
     }
@@ -434,7 +496,11 @@ impl LanguageServer for Backend {
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
-        self.write(|state| state.buffers.close(&params.text_document.uri));
+        let uri = params.text_document.uri;
+        self.write(|state| state.buffers.close(&uri));
+        // A closed buffer keeps its diagnostics in the editor's list forever
+        // unless they are explicitly cleared.
+        self.client.publish_diagnostics(uri, Vec::new(), None).await;
     }
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
@@ -656,16 +722,35 @@ impl LanguageServer for Backend {
         Ok(None)
     }
 
+    /// The pull transport, for clients that advertise it.
     async fn diagnostic(
         &self,
-        _: DocumentDiagnosticParams,
+        params: DocumentDiagnosticParams,
     ) -> Result<DocumentDiagnosticReportResult> {
+        let items = params
+            .text_document
+            .uri
+            .to_file_path()
+            .map(|path| path.into_owned())
+            .map(|path| {
+                let index = self.index.read().expect("index lock poisoned by a panic");
+                let state = self.state.read().expect("state lock poisoned by a panic");
+                state
+                    .buffers
+                    .get(&params.text_document.uri)
+                    .map(|buffer| {
+                        diagnostics::for_buffer(&index, &state.config, &path, &buffer.text())
+                    })
+                    .unwrap_or_default()
+            })
+            .unwrap_or_default();
+
         Ok(DocumentDiagnosticReportResult::Report(
             DocumentDiagnosticReport::Full(RelatedFullDocumentDiagnosticReport {
                 related_documents: None,
                 full_document_diagnostic_report: FullDocumentDiagnosticReport {
                     result_id: None,
-                    items: Vec::new(),
+                    items,
                 },
             }),
         ))

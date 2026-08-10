@@ -1470,3 +1470,213 @@ fn frappe_call_in_javascript_navigates_to_its_python_definition() {
     session.notify("exit", json!(null));
     session.finish();
 }
+
+fn diagnostics_for(session: &mut Session, uri: &str, text: &str) -> Vec<Value> {
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {
+            "uri": uri, "languageId": "python", "version": 1, "text": text
+        }}),
+    );
+    // didOpen publishes immediately. Match on the URI: a session may have
+    // published for another buffer, and taking the first notification would
+    // assert against the wrong file.
+    loop {
+        let message = session.receive();
+        let is_publish = message["method"] == "publishDiagnostics"
+            || message["method"] == "textDocument/publishDiagnostics";
+        if is_publish && message["params"]["uri"] == uri {
+            return message["params"]["diagnostics"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+        }
+    }
+}
+
+#[test]
+fn the_deliberately_wrong_hooks_are_reported_with_their_codes() {
+    let bench = fixture_bench();
+    let path = bench.join("apps/circulation-app/circulation/hooks.py");
+    let text = std::fs::read_to_string(&path).expect("hooks.py");
+
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let found = diagnostics_for(&mut session, &format!("file://{}", path.display()), &text);
+    let codes: Vec<&str> = found.iter().filter_map(|d| d["code"].as_str()).collect();
+
+    // Each of these is decided by a vendored table or by the DocType on disk,
+    // so none can be wrong about code that works.
+    for expected in [
+        "frappe-lsp/unknown-hook",
+        "frappe-lsp/unknown-doc-event",
+        "frappe-lsp/non-submittable-event",
+        "frappe-lsp/unknown-frequency",
+        "frappe-lsp/invalid-cron",
+        "frappe-lsp/duplicate-hook",
+    ] {
+        assert!(
+            codes.contains(&expected),
+            "{expected} missing from {codes:?}"
+        );
+    }
+
+    // Every one carries a code and a place to look it up (spec 23).
+    for diagnostic in &found {
+        assert!(diagnostic["code"].is_string(), "{diagnostic}");
+        assert!(
+            diagnostic["codeDescription"]["href"].is_string(),
+            "{diagnostic}"
+        );
+        assert_eq!(diagnostic["source"], "frappe-lsp");
+    }
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn the_correct_app_produces_no_diagnostics_at_all() {
+    // `library` is correct by construction; anything reported on it is a false
+    // positive, which spec 23's governing rule forbids.
+    let bench = fixture_bench();
+    let path = bench.join("apps/library/library/hooks.py");
+    let text = std::fs::read_to_string(&path).expect("hooks.py");
+
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let found = diagnostics_for(&mut session, &format!("file://{}", path.display()), &text);
+    assert!(found.is_empty(), "false positives: {found:?}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn an_ignore_comment_silences_one_check_and_not_the_others() {
+    let bench = fixture_bench();
+    let path = bench.join("apps/circulation-app/circulation/hooks.py");
+    let text = std::fs::read_to_string(&path).expect("hooks.py");
+
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    // Suppress the unknown hook key only.
+    let silenced = text.replace(
+        "doctype_javascript = {\"Loan\": \"public/js/loan.js\"}",
+        "# frappe-lsp: ignore unknown-hook\ndoctype_javascript = {\"Loan\": \"public/js/loan.js\"}",
+    );
+    let found = diagnostics_for(
+        &mut session,
+        &format!("file://{}", path.display()),
+        &silenced,
+    );
+    let codes: Vec<&str> = found.iter().filter_map(|d| d["code"].as_str()).collect();
+
+    assert!(!codes.contains(&"frappe-lsp/unknown-hook"), "{codes:?}");
+    // The others are untouched: suppression is per code, per line.
+    assert!(codes.contains(&"frappe-lsp/invalid-cron"), "{codes:?}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn the_absence_checks_work_when_a_user_turns_them_on() {
+    // They ship off because they fire on correct frappe code (spec 23), but
+    // off must mean "quiet", not "broken".
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    params.as_object_mut().expect("params is an object").insert(
+        "initializationOptions".to_string(),
+        json!({"diagnostics": {"unknown-doctype": "warning", "unknown-field": "warning"}}),
+    );
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let path = bench.join("apps/library/library/probe.py");
+    let found = diagnostics_for(
+        &mut session,
+        &format!("file://{}", path.display()),
+        "import frappe\nfrappe.get_doc(\"Libary Member\")\nfrappe.get_all(\"Library Member\", pluck=\"emial_id\")\nfrappe.get_doc(\"library member\")\n",
+    );
+    let codes: Vec<&str> = found.iter().filter_map(|d| d["code"].as_str()).collect();
+
+    assert!(codes.contains(&"frappe-lsp/unknown-doctype"), "{codes:?}");
+    assert!(codes.contains(&"frappe-lsp/unknown-field"), "{codes:?}");
+
+    // A case mismatch carries its fix; a typo does not. Frappe is
+    // case-sensitive here, so the near miss is a hint and never a silent
+    // resolution ([04](../specs/04-metadata-index.md)).
+    let messages: Vec<&str> = found.iter().filter_map(|d| d["message"].as_str()).collect();
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("`library member`") && m.contains("did you mean `Library Member`")),
+        "{messages:?}"
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("`Libary Member`") && !m.contains("did you mean")),
+        "{messages:?}"
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_translation_that_cannot_be_extracted_is_reported_by_default() {
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let path = bench.join("apps/library/library/probe.py");
+    let found = diagnostics_for(
+        &mut session,
+        &format!("file://{}", path.display()),
+        "from frappe import _\n\nname = \"x\"\na = _(f\"Loan for {name}\")\nb = _(\"Loan for {0}\").format(name)\n",
+    );
+    let codes: Vec<&str> = found.iter().filter_map(|d| d["code"].as_str()).collect();
+
+    // The f-string is broken; `.format()` applied outside is correct and must
+    // stay silent (spec 23's near miss).
+    assert_eq!(
+        codes
+            .iter()
+            .filter(|code| **code == "frappe-lsp/translation-literal")
+            .count(),
+        1,
+        "{found:?}"
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
