@@ -1,9 +1,9 @@
 # 018 — Test running
 
-**Phase** 3 · **Depends on** 004 · Independent of the surfaces
+**Phase** 3 · **Depends on** — · Independent of the surfaces
 
-[25](../specs/25-test-runner.md). Needs workspace discovery and nothing else — it
-can be built any time after 004 and blocks nothing.
+[25](../specs/25-test-runner.md). Needs workspace discovery, which is done, and
+nothing else. Blocks nothing.
 
 ## Scope
 

@@ -1,6 +1,6 @@
 # 005 — DocType index
 
-**Phase** 2 · **Depends on** 004 · **Blocks** 006, 007, 008
+**Phase** 2 · **Depends on** — · **Blocks** 007, 008
 
 The metadata graph from [04](../specs/04-metadata-index.md).
 

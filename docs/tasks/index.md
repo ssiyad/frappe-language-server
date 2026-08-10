@@ -6,8 +6,7 @@ Open work only. Delete a file when its task is done.
 
 | # | Task | Depends on |
 | --- | --- | --- |
-| 004 | [Workspace discovery](004-workspace-discovery.md) | — |
-| 005 | [DocType index](005-doctype-index.md) | 004 |
+| 005 | [DocType index](005-doctype-index.md) | — |
 | 006 | [Syntax extraction](006-syntax-extraction.md) | — |
 | 007 | [Python surface](007-python-surface.md) | 005, 006 |
 | 008 | [Definition, hover, completion](008-definition-hover-completion.md) | 007 |
@@ -21,7 +20,7 @@ Open work only. Delete a file when its task is done.
 | 011 | [JavaScript surface](011-javascript-surface.md) | 010 |
 | 013 | [References and symbols](013-references-symbols.md) | 011 |
 | 012 | [Diagnostics](012-diagnostics.md) | 011 |
-| 018 | [Test running](018-test-runner.md) | 004 · independent |
+| 018 | [Test running](018-test-runner.md) | — · independent |
 
 ## Phase 4 — Bridge and templates
 
@@ -40,11 +39,12 @@ Open work only. Delete a file when its task is done.
 
 ## Critical path
 
-`004 → 005 → 007 → 008` — 006 runs parallel to 004/005.
+`005 → 007 → 008` — 006 runs parallel to 005.
 
 `010` (hooks) sits in phase 2 rather than 3: dotted-path navigation is a large
 share of the grepping this project exists to remove, and hooks feed the index
 that later surfaces depend on.
 
-`018` needs only 004 and can be pulled forward whenever it is wanted. Phases in
+`018` needs only workspace discovery, which is done, so it can be pulled forward
+whenever it is wanted. Phases in
 [roadmap](../roadmap.md).

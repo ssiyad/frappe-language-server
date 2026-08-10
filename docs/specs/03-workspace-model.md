@@ -66,8 +66,13 @@ Glob `<package>/**/doctype/*/*.json`, then require **all** of:
 3. `doctype == "DocType"`.
 
 This rejects `test_records.json` and the report/fixture JSON that share the
-directory. Verified against `frappe` develop: 316 candidate files, 288 DocTypes,
-28 correctly rejected.
+directory. Measured against `frappe` 17.0.0-dev: 314 candidate files, 286
+DocTypes, 28 rejected — every one of them on rule 1 alone.
+
+The three rules generalize: every exported record lives at
+`<kind>/<name>/<name>.json` where `<kind>` is `scrub` of the record's own
+DocType, so one filter finds DocTypes, Reports, Pages and the rest. Rule 3 for a
+DocType is that rule with `<kind>` = `doctype`.
 
 Sibling files, all optional:
 
@@ -91,6 +96,7 @@ DocTypes below their module directory.
 | Report | `<module>/report/<x>/<x>.{json,py,js}` | `report_type` decides which files exist |
 | Page | `<module>/page/<x>/<x>.{json,js,css}` | |
 | Web form / Print format / Workspace / Dashboard chart | `<module>/<kind>/<x>/<x>.json` | Fixture-shaped |
+| Any other exported record | `<module>/<kind>/<x>/<x>.json` | Same rule; `<kind>` is `scrub` of the record's own DocType |
 | Fixtures | `<app>/fixtures/*.json` | Layer 2 — [04](04-metadata-index.md) |
 | Templates | `<app>/templates/`, `<app>/**/templates/`, `<app>/www/` | [13](13-surface-jinja.md) |
 | Public assets | `<app>/public/js/**`, `*.bundle.js` | Targets of `app_include_js` |

@@ -9,11 +9,13 @@ repository.workspace = true
 
 [dependencies]
 frappe-bridge.workspace = true
+# DocType discovery has to parse each candidate to apply the third rule of
+# spec 03, so the JSON reader is a discovery dependency, not just a test one.
+serde_json.workspace = true
 
 [dev-dependencies]
-# Fixture-bench guards re-serialize DocType JSON to compare it byte for byte.
+# The fixture-bench guards re-serialize JSON to compare it byte for byte.
 serde.workspace = true
-serde_json.workspace = true
 
 [lints]
 workspace = true
