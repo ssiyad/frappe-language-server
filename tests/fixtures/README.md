@@ -70,6 +70,16 @@ both files, installed once with a stale copy on disk is silence.
 call is only clean if Layer 2 was merged, so it is the load-bearing test that
 the merge happened at all.
 
+## Hooks an app invents
+
+`library/hooks.py` sets `loan_policies` and `member_greeters`, which no vendored
+table knows. `library/policy.py` reads them back — the first through
+`frappe.get_hooks("key")`, the second off the `_dict` that a bare `get_hooks()`
+returns. Both keys MUST stay silent: an app-defined hook is as real as a
+built-in one ([12](../../docs/specs/12-surface-hooks.md)), and the two files are
+the negative case for `unknown-hook` that
+[32](../../docs/specs/32-testing.md) requires.
+
 ## Annotations
 
 Sources that take comments carry the expectation inline:

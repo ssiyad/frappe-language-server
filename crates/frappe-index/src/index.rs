@@ -186,6 +186,7 @@ pub struct Index {
     sources: BTreeMap<String, Vec<Source>>,
     fixtures: BTreeMap<PathBuf, LayerTwo>,
     modules: BTreeMap<PathBuf, python::Module>,
+    hook_reads: BTreeSet<String>,
     packages: Vec<(String, PathBuf)>,
     whitelisted: BTreeMap<String, WhitelistedMethod>,
     hooks: BTreeMap<String, crate::hooks::Hooks>,
@@ -237,6 +238,7 @@ impl Index {
             conflicts: Vec::new(),
             problems: Vec::new(),
             hooks: BTreeMap::new(),
+            hook_reads: BTreeSet::new(),
             controller_extras: BTreeMap::new(),
             remapped: BTreeMap::new(),
             confidence: Confidence::Partial,
@@ -265,6 +267,7 @@ impl Index {
             // them rather than starting a second list.
             problems: workspace.problems.clone(),
             hooks: BTreeMap::new(),
+            hook_reads: BTreeSet::new(),
             controller_extras: BTreeMap::new(),
             remapped: BTreeMap::new(),
             workspace,
@@ -426,6 +429,21 @@ impl Index {
                 Err(error) => self.problems.push(Problem::new(path, error.to_string())),
             }
         }
+
+        self.collect_hook_reads();
+    }
+
+    /// Every hook key any app asks for, across the workspace.
+    ///
+    /// Recomputed rather than maintained: a key that stayed in the set after
+    /// its last reader was deleted would silence a real `unknown-hook`, and
+    /// the whole set is a few thousand short strings.
+    fn collect_hook_reads(&mut self) {
+        self.hook_reads = self
+            .modules
+            .values()
+            .flat_map(|module| module.hook_reads.iter().cloned())
+            .collect();
     }
 
     /// Build one DocType from every layer that contributes to it.
@@ -1076,6 +1094,17 @@ impl Index {
         self.hooks.get(app)
     }
 
+    /// Whether any app in the workspace reads `key` back through `get_hooks`.
+    ///
+    /// The vendored registry covers the hooks *frappe* reads. An app may
+    /// invent its own — erpnext defines and consumes `invoice_doctypes` — and
+    /// those are as real as the built-in ones
+    /// ([12](../../../docs/specs/12-surface-hooks.md)).
+    #[must_use]
+    pub fn reads_hook(&self, key: &str) -> bool {
+        self.hook_reads.contains(key)
+    }
+
     /// Every app's hooks, by app name.
     pub fn all_hooks(&self) -> impl Iterator<Item = (&String, &crate::hooks::Hooks)> {
         self.hooks.iter()
@@ -1121,7 +1150,32 @@ impl Index {
                 .doctypes()
                 .map(|record| record.path.clone())
                 .chain(app.artifacts.fixtures.iter().cloned())
+                // Python is walked rather than taken from the artifact lists:
+                // discovery records records and assets, and a controller is
+                // neither. A new `.py` that never appears here is a
+                // whitelisted method the cache will never learn about.
+                .chain(
+                    Walk::new(&app.package)
+                        .filter(|path| path.extension().is_some_and(|e| e == "py")),
+                )
         })
+    }
+
+    /// Replace the discovered picture with a freshly walked one.
+    ///
+    /// The cache stores the workspace it was built from, so the artifact lists
+    /// in it describe the bench as it was. Files added since exist in neither
+    /// the lists nor the stamps, which is how a cache serves an index of a
+    /// bench that no longer exists ([31](../../../docs/specs/31-performance.md)).
+    pub(crate) fn refresh_workspace(&mut self, workspace: Workspace) {
+        self.problems.retain(|problem| {
+            !workspace
+                .problems
+                .iter()
+                .any(|old| old.path == problem.path)
+        });
+        self.problems.extend(workspace.problems.clone());
+        self.workspace = workspace;
     }
 
     /// Re-index one file, patching the graph in place.
@@ -1159,6 +1213,7 @@ impl Index {
         if path.extension().is_some_and(|extension| extension == "py") {
             known = true;
             self.reindex_python(path, &package, &mut affected);
+            self.collect_hook_reads();
         } else if fixtures::is_fixture(&package, path) {
             known = true;
             self.reindex_fixture(path, order, &app, &mut affected);

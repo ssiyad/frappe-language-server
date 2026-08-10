@@ -16,6 +16,30 @@ known to be set, but no value validation runs.
 The hook registry is vendored (name → value schema), pinned per
 [31](31-performance.md), with `frappe/hooks.py` as the canonical example.
 
+### Hooks an app invents
+
+The vendored table covers the hooks *frappe* reads. An app may invent its own:
+`hooks.py` writes the key, the app's own code reads it back, and nothing
+registers it anywhere. erpnext defines and consumes `invoice_doctypes`,
+`period_closing_doctypes` and a dozen more this way.
+
+A key is therefore known if it is in the vendored table **or** any app in the
+workspace reads it. Reads are collected from every `.py` under an app package,
+in each form frappe itself uses:
+
+| Form | Example |
+| --- | --- |
+| Call argument | `frappe.get_hooks("invoice_doctypes")` |
+| `.get()` on the result | `frappe.get_hooks().get("additional_timeline_content")` |
+| Subscript on the result | `frappe.get_hooks()["boot_session"]` |
+| Attribute through a local | `hooks = frappe.get_hooks()` … `hooks.boot_session` |
+
+The last one is why the binding is followed rather than only the call matched:
+frappe reads a good fraction of its own hooks off the `_dict` that `get_hooks`
+returns. A form missed here is an `unknown-hook` on a hook that works, which is
+the failure [23](23-diagnostics.md) forbids — and the first run of the corpus
+check in [32](32-testing.md) found exactly 33 of them.
+
 ## Value schemas
 
 | Schema | Validation |

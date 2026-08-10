@@ -25,8 +25,9 @@ before anything can accuse correct code of being wrong
 **Done when** go-to-definition works on the reference bench within the budgets in
 [31](specs/31-performance.md). Met: on `frappe` 17.0.0-dev plus two custom apps,
 definition lands on the controller in 3 ms against a 10 ms target, hover and
-completion in about 1 ms, cold index 155 ms and warm start 37 ms. Driven from
-Neovim, not only from tests.
+completion in about 1 ms, cold index 155 ms and warm start 37 ms. With `erpnext`
+added — 863 DocTypes, 4 650 modules — cold index 744 ms and warm start 133 ms,
+both inside the budgets. Driven from Neovim, not only from tests.
 
 The JavaScript surface arrived here rather than in phase 3: extraction covered
 both languages from the start, so turning it on was resolution and presentation
@@ -46,12 +47,15 @@ keeps that welcome.
 Diagnostics publish today, with the check set split by what can be known: a
 name decided by a vendored table or a file that does not parse is reported; a
 name the index merely cannot find is not, until absence is knowable enough to
-be quiet on correct code. Measured, the shipping defaults produce one diagnostic
-across 300 files of `frappe`, and it is a real bug.
+be quiet on correct code.
 
-**Done when** the nightly real-bench smoke test reports zero diagnostics across
-`frappe` and a custom app ([32](specs/32-testing.md)), with every check carrying
-both a positive and a negative case.
+`cargo xtask smoke` measures this on every run rather than by hand: over
+`frappe` and `erpnext` — 7 079 files, 863 DocTypes — the shipping defaults
+produce 54 findings, every one of them checked against the source and recorded
+with a reason in `tests/smoke-allowlist.toml`. Anything else fails the job.
+
+**Done when** that check stays clean ([32](specs/32-testing.md)) with every
+check carrying both a positive and a negative case.
 
 ## Phase 4 — Bridge and templates
 

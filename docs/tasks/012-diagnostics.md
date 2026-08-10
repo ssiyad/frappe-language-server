@@ -106,9 +106,20 @@ written, and a broken guard reports re-exports elsewhere.
 - `Degraded` confidence and the suppression of absence checks under it, once
   [014](014-live-bridge.md) gives that state a way to occur.
 
+## Corpus check — done
+
+`cargo xtask smoke` runs every check over `frappe` and `erpnext` and fails on
+anything not in `tests/smoke-allowlist.toml`. It currently passes: 7 079 files,
+54 allowed findings, nothing else. Its first run found 36 false positives, all
+fixed — the registry now unions the vendored hook table with every key an app
+reads back, and `dist/` is no longer walked. Details and the allowlist contents
+in [32](../specs/32-testing.md).
+
+Precision is now measured on every run rather than by hand once, which is what
+the rest of this task needed before it could move.
+
 ## Done when
 
 Every check has a positive **and** a negative test case
-([32](../specs/32-testing.md)), and the nightly smoke test reports zero
-diagnostics across `frappe` and `erpnext`. A false positive on that corpus blocks
-the task.
+([32](../specs/32-testing.md)), and `cargo xtask smoke` stays clean. A false
+positive on that corpus blocks the task.

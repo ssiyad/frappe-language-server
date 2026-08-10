@@ -81,12 +81,18 @@ omission found so far surfaced as a false positive on correct code
 cargo test              # unit, golden, integration
 cargo insta review      # inspect snapshot diffs
 cargo bench             # budgets from [31]        — no benches yet
-cargo xtask smoke       # real bench                — not implemented
+cargo xtask smoke       # real bench, against tests/smoke-allowlist.toml
 ```
 
 Tests that need a real bench skip when there is none, and read one from
 `FRAPPE_LSP_REFERENCE_BENCH`, defaulting to `~/sources/frappe-dev`. CI has no
 bench, so those assertions are only as good as the developer who last ran them.
+
+`cargo xtask smoke` takes the same bench and checks `frappe` and `erpnext` only
+— your own apps are yours, and `--all` widens it for a local look. It fails on
+any finding not in `tests/smoke-allowlist.toml`; `--write` regenerates that file
+and the reasons in it are reviewed by hand before committing. What is on the
+list and why: [32](specs/32-testing.md).
 
 Levels and what belongs in each: [32](specs/32-testing.md).
 

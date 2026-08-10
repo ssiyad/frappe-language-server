@@ -62,6 +62,15 @@ a `Link` target in schema JSON gets its own code because it is an Error.
 The last two are the app-level checks of [12](12-surface-hooks.md); they read
 `hooks.py` but describe the app, not a hook value.
 
+`unknown-hook` fires on a key that is in neither the vendored table nor the set
+an app reads back through `get_hooks` ([12](12-surface-hooks.md)), and never on
+a name Python convention marks as a constant — a leading underscore or ALL_CAPS
+says the author meant a helper, and reporting those would accuse every local in
+the file. Edit distance is not the discriminator: `doctype_js` written as
+`doctype_javascript` is eight edits away and is exactly the mistake worth
+catching, so a near miss is offered as a suggestion rather than used as the
+test.
+
 ### Cross-language — [11](11-surface-javascript.md)
 
 | Check | Code | Severity |

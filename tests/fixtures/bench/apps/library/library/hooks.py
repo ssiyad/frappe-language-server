@@ -87,3 +87,9 @@ website_context = {"brand_html": "Library"}
 # (specs/12). The key is still known to be set.
 _QUERY_CONDITIONS = "library.permissions.member_query_conditions"
 standard_queries = {doctype: _QUERY_CONDITIONS for doctype in ("Library Member",)}
+
+# An app may invent a hook: nothing registers `loan_policies` anywhere, and the
+# only evidence it means something is that `library.policy` asks for it back.
+# Both keys MUST stay silent (specs/12).
+loan_policies = ["library.policy.overdue"]
+member_greeters = ["library.policy.greet"]

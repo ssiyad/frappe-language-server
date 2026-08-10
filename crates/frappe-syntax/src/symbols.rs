@@ -9,7 +9,9 @@
 //! about what a decorator is, and the disagreement would surface as a
 //! diagnostic on correct code.
 
-use tree_sitter::{Node, Tree};
+use std::sync::OnceLock;
+
+use tree_sitter::{Node, Query, QueryCursor, StreamingIterator, Tree};
 
 use crate::language::{GrammarError, Language};
 use crate::matches::Span;
@@ -41,6 +43,13 @@ pub struct Module {
     pub functions: Vec<Function>,
     /// Local names that mean `frappe.whitelist`, aliases included.
     pub whitelist_names: Vec<String>,
+    /// Hook keys this file reads back through `get_hooks`.
+    ///
+    /// An app may invent a hook: `hooks.py` writes the key and the app's own
+    /// code reads it. Nothing registers it anywhere, so the only evidence that
+    /// `invoice_doctypes` means something is that erpnext asks for it
+    /// ([12](../../../docs/specs/12-surface-hooks.md)).
+    pub hook_reads: Vec<String>,
 }
 
 impl Module {
@@ -178,7 +187,133 @@ pub fn read_tree(tree: &Tree, source: &str) -> Module {
         }
     }
 
+    read_hook_reads(tree, source, &mut module.hook_reads);
     module
+}
+
+/// Every shape a hook read takes in frappe's own source. `get_hooks` returns a
+/// `_dict`, so the key arrives as an argument, as a `.get()`, as a subscript,
+/// or — through a local — as an attribute. A form missed here is an
+/// `unknown-hook` on a hook that works, which is the failure spec 23 forbids.
+const HOOK_READS: &str = r#"
+(call
+  function: [(identifier) @name (attribute attribute: (identifier) @name)]
+  arguments: (argument_list . (string (string_content) @key))
+  (#eq? @name "get_hooks"))
+
+(call
+  function: (attribute
+    object: (call function: [(identifier) @name (attribute attribute: (identifier) @name)])
+    attribute: (identifier) @getter)
+  arguments: (argument_list . (string (string_content) @key))
+  (#eq? @getter "get")
+  (#eq? @name "get_hooks"))
+
+(subscript
+  value: (call function: [(identifier) @name (attribute attribute: (identifier) @name)])
+  subscript: (string (string_content) @key)
+  (#eq? @name "get_hooks"))
+"#;
+
+/// `hooks = frappe.get_hooks()` followed by `hooks.boot_session`. Frappe reads
+/// a third of its own hooks this way, so the binding has to be followed.
+const HOOK_BINDINGS: &str = r#"
+(assignment
+  left: (identifier) @variable
+  right: (call function: [(identifier) @name (attribute attribute: (identifier) @name)])
+  (#eq? @name "get_hooks"))
+"#;
+
+const HOOK_ATTRIBUTES: &str = r#"
+(attribute object: (identifier) @object attribute: (identifier) @key)
+"#;
+
+fn read_hook_reads(tree: &Tree, source: &str, into: &mut Vec<String>) {
+    static READS: OnceLock<Option<Query>> = OnceLock::new();
+    static BINDINGS: OnceLock<Option<Query>> = OnceLock::new();
+    static ATTRIBUTES: OnceLock<Option<Query>> = OnceLock::new();
+
+    if let Some(query) = READS.get_or_init(|| compile(HOOK_READS)).as_ref() {
+        for (_, key) in captures(query, tree, source, "key") {
+            push(into, key);
+        }
+    }
+
+    let Some(bindings) = BINDINGS.get_or_init(|| compile(HOOK_BINDINGS)).as_ref() else {
+        return;
+    };
+    let bound: Vec<&str> = captures(bindings, tree, source, "variable")
+        .map(|(_, name)| name)
+        .collect();
+    if bound.is_empty() {
+        return;
+    }
+
+    let Some(attributes) = ATTRIBUTES.get_or_init(|| compile(HOOK_ATTRIBUTES)).as_ref() else {
+        return;
+    };
+    let object = attributes.capture_index_for_name("object");
+    let key = attributes.capture_index_for_name("key");
+    let (Some(object), Some(key)) = (object, key) else {
+        return;
+    };
+
+    let mut cursor = QueryCursor::new();
+    let mut matches = cursor.matches(attributes, tree.root_node(), source.as_bytes());
+    while let Some(matched) = matches.next() {
+        let text = |index: u32| {
+            matched
+                .captures
+                .iter()
+                .find(|capture| capture.index == index)
+                .and_then(|capture| capture.node.utf8_text(source.as_bytes()).ok())
+        };
+        if let (Some(name), Some(attribute)) = (text(object), text(key))
+            && bound.contains(&name)
+        {
+            push(into, attribute);
+        }
+    }
+}
+
+fn compile(pattern: &str) -> Option<Query> {
+    match Query::new(&Language::Python.grammar(), pattern) {
+        Ok(query) => Some(query),
+        // A query that does not compile is a build fault, not a source one.
+        Err(error) => {
+            debug_assert!(false, "hook-read query does not compile: {error}");
+            None
+        }
+    }
+}
+
+/// Every capture named `name`, with the node it came from.
+fn captures<'tree>(
+    query: &'static Query,
+    tree: &'tree Tree,
+    source: &'tree str,
+    name: &str,
+) -> impl Iterator<Item = (Node<'tree>, &'tree str)> {
+    let index = query.capture_index_for_name(name);
+    let mut found = Vec::new();
+    if let Some(index) = index {
+        let mut cursor = QueryCursor::new();
+        let mut matches = cursor.matches(query, tree.root_node(), source.as_bytes());
+        while let Some(matched) = matches.next() {
+            for capture in matched.captures.iter().filter(|c| c.index == index) {
+                if let Ok(text) = capture.node.utf8_text(source.as_bytes()) {
+                    found.push((capture.node, text));
+                }
+            }
+        }
+    }
+    found.into_iter()
+}
+
+fn push(into: &mut Vec<String>, value: &str) {
+    if !into.iter().any(|seen| seen == value) {
+        into.push(value.to_string());
+    }
 }
 
 /// A decorated definition wraps the `def` or `class`; an undecorated one is

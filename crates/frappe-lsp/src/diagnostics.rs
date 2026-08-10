@@ -135,7 +135,7 @@ fn hooks(index: &Index, source: &str, path: &Path) -> Vec<Finding> {
                 // exactly the mistake worth catching. So the rule is the
                 // convention, and the suggestion is offered when there happens
                 // to be one.
-                if !is_private_name(name) {
+                if !is_private_name(name) && !index.reads_hook(name) {
                     let message = match near_miss(name) {
                         Some(suggestion) => format!(
                             "`{name}` is not a hook frappe reads; did you mean `{suggestion}`?"

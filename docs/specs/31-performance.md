@@ -56,12 +56,24 @@ separately and invalidate the cache **whole**: they decide which apps exist and
 in what order, and install order decides the merge, so no per-file patch can
 express a change to one. Corruption falls back to a full scan and MUST NOT surface an error.
 
+Discovery is re-run on load, before the stamps are compared. A file created
+while the server was off has no stamp to fail *and* is absent from the artifact
+lists the cache carries, so a cache that trusts what it stored serves an index
+of a bench that no longer exists — silently, and for as long as that file is
+never edited again. Discovery is the cheap half of a build (65–95 ms against
+744 ms on `frappe` + `erpnext`); skipping it buys a faster start at the price of
+a wrong answer.
+
 Written *after* the index is published, never before: encoding a few MiB and
 stamping every file read takes longer than the build, and doing it first would
-hold back the answer the cache exists to deliver sooner. Measured on `frappe`
-17.0.0-dev plus two custom apps — 331 DocTypes, 2,055 files, a 2.2 MiB cache:
-cold start 155 ms, warm start 37 ms, load 13.7 ms against a 125 ms build. Add
-`.frappe-lsp/` to `.gitignore` guidance in [development](../development.md).
+hold back the answer the cache exists to deliver sooner.
+
+Measured on `frappe` 17.0.0-dev plus `erpnext` and two custom apps — 863
+DocTypes, 14 303 fields, 4 650 Python modules: **cold start 744 ms, warm start
+133 ms** (medians of 5, release). On `frappe` plus the two custom apps alone —
+331 DocTypes, 2 055 files, a 2.2 MiB cache — cold 155 ms and warm 37 ms. Both
+are inside the budgets above. Add `.frappe-lsp/` to `.gitignore` guidance in
+[development](../development.md).
 
 ## Vendored constants
 

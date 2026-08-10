@@ -103,8 +103,13 @@ DocTypes below their module directory.
 
 ## Exclusions
 
-Never traverse: `node_modules/`, `.git/`, `env/`, `sites/assets/`,
-`__pycache__/`, `*.egg-info/`, `sites/*/private/`, `sites/*/public/files/`.
+Never traverse: `node_modules/`, `.git/`, `env/`, `.venv/`, `sites/assets/`,
+`__pycache__/`, `*.egg-info/`, `dist/`, `sites/*/private/`,
+`sites/*/public/files/`.
+
+`dist/` is esbuild's output — frappe's own `.gitignore` names it. The bundles
+under it are minified copies of sources already indexed, and reading them
+reports the minifier's rewrites as the author's mistakes ([32](32-testing.md)).
 
 `sites/` is traversed only for `apps.txt` and `*/site_config.json`.
 

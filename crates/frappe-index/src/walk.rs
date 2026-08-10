@@ -6,7 +6,17 @@ use std::path::{Path, PathBuf};
 /// Directories never traversed. `sites/` is absent because it is never walked
 /// at all — the two files worth reading there are opened by name
 /// ([`crate::site`]).
-const EXCLUDED: [&str; 5] = ["node_modules", ".git", "env", "__pycache__", ".venv"];
+/// `dist` is esbuild's output directory; frappe's own `.gitignore` names it.
+/// The bundles under it are minified copies of sources already indexed, and
+/// reading them reports the minifier's rewrites as the author's mistakes.
+const EXCLUDED: [&str; 6] = [
+    "node_modules",
+    ".git",
+    "env",
+    "__pycache__",
+    ".venv",
+    "dist",
+];
 
 /// True for a directory name the walker must not descend into.
 #[must_use]

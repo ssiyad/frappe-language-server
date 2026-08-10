@@ -13,7 +13,7 @@ use crate::index::Index;
 
 /// Bumped whenever the cached types change shape. An old file is then simply
 /// not this format, which is the same as absent.
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// Default cache directory, relative to the bench root — spec 30.
 pub const DIRECTORY: &str = ".frappe-lsp";
@@ -154,8 +154,13 @@ pub fn load(root: &Path, directory: &Path) -> Option<Index> {
         .map(|stamp| stamp.path.clone())
         .collect();
 
-    // A file that appeared since the cache was written has no stamp to fail,
-    // so the set of files is compared as well as their contents.
+    // A file that appeared since the cache was written has no stamp to fail
+    // and is absent from the artifact lists the cache carries, so discovery is
+    // re-run before the sets are compared. It is the cheap half of a build —
+    // tens of milliseconds against hundreds — and skipping it buys a fast
+    // start at the price of a wrong answer.
+    index.refresh_workspace(crate::workspace::Workspace::discover(root));
+
     let known: std::collections::HashSet<&PathBuf> =
         cached.stamps.iter().map(|stamp| &stamp.path).collect();
     stale.extend(
@@ -251,6 +256,28 @@ mod tests {
         assert!(loaded.doctype("Library Preferences").is_some());
         assert!(loaded.doctype("Library Settings").is_none());
         // And it matches what a full rebuild would have produced.
+        assert_eq!(loaded.fingerprint(), Index::build(&bench).fingerprint());
+
+        std::fs::remove_dir_all(&bench).expect("cleanup");
+    }
+
+    #[test]
+    fn a_file_created_while_the_server_was_off_is_picked_up() {
+        let bench = fixture_copy("created");
+        let built = Index::build(&bench);
+        save(&built, &bench, Path::new(DIRECTORY)).expect("save");
+
+        // A new module has no stamp to fail and appears in no artifact list:
+        // if the cache trusts what it stored, this method stays invisible for
+        // as long as the file is never edited again.
+        std::fs::write(
+            bench.join("apps/library/library/renewals.py"),
+            "import frappe\n\n\n@frappe.whitelist()\ndef renew(loan):\n\treturn loan\n",
+        )
+        .expect("write");
+
+        let loaded = load(&bench, Path::new(DIRECTORY)).expect("a cache");
+        assert!(loaded.whitelisted("library.renewals.renew").is_some());
         assert_eq!(loaded.fingerprint(), Index::build(&bench).fingerprint());
 
         std::fs::remove_dir_all(&bench).expect("cleanup");
