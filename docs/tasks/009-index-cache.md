@@ -1,6 +1,6 @@
 # 009 — Index cache and file watching
 
-**Phase** 2 · **Depends on** 008
+**Phase** 2 · **Depends on** —
 
 Warm start and staying current, per [31](../specs/31-performance.md).
 

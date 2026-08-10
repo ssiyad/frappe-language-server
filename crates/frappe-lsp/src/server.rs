@@ -20,9 +20,11 @@ use tower_lsp_server::{Client, LanguageServer};
 
 use frappe_index::index::{Confidence, Index, IndexStatus};
 
+use crate::analysis::{self, Found};
 use crate::buffers::Buffers;
 use crate::capabilities::{ClientSupport, server_capabilities};
 use crate::config::{Config, ConfigError, ConfigSources};
+use crate::{completion, definition, hover, locations};
 
 pub const SERVER_NAME: &str = "frappe-lsp";
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -58,6 +60,44 @@ impl Backend {
             state: RwLock::new(State::default()),
             index: Arc::new(RwLock::new(Index::partial())),
         }
+    }
+
+    /// Run `f` against whatever sits at `position`.
+    ///
+    /// The three features differ only in what they do with the answer, so the
+    /// locate-match-resolve half of the request flow lives here once
+    /// ([02](../../../docs/specs/02-architecture.md)). `None` from anywhere in
+    /// the chain — an unopened buffer, an unsupported language, a position that
+    /// is not a Frappe surface — means the feature has nothing to say, which is
+    /// the common case and not an error.
+    fn with_position<T>(
+        &self,
+        uri: &Uri,
+        position: Position,
+        f: impl FnOnce(&PositionContext<'_>) -> Option<T>,
+    ) -> Option<T> {
+        let index = self.index.read().expect("index lock poisoned by a panic");
+        let state = self.state.read().expect("state lock poisoned by a panic");
+
+        let buffer = state.buffers.get(uri)?;
+        if !analysis::supported(buffer.language()) {
+            return None;
+        }
+
+        let offset = buffer.offset(frappe_syntax::Position::new(
+            position.line,
+            position.character,
+        ));
+        let path = uri.to_file_path().map(|path| path.into_owned());
+        let context = analysis::context_for(&index, path.as_deref());
+        let found = analysis::at(&index, buffer, offset, context)?;
+
+        f(&PositionContext {
+            index: &index,
+            buffer,
+            found,
+            support: state.support,
+        })
     }
 
     /// The status of the index as it stands — spec 30's `indexStatus`.
@@ -282,30 +322,89 @@ impl LanguageServer for Backend {
         tracing::debug!(changes = params.changes.len(), "watched files changed");
     }
 
-    async fn completion(&self, _: CompletionParams) -> Result<Option<CompletionResponse>> {
-        Ok(None)
+    async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        let position = params.text_document_position;
+        let max_items = self.write(|state| state.config.completion.max_items);
+        Ok(
+            self.with_position(&position.text_document.uri, position.position, |ctx| {
+                completion::complete(ctx.index, ctx.buffer, &ctx.found, ctx.support, max_items)
+            }),
+        )
     }
 
     async fn completion_resolve(&self, item: CompletionItem) -> Result<CompletionItem> {
-        Ok(item)
+        let markdown = self.write(|state| state.support.markdown);
+        let index = self.index.read().expect("index lock poisoned by a panic");
+        Ok(completion::resolve(&index, item, markdown))
     }
 
-    async fn hover(&self, _: HoverParams) -> Result<Option<Hover>> {
-        Ok(None)
+    async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
+        let position = params.text_document_position_params;
+        Ok(
+            self.with_position(&position.text_document.uri, position.position, |ctx| {
+                let body = hover::markdown(ctx.index, &ctx.found)?;
+                let range = ctx.origin_range();
+
+                let contents = if ctx.support.markdown {
+                    HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::Markdown,
+                        value: body,
+                    })
+                } else {
+                    HoverContents::Markup(MarkupContent {
+                        kind: MarkupKind::PlainText,
+                        value: hover::as_plain_text(&body),
+                    })
+                };
+                Some(Hover {
+                    contents,
+                    range: Some(range),
+                })
+            }),
+        )
     }
 
     async fn goto_definition(
         &self,
-        _: GotoDefinitionParams,
+        params: GotoDefinitionParams,
     ) -> Result<Option<GotoDefinitionResponse>> {
-        Ok(None)
+        let position = params.text_document_position_params;
+        Ok(
+            self.with_position(&position.text_document.uri, position.position, |ctx| {
+                let targets = definition::targets(ctx.index, &ctx.found);
+                locations::links(
+                    &targets,
+                    Some(ctx.origin_range()),
+                    ctx.support.position_encoding,
+                    ctx.support.location_link,
+                )
+                .map(Into::into)
+            }),
+        )
     }
 
+    /// The DocType JSON of whatever the position is anchored to — spec 21.
     async fn goto_type_definition(
         &self,
-        _: GotoTypeDefinitionParams,
+        params: GotoTypeDefinitionParams,
     ) -> Result<Option<GotoTypeDefinitionResponse>> {
-        Ok(None)
+        let position = params.text_document_position_params;
+        Ok(
+            self.with_position(&position.text_document.uri, position.position, |ctx| {
+                let name = ctx.found.target.doctype()?;
+                let doctype = ctx.index.doctype(name)?;
+                locations::links(
+                    &[locations::Target::whole(
+                        doctype.path.to_path_buf(),
+                        doctype.range,
+                    )],
+                    Some(ctx.origin_range()),
+                    ctx.support.position_encoding,
+                    ctx.support.location_link,
+                )
+                .map(Into::into)
+            }),
+        )
     }
 
     async fn goto_implementation(
@@ -401,6 +500,28 @@ impl Backend {
             message: "the live bridge is not enabled in this build".into(),
             data: None,
         })
+    }
+}
+
+/// What a request needs about the position it was asked about.
+struct PositionContext<'a> {
+    index: &'a Index,
+    buffer: &'a frappe_syntax::Buffer,
+    found: Found,
+    support: ClientSupport,
+}
+
+impl PositionContext<'_> {
+    /// The string interior, as the protocol wants it — spec 21 requires the
+    /// editor to highlight the name and not the quotes.
+    fn origin_range(&self) -> Range {
+        let span = self.found.origin(self.buffer);
+        let text = self.buffer.text();
+        let lines = locations::LineIndex::new(&text, self.support.position_encoding);
+        Range {
+            start: lines.position(span.start),
+            end: lines.position(span.end),
+        }
     }
 }
 

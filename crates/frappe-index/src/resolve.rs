@@ -76,6 +76,23 @@ pub enum Target {
 }
 
 impl Target {
+    /// The DocType this position hangs off, whether it names the DocType
+    /// itself or a field on one. What `typeDefinition` navigates to
+    /// ([21](../../../docs/specs/21-navigation.md)).
+    #[must_use]
+    pub fn doctype(&self) -> Option<&str> {
+        match self {
+            Self::DocType { name } => Some(name),
+            Self::Field { doctype, .. }
+            | Self::Method { doctype, .. }
+            | Self::UnknownField { doctype, .. } => Some(doctype),
+            Self::Path(_)
+            | Self::DocumentMember { .. }
+            | Self::UnknownDocType { .. }
+            | Self::Unresolvable => None,
+        }
+    }
+
     /// Whether this names something that exists.
     #[must_use]
     pub fn is_resolved(&self) -> bool {

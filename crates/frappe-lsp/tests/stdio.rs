@@ -54,6 +54,16 @@ impl Session {
         }
     }
 
+    /// Wait for the response to `id`, skipping anything else.
+    fn await_id(&mut self, id: i64) -> Value {
+        loop {
+            let message = self.receive();
+            if message.get("id").and_then(Value::as_i64) == Some(id) {
+                return message;
+            }
+        }
+    }
+
     fn notify(&mut self, method: &str, params: Value) {
         self.send(json!({"jsonrpc": "2.0", "method": method, "params": params}));
     }
@@ -503,4 +513,475 @@ fn saving_a_doctype_patches_the_graph_without_a_rebuild() {
     session.finish();
 
     std::fs::remove_dir_all(&bench).expect("cleanup");
+}
+
+/// Open a buffer in a bench and return the session, ready for requests.
+fn session_on(bench: &std::path::Path, relative: &str, text: &str) -> (Session, String) {
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let path = bench.join(relative);
+    let uri = format!("file://{}", path.display());
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {
+            "uri": uri, "languageId": "python", "version": 1, "text": text
+        }}),
+    );
+    (session, uri)
+}
+
+/// The position of `|` in a source, with the marker removed — the cursor
+/// convention of specs/32's golden tests.
+fn cursor(source: &str) -> (String, Value) {
+    let offset = source.find('|').expect("a cursor marker");
+    let before = &source[..offset];
+    let line = before.matches('\n').count();
+    let character = before.len() - before.rfind('\n').map_or(0, |at| at + 1);
+    (
+        source.replace('|', ""),
+        json!({"line": line, "character": character}),
+    )
+}
+
+fn definition_at(session: &mut Session, id: i64, uri: &str, position: &Value) -> Value {
+    let response = session.request(
+        id,
+        "textDocument/definition",
+        json!({"textDocument": {"uri": uri}, "position": position}),
+    );
+    assert!(response.get("error").is_none(), "{response}");
+    response["result"].clone()
+}
+
+#[test]
+fn definition_on_a_doctype_literal_lands_on_its_controller() {
+    let source = "import frappe\n\ndoc = frappe.get_doc(\"Library Me|mber\", name)\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = session_on(&fixture_bench(), "apps/library/library/probe.py", &text);
+
+    let result = definition_at(&mut session, 100, &uri, &position);
+    let links = result.as_array().expect("LocationLink[]");
+
+    // Spec 21's order: controller, then the JSON, then the form script.
+    assert!(
+        links[0]["targetUri"]
+            .as_str()
+            .expect("uri")
+            .ends_with("library_member.py"),
+        "{links:?}"
+    );
+    assert!(
+        links[1]["targetUri"]
+            .as_str()
+            .expect("uri")
+            .ends_with("library_member.json"),
+        "{links:?}"
+    );
+
+    // The origin highlights the name, not the quotes: the literal starts at
+    // character 21, so the interior starts at 22.
+    let origin = &links[0]["originSelectionRange"];
+    assert_eq!(origin["start"]["character"], 22);
+    assert_eq!(origin["end"]["character"], 36);
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn definition_on_a_field_lands_inside_the_doctype_json() {
+    let source = "import frappe\nfrappe.get_all(\"Library Member\", pluck=\"emai|l_id\")\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = session_on(&fixture_bench(), "apps/library/library/probe.py", &text);
+
+    let result = definition_at(&mut session, 100, &uri, &position);
+    let links = result.as_array().expect("LocationLink[]");
+    assert_eq!(links.len(), 1);
+
+    assert!(
+        links[0]["targetUri"]
+            .as_str()
+            .expect("uri")
+            .ends_with("library_member.json"),
+        "{links:?}"
+    );
+    // The field's own object, not the top of the file.
+    assert!(
+        links[0]["targetRange"]["start"]["line"]
+            .as_u64()
+            .expect("line")
+            > 0
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn definition_says_nothing_on_a_dynamic_argument() {
+    let source = "import frappe\nfrappe.get_doc(doct|ype, name)\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = session_on(&fixture_bench(), "apps/library/library/probe.py", &text);
+
+    let result = definition_at(&mut session, 100, &uri, &position);
+    assert!(result.is_null(), "{result}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn hover_describes_a_doctype() {
+    let source = "import frappe\nfrappe.get_doc(\"Library Mem|bership\")\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = session_on(&fixture_bench(), "apps/library/library/probe.py", &text);
+
+    let response = session.request(
+        100,
+        "textDocument/hover",
+        json!({"textDocument": {"uri": uri}, "position": position}),
+    );
+    let contents = &response["result"]["contents"];
+    assert_eq!(contents["kind"], "markdown");
+
+    let value = contents["value"].as_str().expect("a body");
+    assert!(value.contains("Library Membership"), "{value}");
+    assert!(value.contains("Submittable"), "{value}");
+    // Spec 22: never more than ~15 lines, because the popup is small.
+    assert!(value.lines().count() <= 15, "{value}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn hover_on_a_field_states_where_a_custom_field_came_from() {
+    // `loyalty_points` exists only in the fixtures file, so grep for it in the
+    // schema and you find nothing — spec 22 makes hover say so.
+    let source = "import frappe\nfrappe.get_all(\"Library Member\", pluck=\"loyalty_po|ints\")\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = session_on(&fixture_bench(), "apps/library/library/probe.py", &text);
+
+    let response = session.request(
+        100,
+        "textDocument/hover",
+        json!({"textDocument": {"uri": uri}, "position": position}),
+    );
+    let value = response["result"]["contents"]["value"]
+        .as_str()
+        .expect("a body");
+    assert!(value.contains("Custom Field"), "{value}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn hover_says_nothing_where_nothing_resolved() {
+    let source = "import frappe\nfrappe.get_doc(doct|ype, name)\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = session_on(&fixture_bench(), "apps/library/library/probe.py", &text);
+
+    let response = session.request(
+        100,
+        "textDocument/hover",
+        json!({"textDocument": {"uri": uri}, "position": position}),
+    );
+    assert!(response["result"].is_null(), "{response}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn completion_offers_doctypes_and_replaces_only_the_string_interior() {
+    let source = "import frappe\nfrappe.get_doc(\"Library |\")\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = session_on(&fixture_bench(), "apps/library/library/probe.py", &text);
+
+    let response = session.request(
+        100,
+        "textDocument/completion",
+        json!({"textDocument": {"uri": uri}, "position": position,
+               "context": {"triggerKind": 1}}),
+    );
+    let items = response["result"]["items"].as_array().expect("items");
+    assert!(!items.is_empty(), "{response}");
+
+    let labels: Vec<&str> = items
+        .iter()
+        .filter_map(|item| item["label"].as_str())
+        .collect();
+    assert!(labels.contains(&"Library Member"), "{labels:?}");
+    assert!(labels[0].starts_with("Library "), "{labels:?}");
+
+    // The edit covers the interior: the literal opens at character 15, so the
+    // replacement starts at 16 and the quotes survive.
+    let edit = &items[0]["textEdit"];
+    assert_eq!(edit["range"]["start"]["character"], 16);
+    assert_eq!(edit["newText"], labels[0]);
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn completion_offers_the_fields_of_the_resolved_doctype() {
+    let source = "import frappe\nfrappe.get_all(\"Library Member\", fields=[\"|\"])\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = session_on(&fixture_bench(), "apps/library/library/probe.py", &text);
+
+    let response = session.request(
+        100,
+        "textDocument/completion",
+        json!({"textDocument": {"uri": uri}, "position": position,
+               "context": {"triggerKind": 1}}),
+    );
+    let items = response["result"]["items"].as_array().expect("items");
+    let labels: Vec<&str> = items
+        .iter()
+        .filter_map(|item| item["label"].as_str())
+        .collect();
+
+    assert!(labels.contains(&"member_name"), "{labels:?}");
+    // Layer 2 is merged, so the Custom Field is offered too.
+    assert!(labels.contains(&"loyalty_points"), "{labels:?}");
+
+    // Implicit fields are valid and almost never what is being typed, so they
+    // rank last (spec 20).
+    let implicit = labels
+        .iter()
+        .position(|label| *label == "name")
+        .expect("name");
+    let declared = labels
+        .iter()
+        .position(|label| *label == "member_name")
+        .expect("member_name");
+    assert!(declared < implicit, "{labels:?}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn completion_resolve_fills_documentation_lazily() {
+    let source = "import frappe\nfrappe.get_doc(\"Library |\")\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = session_on(&fixture_bench(), "apps/library/library/probe.py", &text);
+
+    let response = session.request(
+        100,
+        "textDocument/completion",
+        json!({"textDocument": {"uri": uri}, "position": position,
+               "context": {"triggerKind": 1}}),
+    );
+    let item = response["result"]["items"][0].clone();
+    // Building markdown for every candidate on every keystroke blows the
+    // budget, so it is absent until asked for (spec 20).
+    assert!(item["documentation"].is_null(), "{item}");
+
+    let resolved = session.request(101, "completionItem/resolve", item);
+    let documentation = &resolved["result"]["documentation"];
+    assert_eq!(documentation["kind"], "markdown");
+    assert!(
+        documentation["value"]
+            .as_str()
+            .expect("body")
+            .contains("fields"),
+        "{documentation}"
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn type_definition_on_a_field_goes_to_the_doctype_json() {
+    let source = "import frappe\nfrappe.get_all(\"Library Member\", pluck=\"membe|r_name\")\n";
+    let (text, position) = cursor(source);
+    let (mut session, uri) = session_on(&fixture_bench(), "apps/library/library/probe.py", &text);
+
+    let response = session.request(
+        100,
+        "textDocument/typeDefinition",
+        json!({"textDocument": {"uri": uri}, "position": position}),
+    );
+    let links = response["result"].as_array().expect("LocationLink[]");
+    assert!(
+        links[0]["targetUri"]
+            .as_str()
+            .expect("uri")
+            .ends_with("library_member.json"),
+        "{links:?}"
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+fn reference_bench() -> Option<std::path::PathBuf> {
+    let bench = std::env::var_os("FRAPPE_LSP_REFERENCE_BENCH")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME")
+                .map(|home| std::path::PathBuf::from(home).join("sources/frappe-dev"))
+        })?;
+    bench.join("sites").is_dir().then_some(bench)
+}
+
+/// The "done when" of task 008, over stdio against a real bench.
+///
+/// Budgets are spec 31's ceilings — 30 ms for definition and hover, 50 ms for
+/// completion — measured as the client sees them, request to response, with
+/// the index already built.
+#[test]
+fn navigation_works_on_the_reference_bench_inside_its_budgets() {
+    let Some(bench) = reference_bench() else {
+        eprintln!("skipped: no reference bench (set FRAPPE_LSP_REFERENCE_BENCH)");
+        return;
+    };
+
+    // A DocType from frappe, and one from a custom app in the same bench.
+    let source = "import frappe\n\
+                  a = frappe.get_doc(\"User\", name)\n\
+                  b = frappe.get_all(\"Vault Node\", fields=[\"node_name\"])\n\
+                  c = frappe.get_all(\"User\", pluck=\"full_name\")\n";
+    let (mut session, uri) = session_on(&bench, "apps/frappe/frappe/probe.py", source);
+
+    // The median of several samples, not one. A budget describes what the
+    // server does; a single sample also describes whatever else the machine
+    // was doing at that instant, and this suite runs beside a compiler.
+    let timed = |session: &mut Session, id: i64, method: &str, params: Value| {
+        let mut elapsed = Vec::new();
+        let mut response = Value::Null;
+        for attempt in 0..5 {
+            let started = std::time::Instant::now();
+            response = session.request(id + attempt, method, params.clone());
+            elapsed.push(started.elapsed());
+        }
+        elapsed.sort_unstable();
+        (response, elapsed[elapsed.len() / 2])
+    };
+
+    let position = |line: u32, character: u32| json!({"line": line, "character": character});
+    let document = json!({"uri": uri});
+
+    // Definition on a frappe DocType.
+    let (response, definition_frappe) = timed(
+        &mut session,
+        100,
+        "textDocument/definition",
+        json!({"textDocument": document, "position": position(1, 22)}),
+    );
+    let links = response["result"].as_array().expect("LocationLink[]");
+    assert!(
+        links[0]["targetUri"]
+            .as_str()
+            .expect("uri")
+            .ends_with("core/doctype/user/user.py"),
+        "{links:?}"
+    );
+
+    // Definition on a custom app's DocType, in the same session.
+    let (response, definition_custom) = timed(
+        &mut session,
+        110,
+        "textDocument/definition",
+        json!({"textDocument": document, "position": position(2, 22)}),
+    );
+    let links = response["result"].as_array().expect("LocationLink[]");
+    assert!(
+        links[0]["targetUri"]
+            .as_str()
+            .expect("uri")
+            .ends_with("vault_node.py"),
+        "{links:?}"
+    );
+
+    let (response, hover) = timed(
+        &mut session,
+        120,
+        "textDocument/hover",
+        json!({"textDocument": document, "position": position(3, 22)}),
+    );
+    assert!(
+        response["result"]["contents"]["value"]
+            .as_str()
+            .expect("a hover body")
+            .contains("User"),
+        "{response}"
+    );
+
+    let (response, completion) = timed(
+        &mut session,
+        130,
+        "textDocument/completion",
+        json!({"textDocument": document, "position": position(3, 40),
+               "context": {"triggerKind": 1}}),
+    );
+    assert!(
+        !response["result"]["items"]
+            .as_array()
+            .expect("items")
+            .is_empty(),
+        "{response}"
+    );
+
+    eprintln!(
+        "definition {definition_frappe:?} (frappe) / {definition_custom:?} (custom app), \
+         hover {hover:?}, completion {completion:?}"
+    );
+
+    // Spec 31's ceilings. The targets are 10/10/20 ms; these are the numbers a
+    // regression would have to cross before a user notices.
+    assert!(definition_frappe.as_millis() < 30, "{definition_frappe:?}");
+    assert!(definition_custom.as_millis() < 30, "{definition_custom:?}");
+    assert!(hover.as_millis() < 30, "{hover:?}");
+    assert!(completion.as_millis() < 50, "{completion:?}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_cancelled_request_is_answered_as_cancelled() {
+    // Handled by the transport, per spec 31's cancellation rule — asserted
+    // here because "the framework does it" is a claim, not a test.
+    let mut session = Session::start();
+    session.request(1, "initialize", initialize_params());
+    session.notify("initialized", json!({}));
+
+    session.send(json!({
+        "jsonrpc": "2.0", "id": 50, "method": "textDocument/hover",
+        "params": {"textDocument": {"uri": "file:///tmp/none.py"},
+                   "position": {"line": 0, "character": 0}}
+    }));
+    session.notify("$/cancelRequest", json!({"id": 50}));
+
+    let response = session.await_id(50);
+    // Either the answer arrived first or it was cancelled; both are correct,
+    // and a request that never gets a response is not.
+    if let Some(error) = response.get("error") {
+        assert_eq!(error["code"], -32800, "{error}");
+    }
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
 }
