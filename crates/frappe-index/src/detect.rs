@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 /// What the opened directory turned out to be.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Mode {
     /// A bench: `apps/` and `sites/`. Indexes every installed app.
     Bench,
@@ -16,7 +16,7 @@ pub enum Mode {
 }
 
 /// The outcome of the upward walk.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Detection {
     /// What matched.
     pub mode: Mode,

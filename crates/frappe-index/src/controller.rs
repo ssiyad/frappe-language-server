@@ -10,7 +10,7 @@ use crate::span::Range;
 use frappe_syntax::symbols::{self as python, Whitelist};
 
 /// The controller class of a DocType.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ControllerRef {
     /// `<x>.py`, beside the DocType JSON.
     pub path: PathBuf,
@@ -48,7 +48,7 @@ impl ControllerRef {
 }
 
 /// A method on a controller class.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Method {
     /// The method name.
     pub name: String,

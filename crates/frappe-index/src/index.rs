@@ -26,7 +26,7 @@ use frappe_syntax::symbols as python;
 
 /// How complete the index is — the gate on absence checks in
 /// [23](../../../docs/specs/23-diagnostics.md).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Confidence {
     /// Bridge enabled and synced. Not reachable until 014.
     Full,
@@ -57,7 +57,7 @@ impl Confidence {
 /// The protocol method lives in the binary crate; this is the value it
 /// serializes, so integration tests can assert against the index without
 /// reaching inside the process ([32](../../../docs/specs/32-testing.md)).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct IndexStatus {
     /// How much of the picture the index has.
     pub confidence: Confidence,
@@ -86,7 +86,9 @@ pub struct IndexStatus {
 
 /// A merge conflict. Both codes are from
 /// [23](../../../docs/specs/23-diagnostics.md).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum ConflictCode {
     /// The same DocType defined by two installed apps.
     DuplicateDocType,
@@ -106,7 +108,7 @@ impl ConflictCode {
 }
 
 /// One conflict, carrying every file it should be reported against.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 pub struct Conflict {
     /// The code to publish it under.
     pub code: ConflictCode,
@@ -130,7 +132,7 @@ type Parsed = (Arc<str>, Arc<Path>, Arc<Path>, usize, Result<Raw, String>);
 type ParsedFixture = (usize, Arc<str>, PathBuf, Result<Fixture, String>);
 
 /// One Layer-2 file, with the app position that breaks ties inside the layer.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct LayerTwo {
     order: usize,
     app: Arc<str>,
@@ -138,7 +140,7 @@ struct LayerTwo {
 }
 
 /// One Layer-1 file contributing a DocType name.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 struct Source {
     order: usize,
     path: Arc<Path>,
@@ -147,7 +149,7 @@ struct Source {
 }
 
 /// The resolved graph every feature queries.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Index {
     workspace: Workspace,
     interner: Interner,
@@ -905,7 +907,7 @@ impl Index {
 // --- Incremental re-index ----------------------------------------------------
 
 /// What a re-index did.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Reindexed {
     /// DocTypes rebuilt.
     pub doctypes: Vec<String>,
@@ -914,6 +916,29 @@ pub struct Reindexed {
 }
 
 impl Index {
+    /// Every file the index read, for the cache's validity key
+    /// ([31](../../../docs/specs/31-performance.md)).
+    pub fn indexed_files(&self) -> impl Iterator<Item = PathBuf> + '_ {
+        let doctypes = self
+            .doctypes
+            .values()
+            .map(|doctype| doctype.path.to_path_buf());
+        let fixtures = self.fixtures.keys().cloned();
+        let modules = self.modules.keys().cloned();
+        doctypes.chain(fixtures).chain(modules)
+    }
+
+    /// Every file a fresh scan would read. Compared against the cached set so
+    /// a file that appeared since has something to be missing from.
+    pub fn discoverable_files(&self) -> impl Iterator<Item = PathBuf> + '_ {
+        self.workspace.apps.iter().flat_map(|app| {
+            app.artifacts
+                .doctypes()
+                .map(|record| record.path.clone())
+                .chain(app.artifacts.fixtures.iter().cloned())
+        })
+    }
+
     /// Re-index one file, patching the graph in place.
     ///
     /// The merge is per-DocType-name, so rebuilding exactly the names a file

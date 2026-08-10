@@ -6,8 +6,7 @@ Open work only. Delete a file when its task is done.
 
 | # | Task | Depends on |
 | --- | --- | --- |
-| 009 | [Index cache and file watching](009-index-cache.md) | — |
-| 010 | [Hooks surface](010-hooks-surface.md) | 009 |
+| 010 | [Hooks surface](010-hooks-surface.md) | — |
 
 ## Phase 3 — JavaScript, references, diagnostics
 
@@ -35,8 +34,8 @@ Open work only. Delete a file when its task is done.
 
 ## Critical path
 
-`009 → 010` — everything below them is done, and the Python surface answers
-in an editor.
+`010` — everything below it is done: the Python surface answers in an editor,
+warm start is 37 ms, and the index follows the filesystem.
 
 `010` (hooks) sits in phase 2 rather than 3: dotted-path navigation is a large
 share of the grepping this project exists to remove, and hooks feed the index

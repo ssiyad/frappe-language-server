@@ -7,7 +7,7 @@ use crate::problem::Problem;
 use crate::scrub::scrub;
 
 /// One app on disk.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct App {
     /// The `app_name` assignment in `hooks.py` — not the directory name, and
     /// not the package name. All three differ on real benches.
@@ -34,7 +34,7 @@ pub struct App {
 }
 
 /// A module of an app. Its directory is its scrubbed name.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Module {
     /// As written in `modules.txt`.
     pub name: String,

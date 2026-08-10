@@ -13,7 +13,7 @@ use crate::span::Range;
 use frappe_syntax::symbols::{self as python, Whitelist};
 
 /// What the caller requires of a path.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Kind {
     /// A module-level `def` or `class`.
     Callable,
@@ -28,7 +28,7 @@ pub enum Kind {
 }
 
 /// What a resolved path landed on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SymbolKind {
     /// A `.py` file or a package `__init__.py`.
     Module,
@@ -42,7 +42,7 @@ pub enum SymbolKind {
 
 /// One thing a path could mean. Go-to-definition presents the list rather than
 /// the resolver guessing ([07](../../../docs/specs/07-dotted-paths.md)).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Candidate {
     /// The file holding it.
     pub path: PathBuf,
@@ -60,7 +60,7 @@ pub struct Candidate {
 }
 
 /// Whether a path resolved, and how well.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Outcome {
     /// At least one candidate satisfies the requested kind.
     Resolved,
@@ -75,7 +75,7 @@ pub enum Outcome {
 }
 
 /// The answer to one resolution.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Resolution {
     /// The path as written.
     pub dotted: String,

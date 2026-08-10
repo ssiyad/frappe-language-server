@@ -13,7 +13,7 @@ use serde_json::Value;
 use crate::problem::Problem;
 
 /// Where the installed list came from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Source {
     /// `sites/apps.json` — carries `idx`, `version` and the git resolution.
     AppsJson,
@@ -25,7 +25,7 @@ pub enum Source {
 }
 
 /// Per-app metadata from `apps.json`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Meta {
     /// Declared version.
     pub version: Option<String>,
@@ -36,7 +36,7 @@ pub struct Meta {
 }
 
 /// The installed apps, in install order.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Installed {
     order: Vec<String>,
     meta: HashMap<String, Meta>,

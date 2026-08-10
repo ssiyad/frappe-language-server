@@ -14,6 +14,8 @@ path = "src/main.rs"
 [dependencies]
 frappe-index.workspace = true
 frappe-syntax.workspace = true
+# The fallback watcher, for clients that register none of their own — spec 30.
+notify.workspace = true
 ropey.workspace = true
 serde.workspace = true
 serde_json.workspace = true

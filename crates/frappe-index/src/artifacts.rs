@@ -14,7 +14,7 @@ use crate::walk::Walk;
 /// `<kind>/<name>/<name>.json`, where `<kind>` is the scrubbed name of the
 /// DocType the record belongs to — so `scrub(record.doctype) == <kind>` is the
 /// test, and the whitelist spec 03 lists is what it happens to match.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Record {
     /// The record's own DocType: `DocType`, `Report`, `Web Form`, …
     pub kind: String,
@@ -43,7 +43,7 @@ impl Record {
 }
 
 /// Why a JSON file in a record position was not taken as a record.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Rejection {
     /// Rule 1: the basename stem is not its parent directory name.
     StemMismatch,
@@ -54,7 +54,7 @@ pub enum Rejection {
 }
 
 /// A file the record rules turned away, with the kind directory it sat in.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Rejected {
     /// The file.
     pub path: PathBuf,
@@ -65,7 +65,7 @@ pub struct Rejected {
 }
 
 /// Everything discovery found in one app package.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Artifacts {
     /// `<package>/hooks.py`.
     pub hooks: Option<PathBuf>,

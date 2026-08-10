@@ -985,3 +985,82 @@ fn a_cancelled_request_is_answered_as_cancelled() {
     session.notify("exit", json!(null));
     session.finish();
 }
+
+/// The "done when" of task 009's watcher half: a DocType edited outside the
+/// editor is reflected without a restart.
+///
+/// The client here registers no watcher and sends no `didSave`, which is
+/// exactly the case the `notify` fallback exists for — `git checkout`,
+/// `bench migrate`, a second editor.
+#[test]
+fn a_doctype_created_outside_the_editor_is_picked_up() {
+    let bench = std::env::temp_dir().join(format!("frappe-lsp-watch-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&bench);
+    copy_tree(&fixture_bench(), &bench);
+
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+
+    let before = settled(&mut session, 10);
+    assert_eq!(before["doctypes"], 8, "{before}");
+
+    // Written straight to disk. The server is told nothing.
+    let directory = bench.join("apps/library/library/library/doctype/library_shelf");
+    std::fs::create_dir_all(&directory).expect("doctype directory");
+    std::fs::write(
+        directory.join("library_shelf.json"),
+        concat!(
+            "{\n \"actions\": [],\n \"creation\": \"2026-01-14 09:12:44.201375\",\n",
+            " \"doctype\": \"DocType\",\n \"engine\": \"InnoDB\",\n",
+            " \"field_order\": [\n  \"shelf_code\"\n ],\n",
+            " \"fields\": [\n  {\n   \"fieldname\": \"shelf_code\",\n",
+            "   \"fieldtype\": \"Data\",\n   \"label\": \"Shelf Code\"\n  }\n ],\n",
+            " \"links\": [],\n \"modified\": \"2026-02-03 11:47:02.884913\",\n",
+            " \"modified_by\": \"Administrator\",\n \"module\": \"Library\",\n",
+            " \"name\": \"Library Shelf\",\n \"owner\": \"Administrator\",\n",
+            " \"permissions\": [],\n \"sort_field\": \"creation\",\n",
+            " \"sort_order\": \"DESC\",\n \"states\": []\n}\n"
+        ),
+    )
+    .expect("write the new DocType");
+
+    // 250 ms of debounce plus the platform's own latency.
+    let mut after = Value::Null;
+    for attempt in 0..80 {
+        after =
+            session.request(300 + attempt, "frappe-lsp/indexStatus", json!(null))["result"].clone();
+        if after["doctypes"] == 9 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert_eq!(
+        after["doctypes"], 9,
+        "the filesystem change never landed: {after}"
+    );
+
+    // And removing it takes the DocType back out.
+    std::fs::remove_file(directory.join("library_shelf.json")).expect("remove");
+    let mut removed = Value::Null;
+    for attempt in 0..80 {
+        removed =
+            session.request(400 + attempt, "frappe-lsp/indexStatus", json!(null))["result"].clone();
+        if removed["doctypes"] == 8 {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert_eq!(
+        removed["doctypes"], 8,
+        "the deletion never landed: {removed}"
+    );
+
+    session.request(500, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+
+    std::fs::remove_dir_all(&bench).expect("cleanup");
+}

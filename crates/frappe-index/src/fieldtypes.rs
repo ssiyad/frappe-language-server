@@ -111,7 +111,7 @@ pub fn is_table(fieldtype: &str) -> bool {
 ///
 /// [04](../../../docs/specs/04-metadata-index.md) requires these to be
 /// completable and never reported as unknown.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Implicit {
     /// The fieldname.
     pub fieldname: &'static str,
@@ -124,7 +124,7 @@ pub struct Implicit {
 }
 
 /// Which of `frappe/model/__init__.py`'s tables an implicit field comes from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Group {
     /// `default_fields` — on every DocType.
     Standard,

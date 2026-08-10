@@ -1,0 +1,267 @@
+//! The on-disk index cache — [31](../../../docs/specs/31-performance.md).
+//!
+//! A cache is an optimisation and nothing more: a corrupt, stale or absent one
+//! falls back to a full scan, silently. Anything else trades a fast start for
+//! a wrong answer, and a wrong answer here is a wrong answer everywhere.
+
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+
+use serde::{Deserialize, Serialize};
+
+use crate::index::Index;
+
+/// Bumped whenever the cached types change shape. An old file is then simply
+/// not this format, which is the same as absent.
+pub const SCHEMA_VERSION: u32 = 1;
+
+/// Default cache directory, relative to the bench root — spec 30.
+pub const DIRECTORY: &str = ".frappe-lsp";
+
+/// What one indexed file looked like when it was read.
+///
+/// Content hashing would be more precise and costs a read of every file, which
+/// is most of what the cache exists to avoid. `(mtime, len)` is what every
+/// build system uses for the same reason.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct Stamp {
+    path: PathBuf,
+    modified: Option<u128>,
+    len: u64,
+}
+
+impl Stamp {
+    fn of(path: &Path) -> Option<Self> {
+        let metadata = std::fs::metadata(path).ok()?;
+        Some(Self {
+            path: path.to_path_buf(),
+            modified: metadata
+                .modified()
+                .ok()
+                .and_then(|time| time.duration_since(SystemTime::UNIX_EPOCH).ok())
+                .map(|since| since.as_nanos()),
+            len: metadata.len(),
+        })
+    }
+
+    /// Whether the file on disk still matches.
+    fn current(&self) -> bool {
+        Stamp::of(&self.path).is_some_and(|now| now == *self)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct Cached {
+    schema: u32,
+    root: PathBuf,
+    index: Index,
+    stamps: Vec<Stamp>,
+}
+
+/// The cache file for a bench.
+#[must_use]
+pub fn path_for(root: &Path, directory: &Path) -> PathBuf {
+    let base = if directory.is_absolute() {
+        directory.to_path_buf()
+    } else {
+        root.join(directory)
+    };
+    base.join(format!("index.v{SCHEMA_VERSION}.bin"))
+}
+
+/// Write the index beside the bench.
+///
+/// # Errors
+///
+/// Any I/O or encoding failure. The caller logs and carries on: failing to
+/// write a cache costs a slower start next time and nothing else.
+pub fn save(index: &Index, root: &Path, directory: &Path) -> std::io::Result<()> {
+    let cached = Cached {
+        schema: SCHEMA_VERSION,
+        root: root.to_path_buf(),
+        stamps: index
+            .indexed_files()
+            .filter_map(|p| Stamp::of(&p))
+            .collect(),
+        index: index.clone(),
+    };
+
+    let encoded = bincode::serde::encode_to_vec(&cached, bincode::config::standard())
+        .map_err(std::io::Error::other)?;
+
+    let path = path_for(root, directory);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    // Written beside and renamed: a half-written cache that happens to parse
+    // is the one failure mode this design cannot detect.
+    let temporary = path.with_extension("bin.tmp");
+    std::fs::write(&temporary, encoded)?;
+    std::fs::rename(&temporary, &path)
+}
+
+/// Load the index for `root`, re-indexing whatever changed since it was
+/// written.
+///
+/// `None` means "start from scratch" for every reason a cache can fail: absent,
+/// truncated, written by another version, written for another bench, or so
+/// stale that reusing it would cost more than a rebuild.
+#[must_use]
+pub fn load(root: &Path, directory: &Path) -> Option<Index> {
+    let bytes = std::fs::read(path_for(root, directory)).ok()?;
+    let (cached, _): (Cached, usize) =
+        bincode::serde::decode_from_slice(&bytes, bincode::config::standard()).ok()?;
+
+    if cached.schema != SCHEMA_VERSION || cached.root != root {
+        return None;
+    }
+
+    let mut index = cached.index;
+    let mut stale: Vec<PathBuf> = cached
+        .stamps
+        .iter()
+        .filter(|stamp| !stamp.current())
+        .map(|stamp| stamp.path.clone())
+        .collect();
+
+    // A file that appeared since the cache was written has no stamp to fail,
+    // so the set of files is compared as well as their contents.
+    let known: std::collections::HashSet<&PathBuf> =
+        cached.stamps.iter().map(|stamp| &stamp.path).collect();
+    stale.extend(
+        index
+            .discoverable_files()
+            .filter(|path| !known.contains(path)),
+    );
+
+    // Past a certain fraction, patching costs more than rebuilding and carries
+    // more risk of a subtle divergence.
+    if stale.len() > cached.stamps.len() / 2 {
+        return None;
+    }
+
+    for path in &stale {
+        index.reindex(path);
+    }
+
+    tracing::debug!(
+        files = cached.stamps.len(),
+        stale = stale.len(),
+        "index loaded from cache"
+    );
+    Some(index)
+}
+
+/// Remove the cache file. Used when it cannot be trusted.
+pub fn discard(root: &Path, directory: &Path) {
+    let _ = std::fs::remove_file(path_for(root, directory));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture_copy(name: &str) -> PathBuf {
+        let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .expect("repo root")
+            .join("tests/fixtures/bench");
+        let target =
+            std::env::temp_dir().join(format!("frappe-lsp-cache-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&target);
+        copy_tree(&source, &target);
+        target
+    }
+
+    fn copy_tree(from: &Path, to: &Path) {
+        std::fs::create_dir_all(to).expect("destination");
+        for entry in std::fs::read_dir(from).expect("readable source").flatten() {
+            let source = entry.path();
+            let target = to.join(entry.file_name());
+            if source.is_dir() {
+                copy_tree(&source, &target);
+            } else {
+                std::fs::copy(&source, &target).expect("copy");
+            }
+        }
+    }
+
+    #[test]
+    fn a_saved_index_loads_back_identically() {
+        let bench = fixture_copy("roundtrip");
+        let built = Index::build(&bench);
+        save(&built, &bench, Path::new(DIRECTORY)).expect("save");
+
+        let loaded = load(&bench, Path::new(DIRECTORY)).expect("a cache");
+        // The fingerprint is the canonical form: symbol ids are insertion
+        // ordered, so in-memory equality is the wrong question.
+        assert_eq!(loaded.fingerprint(), built.fingerprint());
+
+        std::fs::remove_dir_all(&bench).expect("cleanup");
+    }
+
+    #[test]
+    fn a_changed_file_is_re_indexed_on_load() {
+        let bench = fixture_copy("stale");
+        let built = Index::build(&bench);
+        save(&built, &bench, Path::new(DIRECTORY)).expect("save");
+
+        // Rename a DocType on disk, behind the cache's back.
+        let path = bench
+            .join("apps/library/library/library/doctype/library_settings/library_settings.json");
+        let text = std::fs::read_to_string(&path).expect("readable");
+        std::fs::write(
+            &path,
+            text.replace("Library Settings", "Library Preferences"),
+        )
+        .expect("write");
+
+        let loaded = load(&bench, Path::new(DIRECTORY)).expect("a cache");
+        assert!(loaded.doctype("Library Preferences").is_some());
+        assert!(loaded.doctype("Library Settings").is_none());
+        // And it matches what a full rebuild would have produced.
+        assert_eq!(loaded.fingerprint(), Index::build(&bench).fingerprint());
+
+        std::fs::remove_dir_all(&bench).expect("cleanup");
+    }
+
+    #[test]
+    fn a_truncated_cache_is_simply_absent() {
+        let bench = fixture_copy("truncated");
+        let built = Index::build(&bench);
+        save(&built, &bench, Path::new(DIRECTORY)).expect("save");
+
+        let path = path_for(&bench, Path::new(DIRECTORY));
+        let bytes = std::fs::read(&path).expect("readable");
+        std::fs::write(&path, &bytes[..bytes.len() / 3]).expect("truncate");
+
+        // No error, no panic: the caller falls back to a full scan.
+        assert!(load(&bench, Path::new(DIRECTORY)).is_none());
+
+        std::fs::remove_dir_all(&bench).expect("cleanup");
+    }
+
+    #[test]
+    fn a_cache_written_for_another_bench_is_refused() {
+        let bench = fixture_copy("elsewhere");
+        let built = Index::build(&bench);
+        save(&built, &bench, Path::new(DIRECTORY)).expect("save");
+
+        let moved = bench.with_extension("moved");
+        let _ = std::fs::remove_dir_all(&moved);
+        std::fs::rename(&bench, &moved).expect("rename");
+
+        // Paths inside the cache point at the old root; reusing it would give
+        // every navigation target a path that does not exist.
+        assert!(load(&moved, Path::new(DIRECTORY)).is_none());
+
+        std::fs::remove_dir_all(&moved).expect("cleanup");
+    }
+
+    #[test]
+    fn an_absent_cache_is_not_an_error() {
+        let bench = std::env::temp_dir().join("frappe-lsp-cache-missing");
+        assert!(load(&bench, Path::new(DIRECTORY)).is_none());
+    }
+}

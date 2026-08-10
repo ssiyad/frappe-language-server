@@ -9,7 +9,9 @@
 use std::fmt;
 
 /// A byte range in the buffer the match came from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub struct Span {
     /// First byte.
     pub start: usize,

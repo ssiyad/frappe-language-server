@@ -9,6 +9,8 @@ repository.workspace = true
 
 [dependencies]
 ropey.workspace = true
+# The index caches the symbols it reads from Python, and they are defined here.
+serde.workspace = true
 tree-sitter.workspace = true
 tree-sitter-javascript.workspace = true
 tree-sitter-json.workspace = true

@@ -12,7 +12,9 @@ use std::collections::HashMap;
 /// Symbol values depend on insertion order, so they are never compared across
 /// two indexes — [`crate::Index::fingerprint`] resolves them back to text
 /// before comparing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct Symbol(u32);
 
 impl Symbol {
@@ -24,7 +26,7 @@ impl Symbol {
 }
 
 /// Stores each distinct string once and hands out [`Symbol`]s for it.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Interner {
     values: Vec<Box<str>>,
     ids: HashMap<Box<str>, Symbol>,

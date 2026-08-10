@@ -18,7 +18,9 @@ use crate::span::{self, Range};
 /// Which layer contributed an entity.
 ///
 /// Ordering is the merge order: a higher layer overrides a lower one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub enum Layer {
     /// `<module>/doctype/<x>/<x>.json`.
     Schema = 1,
@@ -47,7 +49,7 @@ impl Layer {
 /// layer alone cannot answer the hover question it exists for — "where did this
 /// field come from" wants a file. The path is shared across every field of one
 /// file rather than cloned 100k times.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Provenance {
     /// The layer.
     pub layer: Layer,
@@ -63,7 +65,7 @@ pub struct Provenance {
 /// Only the properties [21](../../../docs/specs/21-navigation.md) and
 /// [23](../../../docs/specs/23-diagnostics.md) name: keeping a range per
 /// property would cost more than the whole field table.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FieldRanges {
     /// The `fieldname` value.
     pub fieldname: Option<Range>,
@@ -78,7 +80,7 @@ pub struct FieldRanges {
 }
 
 /// One field of a DocType.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Field {
     /// Interned `fieldname`.
     pub fieldname: Symbol,
@@ -124,7 +126,7 @@ pub struct Field {
 }
 
 /// A row of `permissions`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Permission {
     /// `role`.
     pub role: String,
@@ -135,7 +137,7 @@ pub struct Permission {
 }
 
 /// A row of `links` — a dashboard connection to another DocType.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct DocTypeLink {
     /// `link_doctype`.
     pub link_doctype: String,
@@ -146,7 +148,7 @@ pub struct DocTypeLink {
 }
 
 /// A row of `states` — a document state in the workflow-free state list.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct State {
     /// `title`.
     pub title: String,
@@ -155,7 +157,7 @@ pub struct State {
 }
 
 /// Ranges of the document-level properties that name a field.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct MetaRanges {
     /// The `name` value.
     pub name: Option<Range>,
@@ -170,7 +172,7 @@ pub struct MetaRanges {
 }
 
 /// A DocType, after the layer merge.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct DocType {
     /// The JSON `name`. Primary key, exact and case-sensitive.
     pub name: String,
@@ -267,7 +269,7 @@ impl DocType {
 
 /// What `options` means for a fieldtype
 /// ([04](../../../docs/specs/04-metadata-index.md)).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Options<'a> {
     /// `Link`: the target DocType name.
     LinkTarget(&'a str),
@@ -319,7 +321,7 @@ pub fn options_of<'a>(fieldtype: &str, options: Option<&'a str>) -> Options<'a> 
 }
 
 /// The two halves of a `fetch_from`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FetchFrom<'a> {
     /// The `Link` field on this DocType.
     pub link_fieldname: &'a str,
@@ -347,7 +349,7 @@ pub fn split_fetch_from(value: &str) -> Option<FetchFrom<'_>> {
 }
 
 /// A DocType JSON as parsed, before interning and before the layer merge.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Raw {
     pub name: String,
     pub module: Option<String>,
@@ -372,7 +374,7 @@ pub(crate) struct Raw {
 }
 
 /// A field as parsed, before interning.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct RawField {
     pub fieldname: String,
     pub fieldtype: String,

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 /// ([02](../../../docs/specs/02-architecture.md)). The path travels with the
 /// message because a diagnostic has to land somewhere
 /// ([23](../../../docs/specs/23-diagnostics.md)).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Problem {
     /// The file that caused it.
     pub path: PathBuf,

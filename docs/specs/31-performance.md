@@ -33,16 +33,27 @@ the build completes.
 - **Lazy tree-sitter.** Only open buffers hold trees. Closed files contribute
   through the index and the reverse-occurrence table.
 - **Debounce.** Watcher events coalesce at 250 ms per path; diagnostics recompute
-  at most every 150 ms per buffer.
+  at most every 150 ms per buffer. Access events are ignored: the index reads
+  every file it indexes, so acting on a read makes indexing trigger indexing.
+- **Watch the packages, not the bench.** A recursive watch on a bench root also
+  covers `sites/`, `node_modules` and `.git`, and establishing it costs about a
+  second of startup for directories the index never reads.
 - **Cancellation.** Honour `$/cancelRequest`. A completion superseded by a newer
   keystroke MUST stop early.
 - **No allocation in the hot path.** Completion filtering reuses a scratch buffer.
 
 ## Cache
 
-`<bench>/.frappe-lsp/index.v<N>.bin`, `bincode` or `rkyv`. Invalidated by schema
-version or any `(path, mtime, len)` mismatch; only changed files are re-parsed.
-Corruption falls back to a full scan and MUST NOT surface an error. Add
+`<bench>/.frappe-lsp/index.v<N>.bin`, `bincode`. Invalidated by schema version,
+by a different bench root, or by any `(path, mtime, len)` mismatch; only changed
+files are re-parsed, and past half the file set a rebuild is cheaper than a
+patch. Corruption falls back to a full scan and MUST NOT surface an error.
+
+Written *after* the index is published, never before: encoding a few MiB and
+stamping every file read takes longer than the build, and doing it first would
+hold back the answer the cache exists to deliver sooner. Measured on `frappe`
+17.0.0-dev plus two custom apps — 331 DocTypes, 2,055 files, a 2.2 MiB cache:
+cold start 155 ms, warm start 37 ms, load 13.7 ms against a 125 ms build. Add
 `.frappe-lsp/` to `.gitignore` guidance in [development](../development.md).
 
 ## Vendored constants

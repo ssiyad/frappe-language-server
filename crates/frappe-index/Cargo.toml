@@ -8,6 +8,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+# The on-disk index cache — spec 31 names bincode or rkyv; bincode keeps the
+# format a consequence of the types rather than a second definition of them.
+bincode.workspace = true
 frappe-bridge.workspace = true
 # Controller and whitelist registries are read from Python source, and there is
 # exactly one Python reader in the workspace — spec 02.
@@ -16,7 +19,11 @@ frappe-syntax.workspace = true
 rayon.workspace = true
 # DocType discovery has to parse each candidate to apply the third rule of
 # spec 03, so the JSON reader is a discovery dependency, not just a test one.
+serde.workspace = true
 serde_json.workspace = true
+# The cache says what it reused, which is the first question when a start is
+# slower or staler than expected.
+tracing.workspace = true
 
 [dev-dependencies]
 # Golden snapshots of the merged graph — spec 32.

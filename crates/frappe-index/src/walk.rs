@@ -22,7 +22,7 @@ pub fn is_excluded(name: &OsStr) -> bool {
 /// Symlinked directories are not followed. A bench is full of them —
 /// `sites/assets` alone links back into every app — and following them turns a
 /// walk into a cycle.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Walk {
     pending: Vec<PathBuf>,
     files: Vec<PathBuf>,

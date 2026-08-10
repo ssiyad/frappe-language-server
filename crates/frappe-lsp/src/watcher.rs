@@ -1,0 +1,198 @@
+//! Staying current with the filesystem — [31](../../../docs/specs/31-performance.md).
+//!
+//! `didSave` covers edits made in the editor. Everything else — `git checkout`,
+//! `bench migrate`, a second editor — arrives here, and without it the index
+//! quietly describes a bench that no longer exists.
+//!
+//! Spec 30 prefers the client's own watcher where it has one: the editor
+//! already knows which files changed, and a second inotify tree over a bench is
+//! thousands of watches for the same answer. This is the fallback.
+
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
+
+use frappe_index::Index;
+use frappe_index::walk::is_excluded;
+use notify::event::{EventKind, ModifyKind};
+use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
+
+/// Spec 31: watcher events coalesce at 250 ms per path.
+const DEBOUNCE: Duration = Duration::from_millis(250);
+
+/// A running watcher. Dropping it stops the thread and releases the watches.
+pub struct FileWatcher {
+    _watcher: RecommendedWatcher,
+}
+
+impl std::fmt::Debug for FileWatcher {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("FileWatcher")
+    }
+}
+
+/// Watch each app package, re-indexing what changes.
+///
+/// # Errors
+///
+/// When the platform watcher cannot be created or the root cannot be watched.
+/// A workspace with no watcher still works; it just goes stale, so this is
+/// reported and not fatal.
+pub fn start(roots: &[PathBuf], index: Arc<RwLock<Index>>) -> notify::Result<FileWatcher> {
+    let (sender, receiver) = channel();
+    let mut watcher = notify::recommended_watcher(move |event: notify::Result<Event>| {
+        if let Ok(event) = event {
+            // A send failure means the drain thread is gone, which happens on
+            // shutdown; there is nothing useful to do about it here.
+            let _ = sender.send(event);
+        }
+    })?;
+    // The app packages, not the bench root. A recursive watch over a bench
+    // also covers `sites/`, `node_modules` and `.git` — tens of thousands of
+    // inotify handles for directories the index never reads, and on a real
+    // bench establishing them takes about a second.
+    for root in roots {
+        watcher.watch(root, RecursiveMode::Recursive)?;
+    }
+
+    std::thread::Builder::new()
+        .name("frappe-lsp-watcher".to_string())
+        .spawn(move || drain(&receiver, &index))
+        .map_err(notify::Error::io)?;
+
+    Ok(FileWatcher { _watcher: watcher })
+}
+
+/// Coalesce events per path, then re-index once the path goes quiet.
+///
+/// A single save can produce several events — write, chmod, rename-into-place —
+/// and a `git checkout` produces thousands. Re-indexing per event would spend
+/// more time in the index than the editor spends waiting for it.
+fn drain(receiver: &Receiver<Event>, index: &Arc<RwLock<Index>>) {
+    let mut pending: HashMap<PathBuf, Instant> = HashMap::new();
+
+    loop {
+        match receiver.recv_timeout(DEBOUNCE) {
+            Ok(event) => {
+                if !changes_content(&event.kind) {
+                    continue;
+                }
+                for path in event.paths {
+                    // A new DocType arrives as a new directory, and the watch
+                    // on it is added after the file inside is already written:
+                    // the only event that ever names the file is this one.
+                    if path.is_dir() {
+                        for inside in frappe_index::walk::Walk::new(&path) {
+                            if interesting(&inside) {
+                                pending.insert(inside, Instant::now());
+                            }
+                        }
+                    } else if interesting(&path) {
+                        pending.insert(path, Instant::now());
+                    }
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            // The watcher was dropped: the session is over.
+            Err(RecvTimeoutError::Disconnected) => return,
+        }
+
+        let now = Instant::now();
+        let ready: Vec<PathBuf> = pending
+            .iter()
+            .filter(|(_, seen)| now.duration_since(**seen) >= DEBOUNCE)
+            .map(|(path, _)| path.clone())
+            .collect();
+
+        for path in ready {
+            pending.remove(&path);
+            apply(index, &path);
+        }
+    }
+}
+
+/// Re-index one path. Held guard, short critical section: `reindex` re-parses
+/// one file, and requests block on this lock.
+fn apply(index: &Arc<RwLock<Index>>, path: &Path) {
+    let Ok(mut index) = index.write() else {
+        return;
+    };
+    let reindexed = index.reindex(path);
+    if reindexed.known {
+        tracing::debug!(
+            path = %path.display(),
+            doctypes = ?reindexed.doctypes,
+            "re-indexed from the filesystem"
+        );
+    }
+}
+
+/// Whether an event means the file's contents changed.
+///
+/// Reads are events too, and the index reads every file it indexes: acting on
+/// an access event makes indexing trigger indexing, which starves every reader
+/// of the index lock and hangs the server. Ask for that mistake once and it
+/// looks exactly like a deadlock.
+fn changes_content(kind: &EventKind) -> bool {
+    match kind {
+        EventKind::Create(_) | EventKind::Remove(_) => true,
+        EventKind::Modify(modify) => !matches!(modify, ModifyKind::Metadata(_)),
+        // `Any` is what a backend reports when it cannot say; `Access` and
+        // `Other` are never a content change.
+        EventKind::Any => true,
+        EventKind::Access(_) | EventKind::Other => false,
+    }
+}
+
+/// Whether a path is one the index reads at all.
+///
+/// The exclusions of [03](../../../docs/specs/03-workspace-model.md) matter
+/// more here than during the scan: `sites/` alone churns constantly, and every
+/// event costs a wakeup.
+#[must_use]
+pub fn interesting(path: &Path) -> bool {
+    if path
+        .components()
+        .any(|component| is_excluded(component.as_os_str()))
+    {
+        return false;
+    }
+    // The index reads DocType JSON, fixtures, Python and patches.txt. A `.pyc`
+    // or a log rotating under `sites/` is not a schema change.
+    match path.extension().and_then(|extension| extension.to_str()) {
+        Some("json" | "py") => true,
+        Some("txt") => path.file_name().is_some_and(|name| name == "patches.txt"),
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_files_the_index_reads_are_interesting() {
+        assert!(interesting(Path::new("/bench/apps/x/x/doctype/a/a.json")));
+        assert!(interesting(Path::new("/bench/apps/x/x/api.py")));
+        assert!(interesting(Path::new("/bench/apps/x/x/patches.txt")));
+
+        assert!(!interesting(Path::new("/bench/apps/x/x/README.md")));
+        assert!(!interesting(Path::new("/bench/apps/x/x/modules.txt")));
+        assert!(!interesting(Path::new("/bench/sites/x/logs/web.log")));
+    }
+
+    #[test]
+    fn excluded_directories_are_ignored_wherever_they_appear() {
+        // A watcher fires for everything under the root; the scan's exclusions
+        // are what keep node_modules from waking the index thousands of times.
+        assert!(!interesting(Path::new(
+            "/bench/apps/x/x/public/node_modules/left-pad/index.json"
+        )));
+        assert!(!interesting(Path::new("/bench/apps/x/.git/index.json")));
+        assert!(!interesting(Path::new(
+            "/bench/apps/x/x/__pycache__/api.cpython-312.py"
+        )));
+    }
+}

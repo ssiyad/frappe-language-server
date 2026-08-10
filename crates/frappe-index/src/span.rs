@@ -13,7 +13,9 @@ use std::fmt;
 /// Byte offsets rather than line/character: the index has no line table, and
 /// `positionEncoding` is negotiated per session, so the conversion belongs at
 /// the protocol edge where the buffer text is already open.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct Range {
     /// First byte.
     pub start: u32,
@@ -96,7 +98,7 @@ impl fmt::Display for Range {
 }
 
 /// A JSON value and where it sits.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Node {
     /// The whole value, quotes and brackets included.
     pub range: Range,
@@ -105,7 +107,7 @@ pub struct Node {
 }
 
 /// The shape of a [`Node`]. Scalars carry no value — `serde_json` owns those.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Kind {
     /// `{ … }`
     Object(Vec<Member>),
@@ -116,7 +118,7 @@ pub enum Kind {
 }
 
 /// One `"key": value` pair.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Member {
     /// The key, unescaped.
     pub key: String,
@@ -188,7 +190,7 @@ impl Node {
 }
 
 /// Why a document could not be scanned for positions.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ScanError {
     /// Byte offset where the scan gave up.
     pub offset: usize,

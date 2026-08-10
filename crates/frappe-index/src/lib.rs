@@ -8,6 +8,7 @@
 
 pub mod app;
 pub mod artifacts;
+pub mod cache;
 pub mod controller;
 pub mod detect;
 pub mod doctype;

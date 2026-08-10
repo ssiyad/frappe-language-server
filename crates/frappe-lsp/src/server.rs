@@ -24,6 +24,7 @@ use crate::analysis::{self, Found};
 use crate::buffers::Buffers;
 use crate::capabilities::{ClientSupport, server_capabilities};
 use crate::config::{Config, ConfigError, ConfigSources};
+use crate::watcher::{self, FileWatcher};
 use crate::{completion, definition, hover, locations};
 
 pub const SERVER_NAME: &str = "frappe-lsp";
@@ -48,6 +49,9 @@ struct State {
     buffers: Buffers,
     /// Where the index was built from, for a forced rebuild.
     root: Option<PathBuf>,
+    /// The fallback watcher. Held so it lives as long as the session; dropping
+    /// it releases the platform watches.
+    watcher: Option<FileWatcher>,
     /// Reported to the user once the client is listening; anything sent during
     /// `initialize` is dropped by most clients.
     pending: Vec<String>,
@@ -100,6 +104,76 @@ impl Backend {
         })
     }
 
+    /// Keep the index current with the filesystem.
+    ///
+    /// The client's watcher is preferred where it can be registered: the editor
+    /// already knows what changed, and a second recursive watch over a bench
+    /// costs thousands of inotify handles for the same answer (spec 30). The
+    /// `notify` fallback exists for clients that cannot.
+    async fn start_watching(&self, root: &Path) {
+        if self.write(|state| state.support.dynamic_watcher_registration) {
+            let watchers = ["**/*.py", "**/*.json", "**/patches.txt"]
+                .into_iter()
+                .map(|glob| FileSystemWatcher {
+                    glob_pattern: GlobPattern::String(glob.to_string()),
+                    kind: None,
+                })
+                .collect();
+            let registration = Registration {
+                id: "frappe-lsp/watchedFiles".to_string(),
+                method: "workspace/didChangeWatchedFiles".to_string(),
+                register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
+                    watchers,
+                })
+                .ok(),
+            };
+
+            match self.client.register_capability(vec![registration]).await {
+                Ok(()) => {
+                    tracing::info!("watching through the client");
+                    return;
+                }
+                // Advertising the capability and refusing the registration is
+                // rare enough to be worth a line, and falling back is correct.
+                Err(error) => tracing::warn!(%error, "client refused the watcher registration"),
+            }
+        }
+
+        // Establishing the watches walks every directory under each package,
+        // which on a real bench takes about a second — long enough to be worth
+        // keeping off the thread that answers requests.
+        let index = Arc::clone(&self.index);
+        let fallback = root.to_path_buf();
+        let started = tokio::task::spawn_blocking(move || {
+            let packages: Vec<PathBuf> = index
+                .read()
+                .expect("index lock poisoned by a panic")
+                .apps()
+                .iter()
+                .map(|app| app.package.clone())
+                .collect();
+            // Before the first build finishes there are no packages yet, and
+            // the bench root is the only directory known to exist.
+            let roots = if packages.is_empty() {
+                vec![fallback]
+            } else {
+                packages
+            };
+            watcher::start(&roots, Arc::clone(&index))
+        })
+        .await;
+
+        match started {
+            Ok(Ok(watcher)) => {
+                self.write(|state| state.watcher = Some(watcher));
+                tracing::info!("watching the workspace");
+            }
+            // A workspace with no watcher still answers; it just goes stale.
+            Ok(Err(error)) => tracing::warn!(%error, "could not watch the workspace"),
+            Err(error) => tracing::warn!(%error, "watcher setup panicked"),
+        }
+    }
+
     /// The status of the index as it stands — spec 30's `indexStatus`.
     fn status(&self) -> IndexStatus {
         self.index
@@ -116,8 +190,23 @@ impl Backend {
     /// ([31](../../../docs/specs/31-performance.md)).
     fn build_in_background(&self, root: PathBuf) {
         let index = Arc::clone(&self.index);
+        let cache = self.write(|state| {
+            state
+                .config
+                .index
+                .cache
+                .then(|| state.config.index.cache_dir.clone())
+        });
+
         tokio::task::spawn_blocking(move || {
-            let built = Index::build(&root);
+            // A cache is an optimisation: anything wrong with it means a full
+            // scan, never an error (spec 31).
+            let warm = cache
+                .as_deref()
+                .and_then(|directory| frappe_index::cache::load(&root, directory));
+            let from_cache = warm.is_some();
+            let built = warm.unwrap_or_else(|| Index::build(&root));
+
             let status = built.status();
             *index.write().expect("index lock poisoned by a panic") = built;
             tracing::info!(
@@ -129,8 +218,24 @@ impl Backend {
                 problems = status.problems,
                 frappe = status.frappe_version.as_deref().unwrap_or("unknown"),
                 elapsed = ?status.build_time,
+                cached = from_cache,
                 "index built"
             );
+
+            // Written only after the index is published. Encoding a few MiB
+            // and stamping every file it read takes longer than the build
+            // itself, and doing it first would hold the answer back for a
+            // start the cache exists to make faster.
+            if let Some(directory) = cache.as_deref()
+                && !from_cache
+            {
+                let guard = index.read().expect("index lock poisoned by a panic");
+                match frappe_index::cache::save(&guard, &root, directory) {
+                    Ok(()) => tracing::debug!("index cache written"),
+                    // Costs a slower start next time and nothing else.
+                    Err(error) => tracing::debug!(%error, "could not write the index cache"),
+                }
+            }
         });
     }
 
@@ -196,7 +301,8 @@ impl LanguageServer for Backend {
         match self.write(|state| state.root.clone()) {
             Some(root) => {
                 tracing::info!(root = %root.display(), "indexing");
-                self.build_in_background(root);
+                self.build_in_background(root.clone());
+                self.start_watching(&root).await;
             }
             // No bench: the session stays alive and Frappe-specific answers
             // stay empty (specs/02).
@@ -318,8 +424,27 @@ impl LanguageServer for Backend {
         );
     }
 
+    /// The client's own watcher, which is the preferred source when it has one
+    /// ([30](../../../docs/specs/30-configuration.md)).
     async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
-        tracing::debug!(changes = params.changes.len(), "watched files changed");
+        let paths: Vec<PathBuf> = params
+            .changes
+            .iter()
+            .filter_map(|change| change.uri.to_file_path().map(|path| path.into_owned()))
+            .filter(|path| watcher::interesting(path))
+            .collect();
+        if paths.is_empty() {
+            return;
+        }
+
+        tracing::debug!(changes = paths.len(), "watched files changed");
+        let index = Arc::clone(&self.index);
+        tokio::task::spawn_blocking(move || {
+            let mut index = index.write().expect("index lock poisoned by a panic");
+            for path in paths {
+                index.reindex(&path);
+            }
+        });
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {

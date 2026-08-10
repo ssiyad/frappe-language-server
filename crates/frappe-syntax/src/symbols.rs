@@ -33,7 +33,7 @@ const TRANSPARENT: [&str; 12] = [
 ];
 
 /// What a Python file declares.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Module {
     /// Top-level `class` statements.
     pub classes: Vec<Class>,
@@ -58,7 +58,7 @@ impl Module {
 }
 
 /// A `class` statement.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Class {
     /// The class name.
     pub name: String,
@@ -81,7 +81,7 @@ impl Class {
 }
 
 /// A `def` statement, at module level or in a class body.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Function {
     /// The function name.
     pub name: String,
@@ -98,7 +98,7 @@ pub struct Function {
 }
 
 /// Whether a function is exposed by `@frappe.whitelist()`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Whitelist {
     /// Undecorated, or decorated only by decorators known not to whitelist.
     No,
@@ -113,7 +113,7 @@ pub enum Whitelist {
 }
 
 /// The arguments `frappe.whitelist()` was called with.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Exposure {
     /// `allow_guest=True`.
     pub allow_guest: bool,

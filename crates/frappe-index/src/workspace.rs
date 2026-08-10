@@ -11,7 +11,7 @@ pub use crate::problem::Problem;
 
 /// Everything discovery knows before anything is parsed into the metadata
 /// graph of [04](../../../docs/specs/04-metadata-index.md).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Workspace {
     /// What matched, and where.
     pub detection: Detection,

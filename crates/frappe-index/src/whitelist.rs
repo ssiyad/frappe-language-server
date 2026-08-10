@@ -11,7 +11,7 @@ use crate::span::Range;
 use frappe_syntax::symbols::{self as python, Whitelist};
 
 /// One `@frappe.whitelist()` target.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct WhitelistedMethod {
     /// The dotted path `frappe.call` names.
     pub dotted: String,

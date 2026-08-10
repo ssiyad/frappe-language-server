@@ -13,7 +13,7 @@ use crate::doctype::{self, RawField};
 use crate::span::{self, Range};
 
 /// A `Custom Field` record.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct CustomField {
     /// `dt` — the DocType it is added to.
     pub doctype: String,
@@ -24,7 +24,7 @@ pub(crate) struct CustomField {
 }
 
 /// A `Property Setter` record.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct PropertySetter {
     /// `doc_type`.
     pub doctype: String,
@@ -39,7 +39,7 @@ pub(crate) struct PropertySetter {
 }
 
 /// Everything one fixtures file contributes.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Fixture {
     pub custom_fields: Vec<CustomField>,
     pub property_setters: Vec<PropertySetter>,

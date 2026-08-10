@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 /// A site directory under `sites/`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Site {
     /// The directory name, which is the site name.
     pub name: String,
