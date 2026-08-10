@@ -55,6 +55,11 @@ pub enum HookTarget {
         /// The kind the hook requires.
         kind: Kind,
     },
+    /// An app name, from `required_apps`.
+    App(String),
+    /// A string the hook takes literally — a title, a licence, a route.
+    /// Nothing resolves it, and nothing may report on it.
+    Text(String),
     /// An asset path, resolved against the app package.
     Asset {
         /// The path as written.
@@ -294,11 +299,12 @@ fn leaf(text: &str, span: Span, schema: Schema, depth: Depth, doctype: Option<&s
             // Module resolution accepts both shapes without guessing.
             kind: Kind::Module,
         },
-        Schema::Fixtures | Schema::AppNames => HookTarget::DocType(text.to_string()),
-        Schema::Routes | Schema::Unknown => HookTarget::Path {
-            dotted: text.to_string(),
-            kind: Kind::Callable,
-        },
+        Schema::Fixtures => HookTarget::DocType(text.to_string()),
+        Schema::AppNames => HookTarget::App(text.to_string()),
+        // `app_title`, `app_license`, `website_context`: strings frappe reads
+        // and nothing resolves. A route is a URL, not a module. Treating either
+        // as a dotted path reports an email address as a missing function.
+        Schema::Routes | Schema::Unknown => HookTarget::Text(text.to_string()),
         _ => HookTarget::Path {
             dotted: text.to_string(),
             kind: Kind::Callable,

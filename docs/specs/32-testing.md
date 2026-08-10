@@ -81,9 +81,17 @@ Each entry names a file, a code and the reason; an entry without one is a false
 positive wearing a disguise, and the list must not grow to accommodate a noisy
 check. Anything not on it fails the job.
 
+It also holds 2 `missing-asset` hits on `frappe/hooks.py`:
+`public/js/frappe/setup_wizard.js`, which is absent from the checkout, and
+`website_script.js`, which Frappe serves from a DocType rather than a file. The
+first is dead config; the second is an asset that exists only at runtime.
+
 Measured with the shipping defaults: 372 DocType JSONs across the reference
-bench yield 8 findings, 2 of them on `frappe` and both allowlisted. 300 Python
-files yield 1.
+bench yield 8 findings, 2 of them on `frappe` and both allowlisted; 300 Python
+files yield 1; and the bench's 8 `hooks.py` and `patches.txt` files yield 7, of
+which 5 are true positives — `app_icon` is dead since v13, and frappe's
+`override_whitelisted_methods` maps two paths that define no `download_file` to
+a bare name that is not a path at all.
 
 ## Stub completeness
 

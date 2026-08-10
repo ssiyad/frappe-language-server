@@ -155,7 +155,16 @@ pub fn hook_targets(index: &Index, target: &HookTarget) -> Vec<Target> {
 
         // A hook key's documentation is a URL, which hover carries; an event
         // name and a frequency are vendored constants with nowhere to go.
-        HookTarget::Key { .. }
+        // An app is a directory, and the bench is the only place to look.
+        HookTarget::App(name) => index
+            .apps()
+            .iter()
+            .find(|app| app.name == *name)
+            .map(|app| vec![Target::file(app.package.join("hooks.py"))])
+            .unwrap_or_default(),
+
+        HookTarget::Text(_)
+        | HookTarget::Key { .. }
         | HookTarget::DocEvent { .. }
         | HookTarget::Frequency { .. }
         | HookTarget::Cron { .. } => Vec::new(),

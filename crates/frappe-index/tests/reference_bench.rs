@@ -268,14 +268,32 @@ fn re_indexing_one_doctype_json_stays_inside_the_incremental_budget() {
 
     // Warm the page cache, then measure the steady state.
     index.reindex(&path);
+    // The median of several, not one. A single sample also measures whatever
+    // else the machine was doing, and this suite runs beside a compiler.
+    let mut samples = Vec::new();
+    for _ in 0..5 {
+        let started = Instant::now();
+        index.reindex(&path);
+        samples.push(started.elapsed());
+    }
+    samples.sort_unstable();
+    let median = samples[samples.len() / 2];
+
     let start = Instant::now();
     let outcome = index.reindex(&path);
     let elapsed = start.elapsed();
 
-    eprintln!("re-indexed {:?} in {elapsed:?}", outcome.doctypes);
+    eprintln!(
+        "re-indexed {:?} in {median:?} (median of 5)",
+        outcome.doctypes
+    );
+    let _ = elapsed;
     assert_eq!(outcome.doctypes, ["User"]);
     // 20 ms is the ceiling in spec 31.
-    assert!(elapsed.as_millis() < 20, "re-index took {elapsed:?}");
+    assert!(
+        median.as_millis() < 20,
+        "re-index took {median:?} (median of 5)"
+    );
 }
 
 /// Resolution across a whole real app — the "done when" of task 007.

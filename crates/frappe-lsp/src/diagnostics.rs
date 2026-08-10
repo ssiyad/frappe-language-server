@@ -53,8 +53,28 @@ pub fn for_buffer(index: &Index, config: &Config, path: &Path, source: &str) -> 
         return Vec::new();
     }
 
+    // A file in an app the index excluded — uninstalled, or outside the bench
+    // — is one the server knows nothing about. Every path in it would resolve
+    // to nothing, and every diagnostic would be an artefact of not looking
+    // ([03](../../../docs/specs/03-workspace-model.md)).
+    if !index.apps().is_empty()
+        && index
+            .workspace()
+            .detection
+            .bench_root()
+            .is_some_and(|root| path.starts_with(root))
+        && !index
+            .apps()
+            .iter()
+            .any(|app| path.starts_with(&app.package))
+    {
+        return Vec::new();
+    }
+
     let mut findings = Vec::new();
-    if crate::hooks::is_hooks_file(path) {
+    if path.file_name().is_some_and(|name| name == "patches.txt") {
+        findings.extend(patches(index, source));
+    } else if crate::hooks::is_hooks_file(path) {
         findings.extend(hooks(index, source, path));
     } else if let Some(language) = frappe_syntax::Language::from_path(path)
         && crate::analysis::supported(language)
@@ -164,6 +184,77 @@ fn hooks(index: &Index, source: &str, path: &Path) -> Vec<Finding> {
                     message: format!("`{name}` is not a scheduler frequency; nothing runs"),
                 });
             }
+            // A dotted path that names nothing, or names the wrong kind of
+            // thing. Both follow from the workspace, not from a vendored list.
+            HookTarget::Path { dotted, kind } => {
+                use frappe_index::paths::{Kind, Outcome};
+                let effective = index.effective_method(dotted);
+                let outcome = index.resolve(effective, *kind).outcome;
+
+                // A hook's declared kind is not always the only one that works:
+                // `doc_events` takes a function or a `Class.method`, and
+                // `jinja` takes a module of methods or a single filter. Report
+                // only what no reading accepts.
+                let accepted = |alternative| {
+                    matches!(
+                        index.resolve(effective, alternative).outcome,
+                        Outcome::Resolved
+                    )
+                };
+                match outcome {
+                    // A module that resolves but has no such symbol is not
+                    // proof of absence: the reader sees top-level definitions,
+                    // and `frappe.utils.markdown` is imported into
+                    // `frappe/utils/__init__.py` from elsewhere. Only a path
+                    // whose *module* is missing is certainly wrong.
+                    Outcome::Unresolved
+                        if !accepted(Kind::Callable)
+                            && !accepted(Kind::Module)
+                            && !accepted(Kind::Method)
+                            && !module_exists(index, effective) =>
+                    {
+                        findings.push(Finding {
+                            code: "unresolvable-path",
+                            span: located.span,
+                            message: format!("`{dotted}` does not resolve in this workspace"),
+                        });
+                    }
+                    // Only where the kind is the point: a class hook given a
+                    // function silently fails to override anything.
+                    Outcome::WrongKind if matches!(kind, Kind::Class) => findings.push(Finding {
+                        code: "wrong-path-kind",
+                        span: located.span,
+                        message: format!("`{dotted}` is not a class"),
+                    }),
+                    // `Unknown` is decorator indirection, and MUST NOT report.
+                    _ => {}
+                }
+            }
+
+            HookTarget::Asset { written, file } if file.is_none() => findings.push(Finding {
+                code: "missing-asset",
+                span: located.span,
+                message: format!("`{written}` is not a file in this app"),
+            }),
+
+            HookTarget::App(name) if !index.apps().iter().any(|app| app.name == *name) => {
+                // Warning only: it may legitimately be installed elsewhere
+                // ([12](../../../docs/specs/12-surface-hooks.md)).
+                findings.push(Finding {
+                    code: "unknown-required-app",
+                    span: located.span,
+                    message: format!("`{name}` is not installed in this bench"),
+                });
+            }
+
+            HookTarget::DocType(name) if name != "*" && gated && index.doctype(name).is_none() => {
+                findings.push(Finding {
+                    code: "unknown-doctype",
+                    span: located.span,
+                    message: format!("no DocType named `{name}`"),
+                });
+            }
+
             // Cron syntax is checkable without a version — spec 23.
             HookTarget::Cron { expression, valid } if !valid => {
                 findings.push(Finding {
@@ -176,6 +267,28 @@ fn hooks(index: &Index, source: &str, path: &Path) -> Vec<Finding> {
             }
             _ => {}
         }
+    }
+
+    // `app_name` has to be the package directory: frappe resolves every dotted
+    // path in the app through it, so a mismatch breaks the app at runtime.
+    if let Some(app) = index
+        .apps()
+        .iter()
+        .find(|app| path.starts_with(&app.package))
+        && let Some(directory) = app.package.file_name().and_then(|name| name.to_str())
+        && app.name != directory
+        && let Some(assignment) = crate::hooks::all(index, source, path).into_iter().find(
+            |located| matches!(&located.target, HookTarget::Key { name, .. } if name == "app_name"),
+        )
+    {
+        findings.push(Finding {
+            code: "app-name-mismatch",
+            span: assignment.span,
+            message: format!(
+                "app_name is `{}` but the package directory is `{directory}`",
+                app.name
+            ),
+        });
     }
 
     // Duplicate assignment: the second silently wins.
@@ -202,6 +315,20 @@ fn hooks(index: &Index, source: &str, path: &Path) -> Vec<Finding> {
     }
 
     findings
+}
+
+/// Whether the module half of a dotted path resolves, whatever the symbol on
+/// the end of it turns out to be.
+fn module_exists(index: &Index, dotted: &str) -> bool {
+    let Some((module, _)) = dotted.rsplit_once('.') else {
+        return false;
+    };
+    matches!(
+        index
+            .resolve(module, frappe_index::paths::Kind::Module)
+            .outcome,
+        frappe_index::paths::Outcome::Resolved
+    )
 }
 
 /// Whether a name follows Python's conventions for something private or
@@ -270,9 +397,20 @@ fn code(
     let mut findings = Vec::new();
     for matched in &matches {
         for resolved in frappe_index::resolve::resolve(index, matched) {
-            findings.extend(finding_for(&resolved).filter(|finding| {
-                absence || !matches!(finding.code, "unknown-doctype" | "unknown-field")
-            }));
+            findings.extend(
+                finding_for(&resolved)
+                    .filter(|finding| {
+                        absence || !matches!(finding.code, "unknown-doctype" | "unknown-field")
+                    })
+                    // Underline the name, not the quotes around it — the same
+                    // range hover and definition use
+                    // ([22](../../../docs/specs/22-hover.md)), and the text a
+                    // quick fix replaces.
+                    .map(|mut finding| {
+                        finding.span = interior(finding.span, source);
+                        finding
+                    }),
+            );
         }
         findings.extend(translations(matched, source));
     }
@@ -305,6 +443,19 @@ fn is_test_file(index: &Index, path: &Path) -> bool {
         || relative
             .components()
             .any(|component| component.as_os_str() == "tests")
+}
+
+/// A string literal's span without its quotes.
+fn interior(span: frappe_syntax::Span, source: &str) -> frappe_syntax::Span {
+    let text = source.get(span.range()).unwrap_or_default();
+    let Some(first) = text.chars().next() else {
+        return span;
+    };
+    if first != '"' && first != '\'' {
+        return span;
+    }
+    let closes = text.len() >= 2 && text.ends_with(first);
+    frappe_syntax::Span::new(span.start + 1, if closes { span.end - 1 } else { span.end })
 }
 
 /// One resolved position, as a finding.
@@ -415,6 +566,55 @@ fn conflicts(index: &Index, path: &Path) -> Vec<Finding> {
             },
         })
         .collect()
+}
+
+/// Checks over a `patches.txt` — spec 23's patch set.
+///
+/// A patch that does not resolve never runs, and a migration that silently
+/// does nothing is the failure this catches: `bench migrate` reports success
+/// either way.
+fn patches(index: &Index, source: &str) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    let mut seen: Vec<String> = Vec::new();
+
+    for patch in frappe_index::hooks::read_patches(source) {
+        let span = frappe_syntax::Span::new(patch.span.0, patch.span.1);
+
+        if seen.contains(&patch.dotted) {
+            findings.push(Finding {
+                code: "duplicate-patch",
+                span,
+                message: format!("`{}` is listed more than once", patch.dotted),
+            });
+        }
+
+        let resolution = index.resolve(&patch.dotted, frappe_index::paths::Kind::Module);
+        match resolution.best() {
+            None => findings.push(Finding {
+                code: "unresolvable-patch",
+                span,
+                message: format!("`{}` is not a module in this workspace", patch.dotted),
+            }),
+            Some(candidate) => {
+                // Frappe calls `execute()` and nothing else; a module without
+                // one is loaded and then does nothing.
+                let has_execute = index
+                    .module(&candidate.path)
+                    .is_some_and(|module| module.function("execute").is_some());
+                if !has_execute {
+                    findings.push(Finding {
+                        code: "patch-without-execute",
+                        span,
+                        message: format!("`{}` has no execute(), so it does nothing", patch.dotted),
+                    });
+                }
+            }
+        }
+
+        seen.push(patch.dotted);
+    }
+
+    findings
 }
 
 /// Checks over a DocType JSON — spec 23's schema set.
@@ -761,6 +961,109 @@ pub fn empty_range() -> Range {
         start: Position::new(0, 0),
         end: Position::new(0, 0),
     }
+}
+
+/// Quick fixes for our own diagnostics — [23](../../../docs/specs/23-diagnostics.md).
+///
+/// Only where the fix is unambiguous: a single candidate, or a decorator whose
+/// absence is the whole defect. There is deliberately no "fix all" — a wrong
+/// bulk edit across a bench is unrecoverable.
+#[must_use]
+pub fn fixes(
+    index: &Index,
+    uri: &Uri,
+    source: &str,
+    diagnostics: &[Diagnostic],
+) -> Vec<tower_lsp_server::ls_types::CodeActionOrCommand> {
+    use tower_lsp_server::ls_types::{
+        CodeAction, CodeActionKind, CodeActionOrCommand, TextEdit, WorkspaceEdit,
+    };
+
+    let lines = LineIndex::new(source, frappe_syntax::PositionEncoding::Utf16);
+    let mut actions = Vec::new();
+
+    for diagnostic in diagnostics {
+        let Some(NumberOrString::String(code)) = &diagnostic.code else {
+            continue;
+        };
+        let Some(code) = code.strip_prefix("frappe-lsp/") else {
+            continue;
+        };
+        // The text the diagnostic covers, which is what a replacement replaces.
+        let written = slice(source, &lines, diagnostic.range);
+
+        let replacement = match code {
+            "unknown-doctype" => single(index.case_insensitive_matches(&written)),
+            "unknown-hook" => near_miss(&written).map(str::to_string),
+            "unknown-field" => {
+                let doctype = diagnostic
+                    .message
+                    .split('`')
+                    .nth(1)
+                    .unwrap_or_default()
+                    .to_string();
+                single(
+                    index
+                        .field_names(&doctype)
+                        .into_iter()
+                        .filter(|name| name.eq_ignore_ascii_case(&written))
+                        .collect(),
+                )
+            }
+            _ => None,
+        };
+
+        let Some(replacement) = replacement else {
+            continue;
+        };
+        actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+            title: format!("Replace with `{replacement}`"),
+            kind: Some(CodeActionKind::QUICKFIX),
+            diagnostics: Some(vec![diagnostic.clone()]),
+            edit: Some(WorkspaceEdit {
+                changes: Some(
+                    [(
+                        uri.clone(),
+                        vec![TextEdit {
+                            range: diagnostic.range,
+                            new_text: replacement,
+                        }],
+                    )]
+                    .into_iter()
+                    .collect(),
+                ),
+                ..Default::default()
+            }),
+            is_preferred: Some(true),
+            ..Default::default()
+        }));
+    }
+
+    actions
+}
+
+/// A candidate list is only a fix when it holds exactly one — spec 23 allows a
+/// replacement for a single candidate and nothing more.
+fn single(candidates: Vec<&str>) -> Option<String> {
+    match candidates.as_slice() {
+        [only] => Some((*only).to_string()),
+        _ => None,
+    }
+}
+
+/// The source text a range covers.
+fn slice(source: &str, lines: &LineIndex<'_>, range: Range) -> String {
+    let offset = |position: Position| -> usize {
+        source
+            .split_inclusive('\n')
+            .take(position.line as usize)
+            .map(str::len)
+            .sum::<usize>()
+            + position.character as usize
+    };
+    let _ = lines;
+    let (start, end) = (offset(range.start), offset(range.end));
+    source.get(start..end).unwrap_or_default().to_string()
 }
 
 #[cfg(test)]

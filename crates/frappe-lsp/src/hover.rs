@@ -335,6 +335,13 @@ pub fn hook_markdown(index: &Index, target: &crate::hooks::HookTarget) -> Option
             out
         }
 
+        HookTarget::Text(_) => return None,
+
+        HookTarget::App(name) => match index.apps().iter().find(|app| app.name == *name) {
+            Some(app) => format!("**{name}** — installed\n\n`{}`", app.package.display()),
+            None => format!("**{name}**\n\nNot installed in this bench."),
+        },
+
         HookTarget::Asset { written, file } => match file {
             Some(path) => format!("**{written}**\n\n`{}`", path.display()),
             None => format!("**{written}**\n\nNo such file in this app."),

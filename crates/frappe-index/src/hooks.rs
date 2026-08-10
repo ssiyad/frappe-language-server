@@ -202,8 +202,28 @@ pub fn asset_path(package: &Path, app: &str, written: &str) -> Option<PathBuf> {
         written.to_string()
     };
 
-    let candidate = package.join(relative);
-    candidate.is_file().then_some(candidate)
+    let candidate = package.join(&relative);
+    if candidate.is_file() {
+        return Some(candidate);
+    }
+
+    // A bare `desk.bundle.js` is spec 07's third form: the build resolves it
+    // through the assets manifest, and the source it was built from lives in
+    // the app. Navigation targets that source, never the bundle.
+    //
+    // A `.css` bundle is built from `.scss`, so the name in the hook exists
+    // nowhere on disk — only the stylesheet it is compiled from does.
+    if !relative.contains('/') {
+        let candidates = [
+            package.join("public/js").join(&relative),
+            package.join("public/css").join(&relative),
+            package
+                .join("public/scss")
+                .join(relative.replace(".css", ".scss")),
+        ];
+        return candidates.into_iter().find(|path| path.is_file());
+    }
+    None
 }
 
 #[cfg(test)]
@@ -283,5 +303,85 @@ mod tests {
         assert!(asset_path(&package, "library", "/assets/library/js/library.js").is_some());
         // A file that is not there resolves to nothing rather than to a guess.
         assert!(asset_path(&package, "library", "/assets/library/js/missing.js").is_none());
+    }
+}
+
+/// One line of a `patches.txt` — [07](../../../docs/specs/07-dotted-paths.md).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Patch {
+    /// The module path as written.
+    pub dotted: String,
+    /// Byte range of the path within the file.
+    pub span: (usize, usize),
+    /// Whether it sits under `[post_model_sync]`.
+    pub post_model_sync: bool,
+}
+
+/// Read a `patches.txt`.
+///
+/// Line-oriented, `#` comments, section markers in brackets. `execute:` lines
+/// are opaque — they are Python, not a module path, and spec 07 says no
+/// resolution and no diagnostic.
+#[must_use]
+pub fn read_patches(source: &str) -> Vec<Patch> {
+    let mut found = Vec::new();
+    let mut post = false;
+    let mut offset = 0;
+
+    for line in source.split_inclusive('\n') {
+        let start = offset;
+        offset += line.len();
+
+        let trimmed = line.trim();
+        if trimmed.starts_with('[') {
+            post = trimmed.contains("post_model_sync");
+            continue;
+        }
+        if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with("execute:") {
+            continue;
+        }
+
+        // `path #comment` is the documented inline form.
+        let path = trimmed.split('#').next().unwrap_or(trimmed).trim();
+        if path.is_empty() {
+            continue;
+        }
+        let at = line.find(path).unwrap_or(0);
+        found.push(Patch {
+            dotted: path.to_string(),
+            span: (start + at, start + at + path.len()),
+            post_model_sync: post,
+        });
+    }
+
+    found
+}
+
+#[cfg(test)]
+mod patch_tests {
+    use super::*;
+
+    #[test]
+    fn every_documented_line_form_is_read() {
+        let source = "[pre_model_sync]\n\
+                      # a comment\n\
+                      app.patches.v1_0.one\n\
+                      execute:frappe.db.sql(\"select 1\")\n\
+                      \n\
+                      [post_model_sync]\n\
+                      app.patches.v1_0.two #idempotent\n";
+        let patches = read_patches(source);
+
+        assert_eq!(patches.len(), 2);
+        assert_eq!(patches[0].dotted, "app.patches.v1_0.one");
+        assert!(!patches[0].post_model_sync);
+        // The inline comment is not part of the path.
+        assert_eq!(patches[1].dotted, "app.patches.v1_0.two");
+        assert!(patches[1].post_model_sync);
+        // The span covers the path and nothing else.
+        assert_eq!(
+            &source[patches[1].span.0..patches[1].span.1],
+            "app.patches.v1_0.two"
+        );
     }
 }

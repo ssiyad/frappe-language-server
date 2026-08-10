@@ -718,8 +718,17 @@ impl LanguageServer for Backend {
         Ok(None)
     }
 
-    async fn code_action(&self, _: CodeActionParams) -> Result<Option<CodeActionResponse>> {
-        Ok(None)
+    /// Quick fixes for the diagnostics the client is showing — spec 23.
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        let uri = params.text_document.uri;
+        let index = self.index.read().expect("index lock poisoned by a panic");
+        let state = self.state.read().expect("state lock poisoned by a panic");
+        let Some(buffer) = state.buffers.get(&uri) else {
+            return Ok(None);
+        };
+
+        let actions = diagnostics::fixes(&index, &uri, &buffer.text(), &params.context.diagnostics);
+        Ok((!actions.is_empty()).then_some(actions))
     }
 
     /// The pull transport, for clients that advertise it.

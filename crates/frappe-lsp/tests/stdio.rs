@@ -1821,3 +1821,91 @@ fn a_correct_doctype_json_reports_nothing() {
     session.notify("exit", json!(null));
     session.finish();
 }
+
+#[test]
+fn a_case_mismatch_offers_the_replacement_as_a_quick_fix() {
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    params.as_object_mut().expect("params is an object").insert(
+        "initializationOptions".to_string(),
+        json!({"diagnostics": {"unknown-doctype": "warning"}}),
+    );
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let path = bench.join("apps/library/library/probe.py");
+    let uri = format!("file://{}", path.display());
+    let found = diagnostics_for(
+        &mut session,
+        &uri,
+        "import frappe\nfrappe.get_doc(\"library member\")\n",
+    );
+    let diagnostic = found
+        .iter()
+        .find(|d| d["code"] == "frappe-lsp/unknown-doctype")
+        .expect("the diagnostic");
+
+    let response = session.request(
+        100,
+        "textDocument/codeAction",
+        json!({"textDocument": {"uri": uri}, "range": diagnostic["range"],
+               "context": {"diagnostics": [diagnostic]}}),
+    );
+    let actions = response["result"].as_array().expect("actions");
+    assert_eq!(actions.len(), 1, "{actions:?}");
+    assert_eq!(actions[0]["title"], "Replace with `Library Member`");
+    assert_eq!(actions[0]["kind"], "quickfix");
+
+    // The edit replaces the name and nothing else — the quotes survive.
+    let edit = &actions[0]["edit"]["changes"][&uri][0];
+    assert_eq!(edit["newText"], "Library Member");
+    assert_eq!(edit["range"], diagnostic["range"]);
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_typo_with_no_single_candidate_offers_no_fix() {
+    // Spec 23 allows a replacement only for a single candidate; guessing
+    // between several is how a quick fix corrupts a codebase.
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    params.as_object_mut().expect("params is an object").insert(
+        "initializationOptions".to_string(),
+        json!({"diagnostics": {"unknown-doctype": "warning"}}),
+    );
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let path = bench.join("apps/library/library/probe.py");
+    let uri = format!("file://{}", path.display());
+    let found = diagnostics_for(
+        &mut session,
+        &uri,
+        "import frappe\nfrappe.get_doc(\"Libary Member\")\n",
+    );
+    let diagnostic = found
+        .iter()
+        .find(|d| d["code"] == "frappe-lsp/unknown-doctype")
+        .expect("the diagnostic");
+
+    let response = session.request(
+        100,
+        "textDocument/codeAction",
+        json!({"textDocument": {"uri": uri}, "range": diagnostic["range"],
+               "context": {"diagnostics": [diagnostic]}}),
+    );
+    assert!(response["result"].is_null(), "{response}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
