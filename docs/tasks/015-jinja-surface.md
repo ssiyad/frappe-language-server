@@ -3,7 +3,7 @@
 **Phase** 4 · **Depends on** 014
 
 [13](../specs/13-surface-jinja.md). Grammar strategy must be settled first — it
-is the deferred half of 001.
+is the half of the design that was deferred to phase 4.
 
 ## Scope
 

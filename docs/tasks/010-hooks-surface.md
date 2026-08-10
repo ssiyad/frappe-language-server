@@ -1,6 +1,6 @@
 # 010 — Hooks surface
 
-**Phase** 3 · **Depends on** — · **Blocks** 011, 012
+**Phase** 3 · **Depends on** — · **Blocks** nothing
 
 [12](../specs/12-surface-hooks.md). Extraction, the vendored registry and the
 cross-hook effects are done; what remains is wiring them into the index and
@@ -20,8 +20,7 @@ navigates and hovers. What remains needs the JavaScript surface or completion.
 ## Scope
 
 - `doctype_js` into the DocType's script list, so [21](../specs/21-navigation.md)
-  can offer a form script bound from elsewhere in the app. Needs 011 to be worth
-  anything.
+  can offer a form script bound from elsewhere in the app.
 - Ordering: `hooks.py` indexed before any JS or template in the same app.
 - Completion for hook keys, doc events and frequencies
   ([20](../specs/20-completion.md)).

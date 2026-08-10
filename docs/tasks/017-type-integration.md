@@ -1,6 +1,6 @@
 # 017 — Type checker integration
 
-**Phase** 4 · **Depends on** 009 · **Experimental**
+**Phase** 4 · **Depends on** — · **Experimental**
 
 [24](../specs/24-type-integration.md). Opt-in, off by default. Does not block any
 other task.

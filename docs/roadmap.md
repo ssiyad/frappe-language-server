@@ -13,7 +13,7 @@ built to support it.
 
 Specs and task breakdown. Complete.
 
-## Phase 2 — Index and navigation
+## Phase 2 — Index and navigation ✅
 
 Workspace discovery, DocType index, Python surface, hooks surface, go-to-
 definition, hover, completion, cache. Static layers only; no diagnostics.
@@ -23,13 +23,25 @@ before anything can accuse correct code of being wrong
 ([23](specs/23-diagnostics.md)).
 
 **Done when** go-to-definition works on the reference bench within the budgets in
-[31](specs/31-performance.md).
+[31](specs/31-performance.md). Met: on `frappe` 17.0.0-dev plus two custom apps,
+definition lands on the controller in 3 ms against a 10 ms target, hover and
+completion in about 1 ms, cold index 155 ms and warm start 37 ms. Driven from
+Neovim, not only from tests.
 
-## Phase 3 — JavaScript, references, diagnostics
+The JavaScript surface arrived here rather than in phase 3: extraction covered
+both languages from the start, so turning it on was resolution and presentation
+rather than new machinery.
 
-Client-script surface, workspace references, symbols, the diagnostic set, quick
-fixes. Test running ([25](specs/25-test-runner.md)) rides along — it depends only
-on workspace discovery and can be pulled forward.
+## Phase 3 — References, diagnostics
+
+Workspace references, symbols, the diagnostic set, quick fixes. Test running
+([25](specs/25-test-runner.md)) rides along — it depends only on workspace
+discovery and can be pulled forward.
+
+Diagnostics are the risk the whole phase turns on. Everything shipped so far can
+only be absent or wrong where the user asked a question; a diagnostic speaks
+unprompted about code somebody else wrote, and spec 23's precision rule is what
+keeps that welcome.
 
 **Done when** the nightly real-bench smoke test reports zero diagnostics across
 `frappe` and a custom app ([32](specs/32-testing.md)).

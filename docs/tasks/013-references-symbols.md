@@ -2,7 +2,9 @@
 
 **Phase** 3 · **Depends on** —
 
-[21](../specs/21-navigation.md).
+[21](../specs/21-navigation.md). The reverse index is the only structural work
+left in phase 3; everything else here is presentation over the graph that
+exists.
 
 ## Scope
 
@@ -14,7 +16,9 @@
   `hooks.py` and `patches.txt`. Nothing for controller `.py` / `.js`.
 - `workspaceSymbol` over DocTypes, whitelisted methods, reports, pages, web
   forms. Fuzzy, capped at 200. Fields excluded.
-- `typeDefinition` and `implementation`.
+
+`typeDefinition` and `implementation` already answer, from 008 and the hooks
+surface respectively.
 
 ## Done when
 
