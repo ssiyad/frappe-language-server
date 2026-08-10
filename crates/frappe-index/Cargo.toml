@@ -9,6 +9,9 @@ repository.workspace = true
 
 [dependencies]
 frappe-bridge.workspace = true
+# Controller and whitelist registries are read from Python source, and there is
+# exactly one Python reader in the workspace — spec 02.
+frappe-syntax.workspace = true
 # The DocType JSON scan is embarrassingly parallel — spec 31.
 rayon.workspace = true
 # DocType discovery has to parse each candidate to apply the third rule of

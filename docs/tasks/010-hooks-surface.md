@@ -1,6 +1,6 @@
 # 010 — Hooks surface
 
-**Phase** 3 · **Depends on** 009, 021 · **Blocks** 011, 012
+**Phase** 3 · **Depends on** 009 · **Blocks** 011, 012
 
 [12](../specs/12-surface-hooks.md). Highest value per line of code on the
 project — and it feeds the index, so it comes before the JS surface.

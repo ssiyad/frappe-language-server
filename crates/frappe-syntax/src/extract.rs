@@ -11,6 +11,7 @@ use tree_sitter::{Node, Tree};
 use crate::binding::{Imports, Scopes, javascript_scopes, python_scopes};
 use crate::language::Language;
 use crate::matches::{Anchor, Binding, Match, PathKind, Role, Slot, Span};
+use crate::queries::{self, Site};
 use crate::read;
 use crate::shapes::{self, Arg, Method, Shape, special};
 
@@ -54,7 +55,7 @@ pub fn extract(language: Language, tree: &Tree, source: &str, context: Context<'
         Language::Json => return Vec::new(),
     };
 
-    extractor.walk(root);
+    extractor.walk(language, tree, source);
     extractor.matches.sort_by_key(|found| found.span);
     extractor.matches
 }
@@ -68,29 +69,24 @@ struct Extractor<'a> {
 }
 
 impl<'a> Extractor<'a> {
-    fn walk(&mut self, root: Node<'a>) {
-        let mut cursor = root.walk();
-        let mut stack = vec![root];
-        while let Some(node) = stack.pop() {
-            stack.extend(node.named_children(&mut cursor));
-            match self.language {
-                Language::Python => self.python(node),
-                Language::JavaScript => self.javascript(node),
-                Language::Json => {}
+    /// Layer one locates the sites, layer two reads their shapes — spec 06.
+    /// Nothing here asks a node what kind it is; the query already answered.
+    fn walk(&mut self, language: Language, tree: &'a Tree, source: &str) {
+        for (site, node) in queries::sites(language, tree, source) {
+            match (language, site) {
+                (Language::Python, Site::Decorator) => self.python_decorator(node),
+                (Language::Python, Site::Call) => self.python_call(node),
+                (Language::Python, Site::Attribute) => self.python_attribute(node),
+                (Language::JavaScript, Site::Call) => self.javascript_call(node),
+                (Language::JavaScript, Site::Attribute) => self.javascript_member(node),
+                (Language::JavaScript, Site::Assignment) => self.javascript_assignment(node),
+                (Language::JavaScript, Site::Subscript) => self.javascript_subscript(node),
+                _ => {}
             }
         }
     }
 
     // --- Python --------------------------------------------------------------
-
-    fn python(&mut self, node: Node<'a>) {
-        match node.kind() {
-            "decorator" => self.python_decorator(node),
-            "call" => self.python_call(node),
-            "attribute" => self.python_attribute(node),
-            _ => {}
-        }
-    }
 
     /// `@frappe.whitelist(...)` — [07](../../../docs/specs/07-dotted-paths.md).
     fn python_decorator(&mut self, node: Node<'a>) {
@@ -143,7 +139,7 @@ impl<'a> Extractor<'a> {
         ) else {
             return;
         };
-        if object.kind() != "identifier" {
+        if !read::is_name(object) {
             return;
         }
         let Some(binding) = self.binding(read::text(object, self.source), node.start_byte()) else {
@@ -172,7 +168,7 @@ impl<'a> Extractor<'a> {
         ) else {
             return;
         };
-        if object.kind() != "identifier" {
+        if !read::is_name(object) {
             return;
         }
         let Some(binding) = self.binding(read::text(object, self.source), node.start_byte()) else {
@@ -196,16 +192,6 @@ impl<'a> Extractor<'a> {
     }
 
     // --- JavaScript ----------------------------------------------------------
-
-    fn javascript(&mut self, node: Node<'a>) {
-        match node.kind() {
-            "call_expression" => self.javascript_call(node),
-            "member_expression" => self.javascript_member(node),
-            "assignment_expression" => self.javascript_assignment(node),
-            "subscript_expression" => self.javascript_subscript(node),
-            _ => {}
-        }
-    }
 
     fn javascript_call(&mut self, node: Node<'a>) {
         let Some((callee, arguments)) = read::call_parts(node, Language::JavaScript) else {
@@ -234,7 +220,7 @@ impl<'a> Extractor<'a> {
         ) else {
             return;
         };
-        if object.kind() != "identifier" {
+        if !read::is_name(object) {
             return;
         }
         let Some(binding) = self.binding(read::text(object, self.source), node.start_byte()) else {
@@ -260,7 +246,7 @@ impl<'a> Extractor<'a> {
         ) else {
             return;
         };
-        if object.kind() != "member_expression" {
+        if !read::is_member(object) {
             return;
         }
         let (Some(form), Some(doc)) = (
@@ -269,7 +255,7 @@ impl<'a> Extractor<'a> {
         ) else {
             return;
         };
-        if form.kind() != "identifier" || read::text(doc, self.source) != "doc" {
+        if !read::is_name(form) || read::text(doc, self.source) != "doc" {
             return;
         }
         let Some(binding) = self.binding(read::text(form, self.source), node.start_byte()) else {
@@ -297,7 +283,7 @@ impl<'a> Extractor<'a> {
         let Some(left) = node.child_by_field_name("left") else {
             return;
         };
-        if left.kind() != "subscript_expression" {
+        if !read::is_subscript(left) {
             return;
         }
         let (Some(object), Some(index)) = (
@@ -326,7 +312,7 @@ impl<'a> Extractor<'a> {
         let Some(inner) = node.child_by_field_name("object") else {
             return;
         };
-        if inner.kind() != "subscript_expression" {
+        if !read::is_subscript(inner) {
             return;
         }
         let (Some(object), Some(index)) = (
@@ -382,16 +368,13 @@ impl<'a> Extractor<'a> {
     /// events share one keyspace
     /// ([11](../../../docs/specs/11-surface-javascript.md)).
     fn form_events(&mut self, handlers: Node<'a>, slots: &mut Vec<Slot>) {
-        if handlers.kind() != "object" {
+        if !read::is_object(handlers) {
             return;
         }
         for child in handlers.named_children(&mut handlers.walk()) {
-            let key = match child.kind() {
-                "pair" => child.child_by_field_name("key"),
-                "method_definition" => child.child_by_field_name("name"),
-                _ => None,
+            let Some(key) = read::entry_key(child) else {
+                continue;
             };
-            let Some(key) = key else { continue };
 
             let text = self.key_name(key);
             slots.push(Slot {
@@ -825,9 +808,8 @@ impl<'a> Extractor<'a> {
     /// Python's bare dict keys are `identifier` nodes and are deliberately not
     /// accepted: `{fieldname: value}` is a variable, not a name.
     fn key_name(&self, key: Node<'a>) -> Option<String> {
-        self.literal_text(key).or_else(|| {
-            (key.kind() == "property_identifier").then(|| read::text(key, self.source).to_string())
-        })
+        self.literal_text(key)
+            .or_else(|| read::bare_key(key).then(|| read::text(key, self.source).to_string()))
     }
 
     fn literal(&self, node: Node<'a>) -> Option<read::Literal> {

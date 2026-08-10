@@ -7,8 +7,8 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::python::{self, Whitelist};
 use crate::span::Range;
+use frappe_syntax::symbols::{self as python, Whitelist};
 
 /// One `@frappe.whitelist()` target.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,8 +51,8 @@ pub fn methods_of(module: &python::Module, path: &Path, dotted: &str) -> Vec<Whi
             allow_guest: exposure.allow_guest,
             methods: exposure.methods.clone(),
             parameters: function.parameters.clone(),
-            range: function.range,
-            name_range: function.name_range,
+            range: function.span.into(),
+            name_range: function.name_span.into(),
             owner: None,
         });
     }
@@ -68,8 +68,8 @@ pub fn methods_of(module: &python::Module, path: &Path, dotted: &str) -> Vec<Whi
                 allow_guest: exposure.allow_guest,
                 methods: exposure.methods.clone(),
                 parameters: method.parameters.clone(),
-                range: method.range,
-                name_range: method.name_range,
+                range: method.span.into(),
+                name_range: method.name_span.into(),
                 owner: Some(class.name.clone()),
             });
         }
@@ -110,7 +110,8 @@ class LibraryMember(Document):
 \tdef renew_all(self, count: int = 1):
 \t\tpass
 ",
-        );
+        )
+        .expect("the Python grammar loads");
 
         let found = methods_of(
             &module,
@@ -140,7 +141,7 @@ class LibraryMember(Document):
 
     #[test]
     fn a_module_with_nothing_whitelisted_registers_nothing() {
-        let module = python::read("def helper():\n\tpass\n");
+        let module = python::read("def helper():\n\tpass\n").expect("the Python grammar loads");
         assert!(methods_of(&module, Path::new("/x.py"), "library.x").is_empty());
     }
 }

@@ -9,9 +9,7 @@ Open work only. Delete a file when its task is done.
 | 007 | [Python surface](007-python-surface.md) | — |
 | 008 | [Definition, hover, completion](008-definition-hover-completion.md) | 007 |
 | 009 | [Index cache and file watching](009-index-cache.md) | 008 |
-| 010 | [Hooks surface](010-hooks-surface.md) | 009, 021 |
-| 020 | [Query-located call sites](020-query-located-calls.md) | — · cleanup |
-| 021 | [One Python reader](021-one-python-reader.md) | — · cleanup |
+| 010 | [Hooks surface](010-hooks-surface.md) | 009 |
 
 ## Phase 3 — JavaScript, references, diagnostics
 
@@ -39,8 +37,7 @@ Open work only. Delete a file when its task is done.
 
 ## Critical path
 
-`007 → 008` — the index and extraction below them are done. `020` and `021`
-clean up decisions taken during those two and block only `010`.
+`007 → 008` — the index and extraction below them are done.
 
 `010` (hooks) sits in phase 2 rather than 3: dotted-path navigation is a large
 share of the grepping this project exists to remove, and hooks feed the index

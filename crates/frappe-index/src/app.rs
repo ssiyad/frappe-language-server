@@ -161,11 +161,11 @@ fn modules(package: &Path) -> (Vec<Module>, Vec<Problem>) {
 
 /// A module-level `name = "value"` assignment.
 ///
-/// Deliberately not a Python parse. Discovery needs two scalars —  `app_name`
-/// and `__version__` — before any grammar is loaded, and `frappe-syntax` is a
-/// sibling crate this one must not depend on
-/// ([02](../../../docs/specs/02-architecture.md)). Hook *values* are extracted
-/// properly, with tree-sitter, in 010.
+/// Deliberately not a Python parse. Discovery reads two scalars — `app_name`
+/// and `__version__` — from every candidate directory while deciding what is
+/// even an app, and parsing each one to answer that costs more than the whole
+/// of discovery. Symbols that carry meaning are read with tree-sitter, in
+/// [`frappe_syntax::symbols`]; hook *values* follow in 010.
 #[must_use]
 pub fn python_string(source: &str, name: &str) -> Option<String> {
     for line in source.lines() {

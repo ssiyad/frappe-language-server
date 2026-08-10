@@ -17,11 +17,12 @@ use crate::fixtures::{self, Fixture};
 use crate::intern::{Interner, Symbol};
 use crate::paths::{self, Kind, Resolution, Resolver};
 use crate::problem::Problem;
-use crate::python;
 use crate::span::Range;
 use crate::walk::Walk;
 use crate::whitelist::{self, WhitelistedMethod};
 use crate::workspace::Workspace;
+use frappe_syntax::GrammarError;
+use frappe_syntax::symbols as python;
 
 /// How complete the index is — the gate on absence checks in
 /// [23](../../../docs/specs/23-diagnostics.md).
@@ -362,15 +363,25 @@ impl Index {
             })
             .collect();
 
-        let read: Vec<(PathBuf, python::Module)> = files
+        let read: Vec<(PathBuf, Result<python::Module, GrammarError>)> = files
             .into_par_iter()
             .filter_map(|path| {
                 let source = std::fs::read_to_string(&path).ok()?;
+                // A grammar that will not load is a build fault, not a source
+                // one: it yields no symbols for every file alike, and the
+                // problem below says so once per file rather than silently.
                 Some((path, python::read(&source)))
             })
             .collect();
 
-        self.modules.extend(read);
+        for (path, module) in read {
+            match module {
+                Ok(module) => {
+                    self.modules.insert(path, module);
+                }
+                Err(error) => self.problems.push(Problem::new(path, error.to_string())),
+            }
+        }
     }
 
     /// Build one DocType from every layer that contributes to it.
@@ -1041,8 +1052,12 @@ impl Index {
     fn reindex_python(&mut self, path: &Path, package: &Path, affected: &mut BTreeSet<String>) {
         self.modules.remove(path);
         if let Ok(source) = std::fs::read_to_string(path) {
-            self.modules
-                .insert(path.to_path_buf(), python::read(&source));
+            match python::read(&source) {
+                Ok(module) => {
+                    self.modules.insert(path.to_path_buf(), module);
+                }
+                Err(error) => self.problems.push(Problem::new(path, error.to_string())),
+            }
         }
 
         self.whitelisted.retain(|_, method| method.path != path);

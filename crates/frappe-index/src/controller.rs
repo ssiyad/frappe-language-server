@@ -6,8 +6,8 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::python::{self, Whitelist};
 use crate::span::Range;
+use frappe_syntax::symbols::{self as python, Whitelist};
 
 /// The controller class of a DocType.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,15 +107,15 @@ pub fn resolve(
         path: path.to_path_buf(),
         module: dotted.to_string(),
         class_name: class.name.clone(),
-        range: class.range,
-        name_range: class.name_range,
+        range: class.span.into(),
+        name_range: class.name_span.into(),
         methods: class
             .methods
             .iter()
             .map(|method| Method {
                 name: method.name.clone(),
-                range: method.range,
-                name_range: method.name_range,
+                range: method.span.into(),
+                name_range: method.name_span.into(),
                 parameters: method.parameters.clone(),
                 whitelisted: matches!(method.whitelist, Whitelist::Yes(_)),
             })
@@ -139,7 +139,8 @@ class LibraryMember(Document):
 \tdef validate(self):
 \t\tpass
 ",
-        );
+        )
+        .expect("the Python grammar loads");
         let controller = resolve(&module, Path::new("x.py"), "library.x", "Library Member")
             .expect("a controller");
 
@@ -150,7 +151,8 @@ class LibraryMember(Document):
 
     #[test]
     fn a_qualified_document_base_still_counts() {
-        let module = python::read("class Loan(frappe.model.document.Document):\n\tpass\n");
+        let module = python::read("class Loan(frappe.model.document.Document):\n\tpass\n")
+            .expect("the Python grammar loads");
         let controller =
             resolve(&module, Path::new("x.py"), "circulation.x", "Loan").expect("a controller");
         assert_eq!(controller.class_name, "Loan");
@@ -158,7 +160,8 @@ class LibraryMember(Document):
 
     #[test]
     fn the_camel_case_name_is_the_fallback() {
-        let module = python::read("class LibraryLoanItem(BaseThing):\n\tpass\n");
+        let module = python::read("class LibraryLoanItem(BaseThing):\n\tpass\n")
+            .expect("the Python grammar loads");
         let controller = resolve(&module, Path::new("x.py"), "library.x", "Library Loan Item")
             .expect("a controller");
         assert_eq!(controller.class_name, "LibraryLoanItem");
@@ -166,14 +169,15 @@ class LibraryMember(Document):
 
     #[test]
     fn a_file_with_no_plausible_class_yields_nothing() {
-        let module = python::read("class Alpha:\n\tpass\n\n\nclass Beta:\n\tpass\n");
+        let module = python::read("class Alpha:\n\tpass\n\n\nclass Beta:\n\tpass\n")
+            .expect("the Python grammar loads");
         assert_eq!(
             resolve(&module, Path::new("x.py"), "library.x", "Gamma"),
             None
         );
         assert_eq!(
             resolve(
-                &python::read("def helper():\n\tpass\n"),
+                &python::read("def helper():\n\tpass\n").expect("the Python grammar loads"),
                 Path::new("x.py"),
                 "library.x",
                 "Gamma"
@@ -197,7 +201,8 @@ class LibraryMember(Document):
 \tdef quiet(self):
 \t\tpass
 ",
-        );
+        )
+        .expect("the Python grammar loads");
         let controller = resolve(&module, Path::new("x.py"), "library.x", "Library Member")
             .expect("a controller");
 

@@ -21,6 +21,14 @@ pub struct Range {
     pub end: u32,
 }
 
+/// `frappe-syntax` spans measure the same bytes; the index keeps them in `u32`
+/// so a `Field` stays small.
+impl From<frappe_syntax::Span> for Range {
+    fn from(span: frappe_syntax::Span) -> Self {
+        Self::new(span.start, span.end)
+    }
+}
+
 impl Range {
     /// A range over `start..end`, saturating at `u32::MAX`.
     ///

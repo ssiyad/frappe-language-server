@@ -155,6 +155,7 @@ name = "frappe-index"
 version = "0.1.0"
 dependencies = [
  "frappe-bridge",
+ "frappe-syntax",
  "insta",
  "rayon",
  "serde",

@@ -16,7 +16,6 @@ pub mod index;
 pub mod installed;
 pub mod intern;
 pub mod paths;
-pub mod python;
 pub mod site;
 pub mod span;
 pub mod walk;

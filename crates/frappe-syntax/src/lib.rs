@@ -22,6 +22,8 @@ pub mod extract;
 pub mod generated;
 pub mod language;
 pub mod matches;
+pub mod queries;
+pub mod symbols;
 
 mod binding;
 mod read;
@@ -31,3 +33,4 @@ pub use buffer::{Buffer, Change, Position, PositionEncoding, Range};
 pub use extract::{Context, extract};
 pub use language::{GrammarError, Language};
 pub use matches::{Anchor, Binding, Match, PathKind, PatternId, Role, Slot, Span, TranslationArg};
+pub use symbols::{Class, Exposure, Function, Whitelist};

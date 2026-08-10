@@ -298,6 +298,43 @@ pub(crate) fn dotted(node: Node<'_>, source: &str) -> Option<String> {
     Some(segments.join("."))
 }
 
+/// A bare name — the only receiver shape a binding can be looked up by.
+pub(crate) fn is_name(node: Node<'_>) -> bool {
+    node.kind() == "identifier"
+}
+
+/// `a.b` in JavaScript. Python's equivalent is `attribute`, which
+/// [`dotted`] already reads.
+pub(crate) fn is_member(node: Node<'_>) -> bool {
+    node.kind() == "member_expression"
+}
+
+/// `a[b]`, the shape behind `locals[D][name]` and
+/// `frappe.listview_settings[D]`.
+pub(crate) fn is_subscript(node: Node<'_>) -> bool {
+    node.kind() == "subscript_expression"
+}
+
+/// A JavaScript object literal — the handler map of `frappe.ui.form.on`.
+pub(crate) fn is_object(node: Node<'_>) -> bool {
+    node.kind() == "object"
+}
+
+/// The key of an object entry, whether written as `key: fn` or `key() {}`.
+pub(crate) fn entry_key<'t>(entry: Node<'t>) -> Option<Node<'t>> {
+    match entry.kind() {
+        "pair" => entry.child_by_field_name("key"),
+        "method_definition" => entry.child_by_field_name("name"),
+        _ => None,
+    }
+}
+
+/// An unquoted object key. `{fieldname: value}` names a field; a computed key
+/// is a variable and names nothing.
+pub(crate) fn bare_key(node: Node<'_>) -> bool {
+    node.kind() == "property_identifier"
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -9,8 +9,8 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use crate::python::{self, Whitelist};
 use crate::span::Range;
+use frappe_syntax::symbols::{self as python, Whitelist};
 
 /// What the caller requires of a path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -175,8 +175,8 @@ impl Resolver<'_> {
                             path: module_path.clone(),
                             symbol: SymbolKind::Function,
                             name: (*symbol).to_string(),
-                            range: function.range,
-                            selection_range: function.name_range,
+                            range: function.span.into(),
+                            selection_range: function.name_span.into(),
                             matches_kind: match kind {
                                 Kind::Callable => true,
                                 Kind::Whitelisted => whitelisted,
@@ -189,8 +189,8 @@ impl Resolver<'_> {
                             path: module_path.clone(),
                             symbol: SymbolKind::Class,
                             name: (*symbol).to_string(),
-                            range: class.range,
-                            selection_range: class.name_range,
+                            range: class.span.into(),
+                            selection_range: class.name_span.into(),
                             matches_kind: matches!(kind, Kind::Callable | Kind::Class),
                         });
                     }
@@ -207,8 +207,8 @@ impl Resolver<'_> {
                             path: module_path.clone(),
                             symbol: SymbolKind::Method,
                             name: format!("{class_name}.{method_name}"),
-                            range: method.range,
-                            selection_range: method.name_range,
+                            range: method.span.into(),
+                            selection_range: method.name_span.into(),
                             matches_kind: match kind {
                                 Kind::Method => true,
                                 Kind::Whitelisted => matches!(method.whitelist, Whitelist::Yes(_)),
