@@ -96,7 +96,8 @@ JSON takes no comments, so those expectations live here:
 | | `bad_depends` | `dangling-depends-on` |
 | | `good_link`, `good_dynamic`, `good_fetch` | clean |
 | `circulation_broken_meta.json` | `title` twice | `duplicate-fieldname` |
-| | `orphan`, absent from `field_order` | `field-order-mismatch` |
+| | `field_order` names `ghost_field` | `field-order-mismatch` |
+| | `orphan`, absent from `field_order` | clean — Frappe regenerates `field_order`, and its own schema ships fields missing from it |
 | | `title_field: no_such_field` | `unknown-meta-field` |
 | | `sort_field: also_missing` | `unknown-meta-field` |
 | `circulation_malformed.json` | file | `malformed-json` |

@@ -70,11 +70,20 @@ turns [23](23-diagnostics.md)'s precision rule into something enforced rather
 than merely stated.
 
 The allowlist is for the other case: a diagnostic that is right about code that
-is wrong. It holds 8 `translation-literal` hits at frappe `5a94ce8` — f-strings
-and `.format()` inside `_()`, which break string extraction. Each entry names a
-file, a code and the upstream issue; an entry without one is a false positive
-wearing a disguise, and the list must not grow to accommodate a noisy check.
-Anything not on it fails the job.
+is wrong, or right about code whose missing half is invisible by the user's
+choice. At frappe `5a94ce8` it holds 8 `translation-literal` hits — f-strings
+and `.format()` inside `_()`, which break string extraction — and 2
+`dangling-depends-on` hits on `social_login_key`, whose `eval:doc.custom` reads
+a field no schema declares: either a leftover or a Customize Form field the
+static index cannot see, which is what `Static` confidence means.
+
+Each entry names a file, a code and the reason; an entry without one is a false
+positive wearing a disguise, and the list must not grow to accommodate a noisy
+check. Anything not on it fails the job.
+
+Measured with the shipping defaults: 372 DocType JSONs across the reference
+bench yield 8 findings, 2 of them on `frappe` and both allowlisted. 300 Python
+files yield 1.
 
 ## Stub completeness
 

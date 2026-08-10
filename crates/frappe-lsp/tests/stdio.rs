@@ -1680,3 +1680,144 @@ fn a_translation_that_cannot_be_extracted_is_reported_by_default() {
     session.notify("exit", json!(null));
     session.finish();
 }
+
+/// The schema set, against the DocTypes the fixture bench carries for it.
+///
+/// `tests/fixtures/README.md` lists the expected code for every position in
+/// these two files; this asserts the list.
+#[test]
+fn the_broken_doctypes_report_exactly_what_the_fixture_documents() {
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let field_json = bench.join(
+        "apps/circulation-app/circulation/circulation/doctype/circulation_broken_field/circulation_broken_field.json",
+    );
+    let uri = format!("file://{}", field_json.display());
+    let text = std::fs::read_to_string(&field_json).expect("the fixture");
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {"uri": uri, "languageId": "json", "version": 1, "text": text}}),
+    );
+    let found = loop {
+        let message = session.receive();
+        if message["method"]
+            .as_str()
+            .is_some_and(|m| m.ends_with("publishDiagnostics"))
+            && message["params"]["uri"] == uri
+        {
+            break message["params"]["diagnostics"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+        }
+    };
+    let codes: Vec<&str> = found.iter().filter_map(|d| d["code"].as_str()).collect();
+
+    for expected in [
+        "frappe-lsp/unknown-link-target",
+        "frappe-lsp/table-not-child",
+        "frappe-lsp/dangling-dynamic-link",
+        "frappe-lsp/unresolvable-fetch-from",
+        "frappe-lsp/dangling-depends-on",
+    ] {
+        assert!(
+            codes.contains(&expected),
+            "{expected} missing from {codes:?}"
+        );
+    }
+    // The four `good_*` fields in the same file are the negative case: five
+    // deliberate errors, and nothing said about anything else.
+    assert_eq!(codes.len(), 5, "{found:?}");
+
+    let meta_json = bench.join(
+        "apps/circulation-app/circulation/circulation/doctype/circulation_broken_meta/circulation_broken_meta.json",
+    );
+    let uri = format!("file://{}", meta_json.display());
+    let text = std::fs::read_to_string(&meta_json).expect("the fixture");
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {"uri": uri, "languageId": "json", "version": 1, "text": text}}),
+    );
+    let found = loop {
+        let message = session.receive();
+        if message["method"]
+            .as_str()
+            .is_some_and(|m| m.ends_with("publishDiagnostics"))
+            && message["params"]["uri"] == uri
+        {
+            break message["params"]["diagnostics"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+        }
+    };
+    let codes: Vec<&str> = found.iter().filter_map(|d| d["code"].as_str()).collect();
+
+    assert!(
+        codes.contains(&"frappe-lsp/duplicate-fieldname"),
+        "{codes:?}"
+    );
+    assert!(
+        codes.contains(&"frappe-lsp/field-order-mismatch"),
+        "{codes:?}"
+    );
+    // `title_field` and `sort_field` both name fields that do not exist.
+    assert_eq!(
+        codes
+            .iter()
+            .filter(|c| **c == "frappe-lsp/unknown-meta-field")
+            .count(),
+        2,
+        "{found:?}"
+    );
+
+    session.request(500, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_correct_doctype_json_reports_nothing() {
+    // Library Member uses a self Link, a Table, a Dynamic Link, a fetch_from
+    // and an `eval:` depends_on — every construct the schema set judges.
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let path =
+        bench.join("apps/library/library/library/doctype/library_member/library_member.json");
+    let uri = format!("file://{}", path.display());
+    let text = std::fs::read_to_string(&path).expect("the fixture");
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {"uri": uri, "languageId": "json", "version": 1, "text": text}}),
+    );
+    let found = loop {
+        let message = session.receive();
+        if message["method"]
+            .as_str()
+            .is_some_and(|m| m.ends_with("publishDiagnostics"))
+            && message["params"]["uri"] == uri
+        {
+            break message["params"]["diagnostics"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+        }
+    };
+    assert!(found.is_empty(), "false positives: {found:?}");
+
+    session.request(500, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}

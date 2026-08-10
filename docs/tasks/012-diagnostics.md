@@ -33,13 +33,31 @@ the remainder are runtime-assigned attributes and raw table names. With the
 shipping defaults that sample produces **one** diagnostic, and it is a real
 f-string inside `_()`.
 
+Confidence gating is in: the twelve checks that assert something is *absent*
+are suppressed at `Partial` and `Degraded`, so the server no longer reports a
+name it merely has not read yet during the first moments of a session.
+
+The schema set is in: `unknown-link-target`, `table-not-child`,
+`dangling-dynamic-link`, `unresolvable-fetch-from`, `dangling-depends-on`,
+`field-order-mismatch`, `duplicate-fieldname`, `unknown-meta-field`. Measured
+across 372 DocType JSONs on the reference bench: 8 findings, 2 of them on
+`frappe` and both allowlisted ([32](../specs/32-testing.md)). Three
+false-positive sources were removed on the way — `doc.__islocal` and its family
+are client-side flags rather than columns, an implicit field is a valid
+`fetch_from` target and a `Dynamic Link` target is unknowable, and a field
+absent from `field_order` is ordinary because Frappe regenerates that list.
+
 ## Scope
 
 - Make the absence checks defensible enough to default on: learn a controller's
   runtime attributes from its own `self.x =` assignments, and recognise the raw
   table names Frappe queries directly (`Singles`). Both are what stands between
   67 and zero.
-- The remaining check sets: schema (beyond conflicts) and patches.
+- The remaining check sets: the hooks remainder (`unresolvable-path`,
+  `wrong-path-kind`, `missing-asset`, `app-name-mismatch`,
+  `unknown-required-app`) and patches, which needs `patches.txt` parsing that
+  nothing does yet.
+- Quick fixes, and publishing conflicts against files that are not open.
 - `Degraded` confidence, once the bridge exists, and the suppression of absence
   checks under it.
 - Quick fixes: close-match replacement (single candidate, edit distance ≤ 2),

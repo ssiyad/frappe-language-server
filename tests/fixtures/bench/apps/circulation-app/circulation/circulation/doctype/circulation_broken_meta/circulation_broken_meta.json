@@ -6,7 +6,8 @@
  "engine": "InnoDB",
  "field_order": [
   "title",
-  "title"
+  "title",
+  "ghost_field"
  ],
  "fields": [
   {

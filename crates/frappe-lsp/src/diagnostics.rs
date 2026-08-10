@@ -13,11 +13,13 @@
 
 use std::path::Path;
 
-use frappe_index::Index;
+use frappe_index::{Confidence, Index};
 use frappe_syntax::generated;
 use tower_lsp_server::ls_types::{
     CodeDescription, Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range, Uri,
 };
+
+use frappe_index::doctype::Options;
 
 use crate::config::{Config, Level};
 use crate::hooks::HookTarget;
@@ -59,12 +61,15 @@ pub fn for_buffer(index: &Index, config: &Config, path: &Path, source: &str) -> 
     {
         findings.extend(code(index, language, path, source));
     }
+    findings.extend(schema(index, path));
     findings.extend(malformed(index, path));
     findings.extend(conflicts(index, path));
 
     let lines = LineIndex::new(source, frappe_syntax::PositionEncoding::Utf16);
+    let knows_absence = absence_is_knowable(index);
     findings
         .into_iter()
+        .filter(|finding| knows_absence || !asserts_absence(finding.code))
         .filter(|finding| severity(config, finding.code).is_some())
         .filter(|finding| !suppressed(source, &lines, finding))
         .map(|finding| {
@@ -412,6 +417,227 @@ fn conflicts(index: &Index, path: &Path) -> Vec<Finding> {
         .collect()
 }
 
+/// Checks over a DocType JSON — spec 23's schema set.
+///
+/// Every range comes from the index, which read the file from disk. A dirty
+/// buffer can therefore drift from them; the alternative is re-parsing the JSON
+/// on every keystroke to place a diagnostic on a schema the index has not
+/// accepted yet, which would report on a document that does not exist.
+fn schema(index: &Index, path: &Path) -> Vec<Finding> {
+    let Some(doctype) = index.doctype_at(path) else {
+        return Vec::new();
+    };
+    let mut findings = Vec::new();
+    let mut seen: Vec<&str> = Vec::new();
+
+    for field in &doctype.fields {
+        let fieldname = index.fieldname(field);
+        let fieldtype = index.fieldtype(field);
+
+        // A field declared twice: the later one wins silently, and a form that
+        // reads the first never sees the value the second holds.
+        if seen.contains(&fieldname) {
+            findings.push(Finding {
+                code: "duplicate-fieldname",
+                span: span_of(field.ranges.fieldname.unwrap_or(field.range)),
+                message: format!("`{fieldname}` is declared more than once"),
+            });
+        } else {
+            seen.push(fieldname);
+        }
+
+        let options_span = span_of(field.ranges.options.unwrap_or(field.range));
+        match index.options(field) {
+            Options::LinkTarget(target) => {
+                if index.doctype(target).is_none() {
+                    findings.push(Finding {
+                        code: "unknown-link-target",
+                        span: options_span,
+                        message: format!(
+                            "`{fieldname}` links to `{target}`, which is not a DocType"
+                        ),
+                    });
+                }
+            }
+            Options::ChildDocType(child) => match index.doctype(child) {
+                None => findings.push(Finding {
+                    code: "unknown-link-target",
+                    span: options_span,
+                    message: format!("`{fieldname}` holds `{child}`, which is not a DocType"),
+                }),
+                // A Table of a non-child DocType does not load: `istable` is
+                // what makes a DocType usable as rows.
+                Some(target) if !target.is_child => findings.push(Finding {
+                    code: "table-not-child",
+                    span: options_span,
+                    message: format!(
+                        "`{child}` is not a child table, so `{fieldname}` cannot hold it"
+                    ),
+                }),
+                Some(_) => {}
+            },
+            Options::DynamicSource(sibling)
+                if index.dynamic_link_source(doctype, field).is_none() =>
+            {
+                findings.push(Finding {
+                    code: "dangling-dynamic-link",
+                    span: options_span,
+                    message: format!(
+                        "`{fieldname}` takes its target from `{sibling}`, which is not a field here"
+                    ),
+                });
+            }
+            _ => {}
+        }
+
+        if let Some(value) = &field.fetch_from
+            && let Some(message) = unresolvable_fetch(index, doctype, field, value)
+        {
+            findings.push(Finding {
+                code: "unresolvable-fetch-from",
+                span: span_of(field.ranges.fetch_from.unwrap_or(field.range)),
+                message,
+            });
+        }
+
+        if let Some(expression) = &field.depends_on {
+            for referenced in referenced_fields(expression) {
+                // `__islocal`, `__unsaved`, `__onload`: flags the client puts on
+                // the form's document object, never columns. frappe's own
+                // schema reads them 22 times.
+                if !referenced.starts_with("__") && !index.has_field(&doctype.name, referenced) {
+                    findings.push(Finding {
+                        code: "dangling-depends-on",
+                        span: span_of(field.ranges.depends_on.unwrap_or(field.range)),
+                        message: format!("`{referenced}` is not a field on `{}`", doctype.name),
+                    });
+                }
+            }
+        }
+
+        let _ = fieldtype;
+    }
+
+    // `field_order` decides what the form shows; a field missing from it is
+    // invisible, and a name in it that no field has renders nothing.
+    let declared: Vec<&str> = doctype.fields.iter().map(|f| index.fieldname(f)).collect();
+    let ordered: Vec<&str> = doctype
+        .field_order
+        .iter()
+        .map(|symbol| index.text(*symbol))
+        .collect();
+    if !ordered.is_empty() {
+        // Only the direction that is provably broken. A field absent from
+        // `field_order` is ordinary — Frappe regenerates the list on save, and
+        // its own schema ships two such fields — but a name in `field_order`
+        // that no field has renders nothing at all.
+        for extra in ordered.iter().filter(|name| !declared.contains(name)) {
+            findings.push(Finding {
+                code: "field-order-mismatch",
+                span: frappe_syntax::Span::new(0, 0),
+                message: format!("field_order names `{extra}`, which is not a field"),
+            });
+        }
+    }
+
+    for (property, value) in [
+        ("title_field", &doctype.title_field),
+        ("sort_field", &doctype.sort_field),
+        ("image_field", &doctype.image_field),
+    ] {
+        if let Some(value) = value
+            && !value.is_empty()
+            && !index.has_field(&doctype.name, value)
+        {
+            findings.push(Finding {
+                code: "unknown-meta-field",
+                span: frappe_syntax::Span::new(0, 0),
+                message: format!("{property} names `{value}`, which is not a field"),
+            });
+        }
+    }
+
+    findings
+}
+
+/// Why a `fetch_from` cannot work, if it cannot.
+///
+/// `<link>.<target>`: the link half must be a field here, and the target half
+/// must be a field on what it links to — counting implicit fields, since
+/// `owner` and `modified` are fetched constantly. A `Dynamic Link` source names
+/// its DocType at runtime, so nothing here can say whether the target exists.
+fn unresolvable_fetch(
+    index: &Index,
+    doctype: &frappe_index::DocType,
+    field: &frappe_index::Field,
+    value: &str,
+) -> Option<String> {
+    let split = frappe_index::doctype::split_fetch_from(value)?;
+    let (link, _) = index.fetch_from(doctype, field);
+
+    let Some(link_field) = link else {
+        return Some(format!(
+            "`{value}` reads `{}`, which is not a field here",
+            split.link_fieldname
+        ));
+    };
+
+    match index.options(link_field) {
+        Options::LinkTarget(target) => {
+            // An unknown link target is already reported against the link
+            // field itself; saying it twice helps nobody.
+            let known = index.doctype(target).is_some();
+            (known && !index.has_field(target, split.target_fieldname)).then(|| {
+                format!(
+                    "`{target}` has no field `{}`, so `{}` stays empty",
+                    split.target_fieldname,
+                    index.fieldname(field)
+                )
+            })
+        }
+        // Runtime-determined target: unknowable, so silent.
+        _ => None,
+    }
+}
+
+/// The sibling fieldnames a `depends_on` expression reads.
+///
+/// `eval:` expressions name them as `doc.<field>`; anything else is a bare
+/// fieldname. Only the forms Frappe itself evaluates are read — an expression
+/// this cannot follow yields nothing rather than a guess.
+fn referenced_fields(expression: &str) -> Vec<&str> {
+    let expression = expression.trim();
+    let Some(rest) = expression.strip_prefix("eval:") else {
+        return if expression
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+            && !expression.is_empty()
+        {
+            vec![expression]
+        } else {
+            Vec::new()
+        };
+    };
+
+    let mut found = Vec::new();
+    let mut remaining = rest;
+    while let Some(at) = remaining.find("doc.") {
+        let after = &remaining[at + 4..];
+        let end = after
+            .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+            .unwrap_or(after.len());
+        if end > 0 {
+            found.push(&after[..end]);
+        }
+        remaining = &after[end..];
+    }
+    found
+}
+
+fn span_of(range: frappe_index::Range) -> frappe_syntax::Span {
+    frappe_syntax::Span::new(range.start as usize, range.end as usize)
+}
+
 /// A DocType JSON that does not parse — spec 02's failure policy, and the one
 /// diagnostic that needs no judgement at all.
 fn malformed(index: &Index, path: &Path) -> Vec<Finding> {
@@ -428,6 +654,39 @@ fn malformed(index: &Index, path: &Path) -> Vec<Finding> {
             message: problem.message.clone(),
         })
         .collect()
+}
+
+/// Checks that assert something is *not* there, which only an index complete
+/// enough to know may make — spec 23's confidence table.
+const ABSENCE_CHECKS: [&str; 12] = [
+    "dangling-depends-on",
+    "dangling-dynamic-link",
+    "missing-asset",
+    "non-whitelisted-call",
+    "table-not-child",
+    "unknown-doctype",
+    "unknown-field",
+    "unknown-form-event",
+    "unknown-link-target",
+    "unknown-meta-field",
+    "unknown-required-app",
+    "unresolvable-fetch-from",
+];
+
+fn asserts_absence(code: &str) -> bool {
+    ABSENCE_CHECKS.binary_search(&code).is_ok()
+}
+
+/// Whether the index knows enough to say something is missing.
+///
+/// `Partial` is the first 150 ms of every session, and `Degraded` is a bridge
+/// that was configured and could not be reached. In both, a name the index
+/// cannot find may simply not have been read yet — reporting it would mean the
+/// server greets the user with errors about their own working code, which is
+/// exactly how a diagnostic set gets switched off
+/// ([23](../../../docs/specs/23-diagnostics.md)).
+fn absence_is_knowable(index: &Index) -> bool {
+    matches!(index.confidence(), Confidence::Full | Confidence::Static)
 }
 
 /// Whether checks decided by a vendored table may fire.
@@ -529,6 +788,41 @@ mod tests {
 
         config.diagnostics.unknown_hook = Level::Off;
         assert!(severity(&config, "unknown-hook").is_none());
+    }
+
+    #[test]
+    fn the_absence_list_is_sorted_and_holds_only_absence_checks() {
+        assert!(ABSENCE_CHECKS.windows(2).all(|pair| pair[0] < pair[1]));
+
+        // A wrong event name or an invalid cron expression is wrong however
+        // complete the index is, so neither is ever gated (spec 23).
+        for presence in [
+            "unknown-doc-event",
+            "invalid-cron",
+            "unknown-frequency",
+            "unknown-hook",
+            "duplicate-hook",
+            "malformed-json",
+            "translation-literal",
+        ] {
+            assert!(!asserts_absence(presence), "{presence}");
+        }
+    }
+
+    #[test]
+    fn a_partial_index_says_nothing_about_absence() {
+        // The first 150 ms of every session. A name it cannot find may simply
+        // not have been read yet.
+        let partial = Index::partial();
+        assert!(!absence_is_knowable(&partial));
+
+        let found = for_buffer(
+            &partial,
+            &Config::default(),
+            Path::new("/bench/apps/x/x/api.py"),
+            "import frappe\nfrappe.ui.form.on(\"Task\", { nosuchthing(frm) {} })\n",
+        );
+        assert!(found.is_empty(), "{found:?}");
     }
 
     #[test]
