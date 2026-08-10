@@ -1,6 +1,6 @@
 # 008 — Definition, hover, completion
 
-**Phase** 2 · **Depends on** 007 · **Blocks** 009
+**Phase** 2 · **Depends on** — · **Blocks** 009
 
 First user-visible milestone. Python surface only.
 

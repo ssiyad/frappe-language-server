@@ -76,6 +76,22 @@ Implicit fields carry no range and no provenance: there is no file to point at,
 and a synthetic range would send go-to-definition to byte 0. They are therefore
 queryable but absent from `fields`.
 
+### Document members
+
+`doc.<attr>` is Python attribute access, and most of what it reaches is not a
+field. `Document` and `BaseDocument` are vendored the same way as the fieldtype
+tables, and a name matching one of them — or any dunder — resolves as a member,
+never as an unknown field. The controller's own methods are checked too: a
+`validate` a subclass defines is on no base class.
+
+Order matters, and it is fields first: a DocType whose schema declares `status`
+or `title` keeps it. Members lose ties.
+
+Measured on `frappe` 17.0.0-dev, skipping this costs 118 distinct unknown
+fields against code that is correct — `flags` alone on 24 DocTypes — which is
+what [23](23-diagnostics.md)'s governing rule forbids. With it, 38 remain, all
+attributes assigned at runtime.
+
 ## Keys and lookup
 
 | Key | Example | Use |

@@ -6,8 +6,7 @@ Open work only. Delete a file when its task is done.
 
 | # | Task | Depends on |
 | --- | --- | --- |
-| 007 | [Python surface](007-python-surface.md) | — |
-| 008 | [Definition, hover, completion](008-definition-hover-completion.md) | 007 |
+| 008 | [Definition, hover, completion](008-definition-hover-completion.md) | — |
 | 009 | [Index cache and file watching](009-index-cache.md) | 008 |
 | 010 | [Hooks surface](010-hooks-surface.md) | 009 |
 
@@ -37,7 +36,7 @@ Open work only. Delete a file when its task is done.
 
 ## Critical path
 
-`007 → 008` — the index and extraction below them are done.
+`008` — discovery, the index, extraction and resolution below it are done.
 
 `010` (hooks) sits in phase 2 rather than 3: dotted-path navigation is a large
 share of the grepping this project exists to remove, and hooks feed the index

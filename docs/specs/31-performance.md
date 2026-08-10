@@ -47,10 +47,11 @@ Corruption falls back to a full scan and MUST NOT surface an error. Add
 
 ## Vendored constants
 
-Several specs depend on values copied out of `frappe`: fieldtype tables
-([04](04-metadata-index.md)), the hook registry ([12](12-surface-hooks.md)), form
-events ([11](11-surface-javascript.md)), doc events and scheduler frequencies
-([12](12-surface-hooks.md)), Jinja globals ([13](13-surface-jinja.md)).
+Several specs depend on values copied out of `frappe`: fieldtype tables and the
+`Document` member list ([04](04-metadata-index.md)), the hook registry
+([12](12-surface-hooks.md)), form events ([11](11-surface-javascript.md)), doc
+events and scheduler frequencies ([12](12-surface-hooks.md)), Jinja globals
+([13](13-surface-jinja.md)).
 
 These drift, and the server is **branch-agnostic**: it must behave on v15, on
 `develop`, and on whatever the workspace happens to be running.

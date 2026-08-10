@@ -277,3 +277,111 @@ fn re_indexing_one_doctype_json_stays_inside_the_incremental_budget() {
     // 20 ms is the ceiling in spec 31.
     assert!(elapsed.as_millis() < 20, "re-index took {elapsed:?}");
 }
+
+/// Resolution across a whole real app — the "done when" of task 007.
+///
+/// Frappe's own Python is the best corpus of valid Frappe code there is, so
+/// what matters here is not how much resolves but how little is *wrong*: an
+/// unknown DocType or field in this corpus is a resolver bug, not a user's
+/// mistake (specs/32).
+#[test]
+fn resolution_across_frappe_is_stable_and_precise() {
+    let bench = bench_or_skip!();
+    let index = frappe_index::index::Index::build(&bench);
+
+    let mut files = 0;
+    let mut matches = 0;
+    let mut positions = 0;
+    let mut resolved = 0;
+    let mut unresolvable = 0;
+    let mut unknown_doctypes: Vec<String> = Vec::new();
+    let mut unknown_fields: Vec<(String, String)> = Vec::new();
+
+    let started = Instant::now();
+    for app in index.apps() {
+        for path in frappe_index::walk::Walk::new(&app.package) {
+            if path.extension().is_none_or(|extension| extension != "py") {
+                continue;
+            }
+            let Ok(source) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let mut parser = frappe_syntax::Language::Python
+                .parser()
+                .expect("the grammar loads");
+            let Some(tree) = parser.parse(&source, None) else {
+                continue;
+            };
+
+            let found = frappe_syntax::extract(
+                frappe_syntax::Language::Python,
+                &tree,
+                &source,
+                frappe_syntax::Context::default(),
+            );
+            // A panic anywhere in here fails the test, which is half the point.
+            let targets = frappe_index::resolve::resolve_all(&index, &found);
+
+            files += 1;
+            matches += found.len();
+            positions += targets.len();
+            for one in targets {
+                match one.target {
+                    frappe_index::Target::Unresolvable => unresolvable += 1,
+                    frappe_index::Target::UnknownDocType { name, .. } => {
+                        unknown_doctypes.push(name)
+                    }
+                    frappe_index::Target::UnknownField { doctype, fieldname } => {
+                        unknown_fields.push((doctype, fieldname));
+                    }
+                    _ => resolved += 1,
+                }
+            }
+        }
+    }
+    let elapsed = started.elapsed();
+
+    unknown_doctypes.sort();
+    unknown_doctypes.dedup();
+    unknown_fields.sort();
+    unknown_fields.dedup();
+
+    eprintln!(
+        "{files} files, {matches} matches, {positions} positions in {elapsed:?}\n  \
+         {resolved} resolved, {unresolvable} unresolvable, \
+         {} distinct unknown DocTypes, {} distinct unknown fields",
+        unknown_doctypes.len(),
+        unknown_fields.len()
+    );
+    for name in unknown_doctypes.iter().take(10) {
+        eprintln!("  unknown DocType: {name}");
+    }
+    let mut by_name: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    for (_, fieldname) in &unknown_fields {
+        *by_name.entry(fieldname.as_str()).or_default() += 1;
+    }
+    let mut ranked: Vec<_> = by_name.into_iter().collect();
+    ranked.sort_by_key(|(name, count)| (std::cmp::Reverse(*count), *name));
+    for (fieldname, count) in ranked.iter().take(12) {
+        eprintln!("  unknown field: .{fieldname} on {count} DocTypes");
+    }
+
+    assert!(files > 1_000, "only {files} files");
+    assert!(resolved > 1_000, "only {resolved} positions resolved");
+
+    // Frappe's own code is valid, so an unknown here is either a DocType that
+    // genuinely is not installed — erpnext's, or one a test creates at runtime
+    // — or a bug in this resolver. The ceilings are deliberately close to the
+    // measured 62 and 38: a change that pushes either up is reporting nonsense
+    // about correct code (specs/23).
+    assert!(
+        unknown_doctypes.len() <= 70,
+        "{} unknown DocTypes: {unknown_doctypes:?}",
+        unknown_doctypes.len()
+    );
+    assert!(
+        unknown_fields.len() <= 45,
+        "{} unknown fields: {unknown_fields:?}",
+        unknown_fields.len()
+    );
+}
