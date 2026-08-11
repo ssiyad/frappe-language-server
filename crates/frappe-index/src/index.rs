@@ -1016,6 +1016,32 @@ impl Index {
             .is_some_and(|controller| self.class_assigns(&controller.class_name, name))
     }
 
+    /// A DocType that holds rows of `child` and declares `fieldname`.
+    ///
+    /// `child.member_name` inside a `Library Loan Item` binding is the classic
+    /// confusion: the row does not carry the parent's fields, and Frappe
+    /// returns `None` rather than failing
+    /// ([10](../../../docs/specs/10-surface-python.md)).
+    #[must_use]
+    pub fn parent_with_field(&self, child: &str, fieldname: &str) -> Option<&str> {
+        if !self.doctype(child).is_some_and(|doctype| doctype.is_child) {
+            return None;
+        }
+        self.doctypes
+            .values()
+            .filter(|parent| {
+                parent.fields.iter().any(|field| {
+                    self.interner.resolve(field.fieldtype) == "Table"
+                        && field
+                            .options
+                            .as_deref()
+                            .is_some_and(|options| options.eq_ignore_ascii_case(child))
+                })
+            })
+            .find(|parent| parent.has_field(&self.interner, fieldname))
+            .map(|parent| parent.name.as_str())
+    }
+
     /// Whether `fieldname` is a `Table` field, on any DocType, holding rows of
     /// `child`.
     ///

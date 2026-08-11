@@ -188,7 +188,18 @@ fn hooks(index: &Index, source: &str, path: &Path) -> Vec<Finding> {
             // thing. Both follow from the workspace, not from a vendored list.
             HookTarget::Path { dotted, kind } => {
                 use frappe_index::paths::{Kind, Outcome};
-                let effective = index.effective_method(dotted);
+                // The path as written first. `override_whitelisted_methods`
+                // keys its map by the *original* path, and judging that key by
+                // its replacement reports the key when the value is what is
+                // wrong — frappe's own `download_file` lines are exactly that.
+                // The remap is still consulted, but only for a path that does
+                // not resolve on its own, where an override may be the answer.
+                let effective = if matches!(index.resolve(dotted, *kind).outcome, Outcome::Resolved)
+                {
+                    dotted.as_str()
+                } else {
+                    index.effective_method(dotted)
+                };
                 let outcome = index.resolve(effective, *kind).outcome;
 
                 // A hook's declared kind is not always the only one that works:
@@ -398,7 +409,7 @@ fn code(
     for matched in &matches {
         for resolved in frappe_index::resolve::resolve(index, matched) {
             findings.extend(
-                finding_for(&resolved)
+                finding_for(index, &resolved)
                     .filter(|finding| {
                         absence
                             || !matches!(
@@ -463,10 +474,25 @@ fn interior(span: frappe_syntax::Span, source: &str) -> frappe_syntax::Span {
 }
 
 /// One resolved position, as a finding.
-fn finding_for(resolved: &frappe_index::resolve::Resolved) -> Option<Finding> {
+fn finding_for(index: &Index, resolved: &frappe_index::resolve::Resolved) -> Option<Finding> {
     use frappe_index::resolve::{FormEventKind, Target};
 
     Some(match &resolved.target {
+        // `get_single_value` on a DocType that is not a Single reads the
+        // `tabSingles` table for a name that is not in it, and returns `None`
+        // without failing ([10](../../../docs/specs/10-surface-python.md)).
+        Target::DocType { name }
+            if NEEDS_SINGLE.contains(&resolved.pattern.0)
+                && index
+                    .doctype(name)
+                    .is_some_and(|doctype| !doctype.is_single) =>
+        {
+            Finding {
+                code: "not-single-doctype",
+                span: resolved.span,
+                message: format!("`{name}` is not a Single, so this reads nothing"),
+            }
+        }
         Target::UnknownDocType { name, similar } => Finding {
             code: "unknown-doctype",
             span: resolved.span,
@@ -475,6 +501,43 @@ fn finding_for(resolved: &frappe_index::resolve::Resolved) -> Option<Finding> {
                 None => format!("no DocType named `{name}`"),
             },
         },
+        // A row does not carry its parent's fields, and saying *whose* field it
+        // is turns a dead end into a fix. Held to the same line as every other
+        // field claim: a name in a query position is one, `row.company` is
+        // not — erpnext copies parent values onto rows constantly, and 106 of
+        // these on the corpus are that idiom rather than a bug.
+        Target::UnknownField { doctype, fieldname }
+            if !is_attribute_access(resolved.pattern)
+                && index.parent_with_field(doctype, fieldname).is_some() =>
+        {
+            let parent = index
+                .parent_with_field(doctype, fieldname)
+                .unwrap_or_default();
+            Finding {
+                code: "parent-field-on-child",
+                span: resolved.span,
+                message: format!(
+                    "`{fieldname}` is a field on `{parent}`, not on its child `{doctype}`"
+                ),
+            }
+        }
+        // The same mistake reached as an attribute keeps the better message and
+        // the quieter code.
+        Target::UnknownField { doctype, fieldname }
+            if is_attribute_access(resolved.pattern)
+                && index.parent_with_field(doctype, fieldname).is_some() =>
+        {
+            let parent = index
+                .parent_with_field(doctype, fieldname)
+                .unwrap_or_default();
+            Finding {
+                code: "unknown-attribute",
+                span: resolved.span,
+                message: format!(
+                    "`{fieldname}` is a field on `{parent}`, not on its child `{doctype}`"
+                ),
+            }
+        }
         // A fieldname written as a string is a claim frappe will act on: it goes
         // into a query, and a name that is not a field silently returns
         // nothing. `doc.x` is Python being Python — a Document is an open
@@ -535,9 +598,19 @@ fn translations(matched: &frappe_syntax::Match, source: &str) -> Vec<Finding> {
                 TranslationArg::Interpolated => "an f-string or template literal",
                 TranslationArg::Formatted => "`.format()` applied inside the call",
                 TranslationArg::Concatenated => "a concatenation",
-                // Spec 23 ships `translation-dynamic` off: it fires 721 times
-                // on frappe itself.
-                TranslationArg::Literal | TranslationArg::Dynamic => return None,
+                // Its own code and its own default: `_(variable)` is usually a
+                // string already translated elsewhere, and spec 23 ships it off
+                // because it fires 721 times on frappe itself.
+                TranslationArg::Dynamic => {
+                    return Some(Finding {
+                        code: "translation-dynamic",
+                        span: slot.span,
+                        message: "translations are extracted statically, so a value known only at \
+                             runtime is never in the catalogue"
+                            .to_string(),
+                    });
+                }
+                TranslationArg::Literal => return None,
             };
             Some(Finding {
                 code: "translation-literal",
@@ -871,11 +944,12 @@ fn malformed(index: &Index, path: &Path) -> Vec<Finding> {
 
 /// Checks that assert something is *not* there, which only an index complete
 /// enough to know may make — spec 23's confidence table.
-const ABSENCE_CHECKS: [&str; 13] = [
+const ABSENCE_CHECKS: [&str; 14] = [
     "dangling-depends-on",
     "dangling-dynamic-link",
     "missing-asset",
     "non-whitelisted-call",
+    "parent-field-on-child",
     "table-not-child",
     "unknown-attribute",
     "unknown-doctype",
@@ -885,6 +959,13 @@ const ABSENCE_CHECKS: [&str; 13] = [
     "unknown-meta-field",
     "unknown-required-app",
     "unresolvable-fetch-from",
+];
+
+/// Shapes whose DocType argument must be a Single.
+const NEEDS_SINGLE: [&str; 3] = [
+    "frappe.db.get_single_value",
+    "frappe.db.set_single_value",
+    "frappe.get_single",
 ];
 
 /// Whether the position was written as `doc.x` rather than as a name.
@@ -931,6 +1012,7 @@ fn severity(config: &Config, code: &str) -> Option<DiagnosticSeverity> {
         "unknown-doctype" => config.diagnostics.unknown_doctype,
         "unknown-field" => config.diagnostics.unknown_field,
         "unknown-attribute" => config.diagnostics.unknown_attribute,
+        "translation-dynamic" => config.diagnostics.translation_dynamic,
         "unknown-form-event" => config.diagnostics.unknown_form_event,
         "non-whitelisted-call" => config.diagnostics.non_whitelisted_call,
         "translation-literal" => config.diagnostics.translation_literal,
@@ -1033,6 +1115,16 @@ pub fn fixes(
             _ => None,
         };
 
+        // The only fix whose edit lands in another file: the diagnostic is on
+        // the JavaScript call, and the decorator belongs above the Python
+        // definition ([23](../../../docs/specs/23-diagnostics.md)).
+        if code == "non-whitelisted-call"
+            && let Some(action) = whitelist_fix(index, diagnostic)
+        {
+            actions.push(action);
+            continue;
+        }
+
         let Some(replacement) = replacement else {
             continue;
         };
@@ -1060,6 +1152,68 @@ pub fn fixes(
     }
 
     actions
+}
+
+/// `@frappe.whitelist()` above the definition the call names.
+///
+/// The edit is in a different file from the diagnostic, which is the whole
+/// reason this is not a one-line replacement: the target has to be resolved,
+/// its file opened by URI, and the decorator indented to match the `def` it
+/// sits above — a controller method is indented, a module function is not.
+fn whitelist_fix(
+    index: &Index,
+    diagnostic: &Diagnostic,
+) -> Option<tower_lsp_server::ls_types::CodeActionOrCommand> {
+    use tower_lsp_server::ls_types::{
+        CodeAction, CodeActionKind, CodeActionOrCommand, TextEdit, WorkspaceEdit,
+    };
+
+    // The message carries the path it resolved; re-resolving is cheaper than
+    // threading the resolution through the protocol types.
+    let dotted = diagnostic.message.split('`').nth(1)?;
+    let resolution = index.resolve(dotted, frappe_index::paths::Kind::Whitelisted);
+    let candidate = resolution.best()?;
+    let uri = crate::locations::uri_of(&candidate.path)?;
+
+    // Indentation is read from the file rather than guessed: frappe is a tab
+    // codebase, but an app is whatever its author writes, and a controller
+    // method sits one level in where a module function sits at zero.
+    let source = std::fs::read_to_string(&candidate.path).ok()?;
+    let start = candidate.range.start as usize;
+    let line_start = source[..start.min(source.len())]
+        .rfind('\n')
+        .map_or(0, |newline| newline + 1);
+    let indent: String = source[line_start..]
+        .chars()
+        .take_while(|c| *c == ' ' || *c == '\t')
+        .collect();
+
+    let lines = LineIndex::new(&source, frappe_syntax::PositionEncoding::Utf16);
+    let at = Position {
+        line: lines.position(line_start).line,
+        character: 0,
+    };
+    Some(CodeActionOrCommand::CodeAction(CodeAction {
+        title: format!("Add @frappe.whitelist() to `{}`", candidate.name),
+        kind: Some(CodeActionKind::QUICKFIX),
+        diagnostics: Some(vec![diagnostic.clone()]),
+        edit: Some(WorkspaceEdit {
+            changes: Some(
+                [(
+                    uri,
+                    vec![TextEdit {
+                        range: Range { start: at, end: at },
+                        new_text: format!("{indent}@frappe.whitelist()\n"),
+                    }],
+                )]
+                .into_iter()
+                .collect(),
+            ),
+            ..Default::default()
+        }),
+        is_preferred: Some(true),
+        ..Default::default()
+    }))
 }
 
 /// A candidate list is only a fix when it holds exactly one — spec 23 allows a

@@ -111,7 +111,7 @@ and are pruned when noticed.
 ### What is on it
 
 Measured with the shipping defaults over `frappe` `5a94ce8` and `erpnext`
-`02118e7`: 863 DocTypes, 14 303 fields, 7 079 files checked, **214 allowed
+`02118e7`: 890 DocTypes, 14 635 fields, 7 079 files checked, **215 allowed
 findings** and nothing else. By code:
 
 | Code | Entries | Why they are allowed |
@@ -125,12 +125,13 @@ findings** and nothing else. By code:
 | `missing-asset` | 3 | absent from the app, or served from a DocType at runtime |
 | `duplicate-patch` | 1 | listed twice |
 | `unknown-link-target` | 1 | `Payment Gateway` lives in the `payments` app, which this bench does not install |
-| `unknown-field` | 108 | a fieldname written as a string, in a position frappe queries, that no schema declares |
+| `unknown-field` | 95 | a fieldname written as a string, in a position frappe queries, that no schema declares |
 | `unknown-doctype` | 33 | erpnext links into apps this checkout does not install |
 | `unknown-form-event` | 19 | a handler nothing triggers, on no field and no event: it never fires |
+| `parent-field-on-child` | 15 | the field is real, on the DocType that holds this one as a `Table` |
 
-The last three arrived when the absence checks were turned on, and they are the
-reason the list is 214 entries rather than 54. That is a long list, and the
+The last four arrived when the absence checks were turned on, and they are the
+reason the list is 215 entries rather than 54. That is a long list, and the
 entry format is what keeps it from becoming wallpaper: matching on file, code,
 message **and** count means a second `unknown-field` in an already-listed file
 still fails the job. Shortening it means installing the apps erpnext links into

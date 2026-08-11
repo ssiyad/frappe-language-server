@@ -96,6 +96,27 @@ pub fn run(
     // deciding whether `doc.x` is a typo needs type information this server
     // does not have. `--absence` turns it on to keep the number measured
     // rather than assumed ([23](../../docs/specs/23-diagnostics.md)).
+    // An app outside the canonical set changes what the corpus reports: it can
+    // define a DocType erpnext links to, which silences a finding, and it can
+    // redefine one, which invents a conflict on erpnext's own file. The first
+    // shows up as a stale allowlist entry and is harmless; the second would
+    // write one developer's bench into a committed list, so it is dropped.
+    let foreign: Vec<&str> = index
+        .apps()
+        .iter()
+        .map(|app| app.name.as_str())
+        .filter(|name| !CANONICAL.contains(name))
+        .collect();
+    let ignore_conflicts = !foreign.is_empty() && !all;
+    if ignore_conflicts {
+        println!(
+            "note: {} also installed; conflict findings on canonical files are ignored, and \
+             the committed allowlist is written against a bench holding {} alone",
+            foreign.join(", "),
+            CANONICAL.join(" + "),
+        );
+    }
+
     let mut config = Config::default();
     if absence {
         config.diagnostics.unknown_attribute = frappe_lsp::config::Level::Warning;
@@ -122,6 +143,14 @@ pub fn run(
             let Some(code) = code_of(&diagnostic) else {
                 continue;
             };
+            if ignore_conflicts
+                && matches!(
+                    code.as_str(),
+                    "duplicate-doctype" | "custom-field-collision"
+                )
+            {
+                continue;
+            }
             *counts.entry(code.clone()).or_default() += 1;
             lines
                 .entry((relative.clone(), code.clone(), diagnostic.message.clone()))

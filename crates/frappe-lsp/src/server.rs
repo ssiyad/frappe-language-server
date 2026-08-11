@@ -56,6 +56,9 @@ struct State {
     /// Reported to the user once the client is listening; anything sent during
     /// `initialize` is dropped by most clients.
     pending: Vec<String>,
+    /// Files a conflict was published to that the user never opened, so the
+    /// next build can clear the ones that no longer conflict.
+    conflicting: Vec<Uri>,
 }
 
 impl Backend {
@@ -274,6 +277,16 @@ impl Backend {
         });
     }
 
+    /// Publish conflicts against files nobody opened.
+    ///
+    /// `duplicate-doctype` and `custom-field-collision` land on two files by
+    /// definition, and the second one is usually in an app the user is not
+    /// editing. Publishing only to open buffers means the diagnostic that says
+    /// *which other app* redefines a DocType is the one nobody ever sees
+    /// ([23](../../../docs/specs/23-diagnostics.md)).
+    ///
+    /// Anything published here is cleared on the next build, so a conflict the
+    /// user resolves does not sit in their problem list forever.
     /// The status of the index as it stands — spec 30's `indexStatus`.
     fn status(&self) -> IndexStatus {
         self.index
@@ -290,6 +303,8 @@ impl Backend {
     /// ([31](../../../docs/specs/31-performance.md)).
     fn build_in_background(&self, root: PathBuf) {
         let index = Arc::clone(&self.index);
+        let state = Arc::clone(&self.state);
+        let client = self.client.clone();
         let cache = self.write(|state| {
             state
                 .config
@@ -298,44 +313,20 @@ impl Backend {
                 .then(|| state.config.index.cache_dir.clone())
         });
 
-        tokio::task::spawn_blocking(move || {
-            // A cache is an optimisation: anything wrong with it means a full
-            // scan, never an error (spec 31).
-            let warm = cache
-                .as_deref()
-                .and_then(|directory| frappe_index::cache::load(&root, directory));
-            let from_cache = warm.is_some();
-            let built = warm.unwrap_or_else(|| Index::build(&root));
-
-            let status = built.status();
-            *index.write().expect("index lock poisoned by a panic") = built;
-            tracing::info!(
-                apps = status.apps,
-                doctypes = status.doctypes,
-                fields = status.fields,
-                whitelisted = status.whitelisted_methods,
-                conflicts = status.conflicts,
-                problems = status.problems,
-                frappe = status.frappe_version.as_deref().unwrap_or("unknown"),
-                elapsed = ?status.build_time,
-                cached = from_cache,
-                "index built"
-            );
-
-            // Written only after the index is published. Encoding a few MiB
-            // and stamping every file it read takes longer than the build
-            // itself, and doing it first would hold the answer back for a
-            // start the cache exists to make faster.
-            if let Some(directory) = cache.as_deref()
-                && !from_cache
-            {
-                let guard = index.read().expect("index lock poisoned by a panic");
-                match frappe_index::cache::save(&guard, &root, directory) {
-                    Ok(()) => tracing::debug!("index cache written"),
-                    // Costs a slower start next time and nothing else.
-                    Err(error) => tracing::debug!(%error, "could not write the index cache"),
-                }
+        tokio::spawn(async move {
+            let building = {
+                let index = Arc::clone(&index);
+                let root = root.clone();
+                let cache = cache.clone();
+                tokio::task::spawn_blocking(move || build(&index, &root, cache.as_deref()))
+            };
+            if building.await.is_err() {
+                tracing::error!("the index build panicked");
+                return;
             }
+            // The conflict pair is published only now, because until the build
+            // lands there is no conflict to publish.
+            publish_conflicts(&client, &index, &state).await;
         });
     }
 
@@ -344,7 +335,117 @@ impl Backend {
     fn write<T>(&self, f: impl FnOnce(&mut State) -> T) -> T {
         f(&mut self.state.write().expect("state lock poisoned by a panic"))
     }
+}
 
+/// Publish conflicts against files nobody opened.
+///
+/// `duplicate-doctype` and `custom-field-collision` land on two files by
+/// definition, and the second one is usually in an app the user is not
+/// editing. Publishing only to open buffers means the diagnostic that says
+/// *which other app* redefines a DocType is the one nobody ever sees
+/// ([23](../../../docs/specs/23-diagnostics.md)).
+///
+/// Anything published here is cleared on the next build, so a conflict the user
+/// resolves does not sit in their problem list forever.
+async fn publish_conflicts(
+    client: &Client,
+    index: &Arc<RwLock<Index>>,
+    state: &Arc<RwLock<State>>,
+) {
+    let (config, open) = {
+        let guard = state.read().expect("state lock poisoned by a panic");
+        (guard.config.clone(), guard.buffers.uris())
+    };
+
+    // Everything is computed before the first await: the index guard is not
+    // `Send`, and holding it across one would not compile.
+    let computed: Vec<(Uri, Vec<Diagnostic>)> = {
+        let index = index.read().expect("index lock poisoned by a panic");
+        let mut seen: Vec<Uri> = Vec::new();
+        let mut computed = Vec::new();
+        for path in index
+            .conflicts()
+            .iter()
+            .flat_map(|conflict| conflict.paths.iter())
+        {
+            let Some(uri) = crate::locations::uri_of(path) else {
+                continue;
+            };
+            // An open buffer is published from its own text, on its own
+            // schedule; publishing here as well would race it.
+            if open.contains(&uri) || seen.contains(&uri) {
+                continue;
+            }
+            let Ok(source) = std::fs::read_to_string(path) else {
+                continue;
+            };
+            seen.push(uri.clone());
+            computed.push((uri, diagnostics::for_buffer(&index, &config, path, &source)));
+        }
+        computed
+    };
+
+    let published: Vec<Uri> = computed.iter().map(|(uri, _)| uri.clone()).collect();
+    let stale: Vec<Uri> = {
+        let mut guard = state.write().expect("state lock poisoned by a panic");
+        let stale = guard
+            .conflicting
+            .iter()
+            .filter(|uri| !published.contains(uri))
+            .cloned()
+            .collect();
+        guard.conflicting = published;
+        stale
+    };
+
+    for (uri, diagnostics) in computed {
+        client.publish_diagnostics(uri, diagnostics, None).await;
+    }
+    for uri in stale {
+        client.publish_diagnostics(uri, Vec::new(), None).await;
+    }
+}
+
+/// Build or warm the index in place, then write the cache.
+fn build(index: &Arc<RwLock<Index>>, root: &Path, cache: Option<&Path>) {
+    // A cache is an optimisation: anything wrong with it means a full
+    // scan, never an error (spec 31).
+    let warm = cache.and_then(|directory| frappe_index::cache::load(root, directory));
+    let from_cache = warm.is_some();
+    let built = warm.unwrap_or_else(|| Index::build(root));
+
+    let status = built.status();
+    *index.write().expect("index lock poisoned by a panic") = built;
+    tracing::info!(
+        apps = status.apps,
+        doctypes = status.doctypes,
+        fields = status.fields,
+        whitelisted = status.whitelisted_methods,
+        conflicts = status.conflicts,
+        problems = status.problems,
+        frappe = status.frappe_version.as_deref().unwrap_or("unknown"),
+        elapsed = ?status.build_time,
+        cached = from_cache,
+        "index built"
+    );
+
+    // Written only after the index is published. Encoding a few MiB
+    // and stamping every file it read takes longer than the build
+    // itself, and doing it first would hold the answer back for a
+    // start the cache exists to make faster.
+    if let Some(directory) = cache
+        && !from_cache
+    {
+        let guard = index.read().expect("index lock poisoned by a panic");
+        match frappe_index::cache::save(&guard, root, directory) {
+            Ok(()) => tracing::debug!("index cache written"),
+            // Costs a slower start next time and nothing else.
+            Err(error) => tracing::debug!(%error, "could not write the index cache"),
+        }
+    }
+}
+
+impl Backend {
     fn report(&self, errors: Vec<ConfigError>) {
         self.write(|state| {
             for error in errors {
@@ -548,11 +649,25 @@ impl LanguageServer for Backend {
 
         tracing::debug!(changes = paths.len(), "watched files changed");
         let index = Arc::clone(&self.index);
-        tokio::task::spawn_blocking(move || {
-            let mut index = index.write().expect("index lock poisoned by a panic");
-            for path in paths {
-                index.reindex(&path);
+        let state = Arc::clone(&self.state);
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            let reindexing = {
+                let index = Arc::clone(&index);
+                tokio::task::spawn_blocking(move || {
+                    let mut index = index.write().expect("index lock poisoned by a panic");
+                    for path in paths {
+                        index.reindex(&path);
+                    }
+                })
+            };
+            if reindexing.await.is_err() {
+                tracing::error!("re-indexing panicked");
+                return;
             }
+            // A DocType added or removed changes who conflicts with whom, and
+            // the other side of the pair is usually not open.
+            publish_conflicts(&client, &index, &state).await;
         });
     }
 

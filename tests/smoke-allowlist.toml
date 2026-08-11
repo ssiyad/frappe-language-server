@@ -14,17 +14,17 @@ reason = "a fieldname written as a string, in a position frappe queries, that no
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/accounting_dimension_filter/accounting_dimension_filter.js"
-code = "unknown-field"
-message = "`Allowed Dimension` has no field `dimensions`"
+code = "parent-field-on-child"
+message = "`dimensions` is a field on `Accounting Dimension Filter`, not on its child `Allowed Dimension`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/budget/budget.js"
-code = "unknown-field"
-message = "`Budget Distribution` has no field `budget_distribution`"
+code = "parent-field-on-child"
+message = "`budget_distribution` is a field on `Budget`, not on its child `Budget Distribution`"
 count = 2
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/budget/budget.js"
@@ -63,10 +63,10 @@ reason = "a fieldname written as a string, in a position frappe queries, that no
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/ledger_merge/ledger_merge.js"
-code = "unknown-field"
-message = "`Ledger Merge Accounts` has no field `merge_accounts`"
+code = "parent-field-on-child"
+message = "`merge_accounts` is a field on `Ledger Merge`, not on its child `Ledger Merge Accounts`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/payment_entry/payment_entry.js"
@@ -74,13 +74,6 @@ code = "unknown-field"
 message = "`Payment Entry` has no field `advance_tax_account`"
 count = 1
 reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/erpnext/erpnext/accounts/doctype/payment_gateway_account/payment_gateway_account.json"
-code = "unknown-link-target"
-message = "`payment_gateway` links to `Payment Gateway`, which is not a DocType"
-count = 1
-reason = "the target DocType belongs to an app this bench does not have installed"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/payment_request/payment_request.js"
@@ -210,10 +203,10 @@ reason = "a fieldname written as a string, in a position frappe queries, that no
 
 [[allow]]
 file = "apps/erpnext/erpnext/assets/doctype/asset/asset.js"
-code = "unknown-field"
-message = "`Asset Finance Book` has no field `finance_books`"
+code = "parent-field-on-child"
+message = "`finance_books` is a field on `Asset`, not on its child `Asset Finance Book`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/assets/doctype/asset/asset.js"
@@ -228,6 +221,13 @@ code = "unknown-field"
 message = "`Asset` has no field `remarks`"
 count = 2
 reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+
+[[allow]]
+file = "apps/erpnext/erpnext/assets/doctype/asset_movement/test_asset_movement.py"
+code = "parent-field-on-child"
+message = "`next_depreciation_date` is a field on `Asset`, not on its child `Asset Finance Book`"
+count = 2
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/assets/doctype/asset_repair/asset_repair.js"
@@ -252,10 +252,10 @@ reason = "a fieldname written as a string, in a position frappe queries, that no
 
 [[allow]]
 file = "apps/erpnext/erpnext/buying/doctype/supplier_scorecard/supplier_scorecard.js"
-code = "unknown-field"
-message = "`Supplier Scorecard Scoring Criteria` has no field `criteria`"
+code = "parent-field-on-child"
+message = "`criteria` is a field on `Supplier Scorecard`, not on its child `Supplier Scorecard Scoring Criteria`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/controllers/accounts_controller.py"
@@ -804,6 +804,13 @@ count = 1
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
 
 [[allow]]
+file = "apps/erpnext/erpnext/projects/doctype/timesheet/test_timesheet.py"
+code = "parent-field-on-child"
+message = "`company` is a field on `Timesheet`, not on its child `Timesheet Detail`"
+count = 7
+reason = "REVIEW: no class reason recorded — decide before committing"
+
+[[allow]]
 file = "apps/erpnext/erpnext/public/js/address.js"
 code = "unknown-form-event"
 message = "`is_your_company_address` is neither an event nor a field on `Address`; this handler never fires"
@@ -1015,10 +1022,10 @@ reason = "names a field no schema declares: either a leftover, or a Customize Fo
 
 [[allow]]
 file = "apps/erpnext/erpnext/stock/doctype/shipment/shipment.js"
-code = "unknown-field"
-message = "`Shipment Delivery Note` has no field `value_of_goods`"
+code = "parent-field-on-child"
+message = "`value_of_goods` is a field on `Shipment`, not on its child `Shipment Delivery Note`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/stock/doctype/shipment/shipment.js"
@@ -1057,24 +1064,24 @@ reason = "a fieldname written as a string, in a position frappe queries, that no
 
 [[allow]]
 file = "apps/erpnext/erpnext/subcontracting/doctype/subcontracting_inward_order/subcontracting_inward_order.js"
-code = "unknown-field"
-message = "`Subcontracting Inward Order Item` has no field `service_items`"
+code = "parent-field-on-child"
+message = "`service_items` is a field on `Subcontracting Inward Order`, not on its child `Subcontracting Inward Order Item`"
 count = 3
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/subcontracting/doctype/subcontracting_order/subcontracting_order.js"
-code = "unknown-field"
-message = "`Subcontracting Order Item` has no field `service_items`"
+code = "parent-field-on-child"
+message = "`service_items` is a field on `Subcontracting Order`, not on its child `Subcontracting Order Item`"
 count = 3
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/subcontracting/doctype/subcontracting_receipt/subcontracting_receipt.js"
-code = "unknown-field"
-message = "`Subcontracting Receipt Item` has no field `supplied_items`"
+code = "parent-field-on-child"
+message = "`supplied_items` is a field on `Subcontracting Receipt`, not on its child `Subcontracting Receipt Item`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/subcontracting/doctype/subcontracting_receipt_item/subcontracting_receipt_item.json"
@@ -1162,10 +1169,10 @@ reason = "a handler that is not a lifecycle event, not a fieldname, not a grid e
 
 [[allow]]
 file = "apps/frappe/frappe/core/doctype/user/user.js"
-code = "unknown-field"
-message = "`User Email` has no field `user_emails`"
+code = "parent-field-on-child"
+message = "`user_emails` is a field on `User`, not on its child `User Email`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/frappe/frappe/core/doctype/user/user.js"
@@ -1323,10 +1330,10 @@ reason = "names a field no schema declares: either a leftover, or a Customize Fo
 
 [[allow]]
 file = "apps/frappe/frappe/integrations/doctype/webhook/webhook.js"
-code = "unknown-field"
-message = "`Webhook Data` has no field `webhook_data`"
+code = "parent-field-on-child"
+message = "`webhook_data` is a field on `Webhook`, not on its child `Webhook Data`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/frappe/frappe/model/delete_doc.py"
@@ -1470,17 +1477,17 @@ reason = "a fieldname written as a string, in a position frappe queries, that no
 
 [[allow]]
 file = "apps/frappe/frappe/website/doctype/web_form/web_form.js"
-code = "unknown-field"
-message = "`Web Form Field` has no field `web_form_fields`"
-count = 2
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+code = "parent-field-on-child"
+message = "`list_columns` is a field on `Web Form`, not on its child `Web Form List Column`"
+count = 1
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/frappe/frappe/website/doctype/web_form/web_form.js"
-code = "unknown-field"
-message = "`Web Form List Column` has no field `list_columns`"
-count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+code = "parent-field-on-child"
+message = "`web_form_fields` is a field on `Web Form`, not on its child `Web Form Field`"
+count = 2
+reason = "REVIEW: no class reason recorded — decide before committing"
 
 [[allow]]
 file = "apps/frappe/frappe/website/doctype/web_form/web_form.js"

@@ -37,6 +37,13 @@ impl Buffers {
         Ok(true)
     }
 
+    /// Every open buffer's URI. Used to leave open files to their own publish
+    /// path rather than publishing over them from the index.
+    #[must_use]
+    pub fn uris(&self) -> Vec<Uri> {
+        self.open.keys().cloned().collect()
+    }
+
     /// Apply a `didChange` batch. `false` when the buffer was never opened,
     /// which means sync state has diverged and every later position would be
     /// computed against the wrong text.

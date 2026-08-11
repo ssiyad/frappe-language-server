@@ -11,7 +11,6 @@ Python and JavaScript surfaces and inside `hooks.py`. Phases in
 
 | # | Task | Depends on |
 | --- | --- | --- |
-| 012 | [Diagnostics](012-diagnostics.md) | — |
 | 013 | [References and symbols](013-references-symbols.md) | — |
 | 010 | [Hooks surface](010-hooks-surface.md) | — · remainder |
 | 018 | [Test running](018-test-runner.md) | — · independent |
@@ -20,7 +19,7 @@ Python and JavaScript surfaces and inside `hooks.py`. Phases in
 
 | # | Task | Depends on |
 | --- | --- | --- |
-| 014 | [Live bridge](014-live-bridge.md) | 012 |
+| 014 | [Live bridge](014-live-bridge.md) | — |
 | 015 | [Jinja surface](015-jinja-surface.md) | 014 |
 | 017 | [Type checker integration](017-type-integration.md) | — · experimental |
 
@@ -39,10 +38,12 @@ risk.
 `013` is the only structural work left: a reverse occurrence index built during
 the scan rather than an on-demand grep ([21](../specs/21-navigation.md)).
 
-`012` publishes already. What remains of it is the part that needs to be *made*
-quiet rather than kept quiet — teaching the absence checks about attributes a
-controller assigns at runtime, which is what stands between 67 diagnostics on
-correct `frappe` code and zero.
+`012` is done and its file is deleted. Every code in the registry of
+[23](../specs/23-diagnostics.md) is implemented, each with a positive and a
+negative case in the fixture bench, and `cargo xtask smoke` holds the whole
+check set to a committed allowlist over `frappe` and `erpnext`. Its one open
+item — `Degraded` confidence — moved to [014](014-live-bridge.md), which is
+the task that gives that state a way to occur.
 
 `010` holds only completion for hook keys and binding `doctype_js` scripts as
 navigation targets. `018` needs workspace discovery and nothing else.

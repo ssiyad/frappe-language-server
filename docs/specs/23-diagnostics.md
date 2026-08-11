@@ -108,8 +108,19 @@ DocType is dropped, the rest of the app still indexes.
 | Unknown DocType in a literal position | `unknown-doctype` | Warning |
 | Unknown field, written as a name | `unknown-field` | Warning |
 | Unknown field, reached as `doc.x` | `unknown-attribute` | **Off** |
-| Parent-only field used on a child DocType binding | `parent-field-on-child` | Warning |
+| Parent-only field named on a child DocType | `parent-field-on-child` | Warning |
 | `get_single_value` on a non-Single DocType | `not-single-doctype` | Warning |
+
+`parent-field-on-child` is `unknown-field` with a better message: the field
+exists, on the DocType that holds this one as a `Table`. It is held to the same
+line — a name in a query position is a claim, `row.company` is not. erpnext
+copies parent values onto rows constantly, and 106 of these on the corpus are
+that idiom rather than a bug, so attribute access keeps the message and takes
+the quieter code.
+
+`not-single-doctype` covers `frappe.get_single`, `frappe.db.get_single_value`
+and `frappe.db.set_single_value`. It is not an absence check: `issingle` is in
+the JSON, so a DocType that resolves at all answers the question.
 
 #### A name is a claim; an attribute is not
 
@@ -164,8 +175,8 @@ Carried over from [`frappe/intellisense`](https://github.com/frappe/intellisense
 which had it right: `_()` and `__()` must receive a literal, because strings are
 extracted statically.
 
-`translation-dynamic` ships **off**. Measured against `frappe` 17.0.0-dev it
-fires 721 times, almost all of it `_(variable)` in code that is doing nothing
+`translation-dynamic` ships **off**, and is configurable like every other code.
+Measured against `frappe` 17.0.0-dev it fires 721 times, almost all of it `_(variable)` in code that is doing nothing
 wrong; `translation-literal` fires 8 times on the same corpus, and those 8 are
 real. A check that fires 721 times on the reference corpus fails the governing
 rule above, whatever its merits as advice — it stays defined and configurable,

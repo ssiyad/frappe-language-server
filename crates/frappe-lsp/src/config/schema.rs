@@ -119,6 +119,7 @@ config_schema! {
         unknown_hook: Level = Level::Warning,
         unknown_doc_event: Level = Level::Error,
         translation_literal: Level = Level::Error,
+        translation_dynamic: Level = Level::Off,
     }
 
     types: Types / TypesPatch {

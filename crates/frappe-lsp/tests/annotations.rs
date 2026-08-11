@@ -69,17 +69,8 @@ fn every_expectation_in_the_bench_holds() {
     let config = Config::default();
     let mut requested = Config::default();
     requested.diagnostics.unknown_attribute = frappe_lsp::config::Level::Warning;
-    const OFF_BY_DEFAULT: [&str; 1] = ["unknown-attribute"];
-
-    // Three codes in the registry have no implementation yet: the extraction
-    // arm each needs is the open half of task 012. They are named here rather
-    // than deleted from the fixture, so the day one lands its expectation is
-    // already written ([23](../../../docs/specs/23-diagnostics.md)).
-    const PENDING: [&str; 3] = [
-        "not-single-doctype",
-        "parent-field-on-child",
-        "translation-dynamic",
-    ];
+    requested.diagnostics.translation_dynamic = frappe_lsp::config::Level::Warning;
+    const OFF_BY_DEFAULT: [&str; 2] = ["translation-dynamic", "unknown-attribute"];
 
     let files = annotated(&bench);
     assert!(files.len() > 3, "only {} annotated files", files.len());
@@ -92,9 +83,6 @@ fn every_expectation_in_the_bench_holds() {
         let relative = path.strip_prefix(&bench).unwrap_or(&path).display();
 
         for (line, expected) in annotations(&source) {
-            if PENDING.contains(&expected.as_str()) {
-                continue;
-            }
             let against = if OFF_BY_DEFAULT.contains(&expected.as_str()) {
                 &asked
             } else {

@@ -67,20 +67,20 @@ fn frappe_yields_its_doctypes_and_rejects_the_rest() {
 }
 
 #[test]
-fn the_stale_rename_is_excluded_and_costs_nothing() {
+fn an_app_on_disk_but_not_in_apps_txt_costs_nothing() {
     let bench = bench_or_skip!();
     let workspace = Workspace::discover(&bench);
 
-    // `apps/resource-management/` (package `frappe_sre`) is a stale rename of
-    // `apps/resource_management/`, and apps.txt lists only the latter.
-    assert!(
-        workspace
-            .excluded
-            .iter()
-            .any(|path| path.ends_with("resource-management")),
-        "excluded: {:?}",
-        workspace.excluded
-    );
+    // Whether this bench has such an app is the developer's business, not the
+    // repository's: the rule itself is asserted on the fixture bench, where
+    // `library-old` is a committed duplicate of `library`. Here it is checked
+    // against whatever a real bench happens to hold, and holding nothing is a
+    // fine answer.
+    let Some(excluded) = workspace.excluded.first().cloned() else {
+        eprintln!("no excluded app on this bench; nothing to check");
+        return;
+    };
+    eprintln!("excluded: {}", excluded.display());
 
     let duplicates = workspace.duplicate_doctypes();
     assert!(
@@ -90,31 +90,31 @@ fn the_stale_rename_is_excluded_and_costs_nothing() {
         duplicates.iter().map(|(name, _)| name).collect::<Vec<_>>()
     );
 
-    // What the rule is worth: the DocType names the excluded app would have
-    // collided with, had it been indexed.
-    let stale = bench.join("apps/resource-management/frappe_sre");
-    if stale.is_dir() {
-        let (artifacts, _) = artifacts::scan(&stale);
-        let stale_names: BTreeSet<&str> = artifacts
+    // What the rule is worth: every DocType the excluded app would have
+    // contributed is one the index did not see.
+    for package in std::fs::read_dir(&excluded).into_iter().flatten().flatten() {
+        let package = package.path();
+        if !package.is_dir() {
+            continue;
+        }
+        let (artifacts, _) = artifacts::scan(&package);
+        let stale: BTreeSet<&str> = artifacts
             .doctypes()
             .map(|record| record.name.as_str())
             .collect();
-        let live_names: BTreeSet<&str> = workspace
+        if stale.is_empty() {
+            continue;
+        }
+        let live: BTreeSet<&str> = workspace
             .doctypes()
             .map(|(_, record)| record.name.as_str())
             .collect();
-        let collisions = stale_names.intersection(&live_names).count();
-
         eprintln!(
-            "stale app holds {} DocTypes, {collisions} of which would collide",
-            stale_names.len()
+            "{} holds {} DocTypes, {} of which would collide",
+            package.display(),
+            stale.len(),
+            stale.intersection(&live).count()
         );
-        assert_eq!(
-            collisions,
-            stale_names.len(),
-            "the stale rename is supposed to be a full duplicate"
-        );
-        assert!(collisions >= 40, "only {collisions} collisions");
     }
 }
 
@@ -393,22 +393,15 @@ fn resolution_across_frappe_is_stable_and_precise() {
     assert!(files > 1_000, "only {files} files");
     assert!(resolved > 1_000, "only {resolved} positions resolved");
 
-    // Frappe's own code is valid, so an unknown here is either a DocType that
-    // genuinely is not installed — hrms's and payments's, or one a test creates
-    // at runtime — or a bug in this resolver. The ceilings are deliberately
-    // close to the 81 and 194 measured over frappe + erpnext: a change that
-    // pushes either up is reporting nonsense about correct code (specs/23).
+    // No ceiling on the unknown counts. They are a function of which apps the
+    // developer happens to have installed — an app that is not there is a
+    // DocType that does not resolve — so an absolute number here fails for
+    // reasons that have nothing to do with the resolver.
     //
-    // The distribution is what says these are the long tail rather than a bug:
-    // no unknown fieldname appears on more than three DocTypes.
-    assert!(
-        unknown_doctypes.len() <= 90,
-        "{} unknown DocTypes: {unknown_doctypes:?}",
-        unknown_doctypes.len()
-    );
-    assert!(
-        unknown_fields.len() <= 210,
-        "{} unknown fields: {unknown_fields:?}",
-        unknown_fields.len()
-    );
+    // Precision is enforced by `cargo xtask smoke`, which checks `frappe` and
+    // `erpnext` alone against a committed allowlist and fails on anything not
+    // on it (specs/32). What this test is worth is the walk itself: 5 000
+    // files of real code through extraction and resolution without a panic,
+    // and the report above, which is where a regression shows up as a
+    // fieldname suddenly appearing on thirty DocTypes instead of three.
 }

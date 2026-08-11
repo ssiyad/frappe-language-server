@@ -56,8 +56,15 @@ def loan_period() -> int:
 
 
 def child_member_name(row: str) -> str:
+	# A name in a query position is a claim frappe acts on, and `member_name`
+	# belongs to the parent: the row does not carry it (specs/23).
+	return frappe.db.get_value("Library Loan Item", row, "member_name")  # expect: parent-field-on-child
+
+
+def child_member_name_by_attribute(row: str) -> str:
 	child = frappe.get_doc("Library Loan Item", row)
-	return child.member_name  # expect: parent-field-on-child
+	# The same mistake reached as an attribute: quieter code, same message.
+	return child.member_name  # expect: unknown-attribute
 
 
 # --- Near misses: every line below MUST stay silent --------------------------

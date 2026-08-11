@@ -1870,6 +1870,110 @@ fn a_case_mismatch_offers_the_replacement_as_a_quick_fix() {
 }
 
 #[test]
+fn a_conflict_is_published_to_the_file_nobody_opened() {
+    // `Library Availability` is defined by both `library` and `circulation`.
+    // The user opens neither, and the diagnostic that names the other app is
+    // the whole point of the check (specs/23).
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+
+    let wanted = format!(
+        "file://{}",
+        bench
+            .join("apps/library/library/library/doctype/library_availability/library_availability.json")
+            .display()
+    );
+
+    // Nothing was opened; these arrive because the index found them.
+    let mut found = None;
+    for _ in 0..40 {
+        let message = session.receive();
+        let is_publish = message["method"]
+            .as_str()
+            .is_some_and(|m| m.ends_with("publishDiagnostics"));
+        if is_publish && message["params"]["uri"] == json!(wanted) {
+            found = Some(message["params"]["diagnostics"].clone());
+            break;
+        }
+    }
+
+    let diagnostics = found.expect("diagnostics for the unopened file");
+    let codes: Vec<&str> = diagnostics
+        .as_array()
+        .expect("an array")
+        .iter()
+        .filter_map(|d| d["code"].as_str())
+        .collect();
+    assert!(codes.contains(&"frappe-lsp/duplicate-doctype"), "{codes:?}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn the_whitelist_fix_edits_the_python_file_the_call_names() {
+    // The only fix whose edit lands somewhere other than the file the
+    // diagnostic is in: the call is JavaScript, the decorator is Python.
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let path = bench.join("apps/circulation-app/circulation/probe.js");
+    let uri = format!("file://{}", path.display());
+    let found = diagnostics_for(
+        &mut session,
+        &uri,
+        "frappe.call({ method: \"circulation.api.recalculate_fines\" });\n",
+    );
+    let diagnostic = found
+        .iter()
+        .find(|d| d["code"] == "frappe-lsp/non-whitelisted-call")
+        .expect("the diagnostic");
+
+    let response = session.request(
+        100,
+        "textDocument/codeAction",
+        json!({"textDocument": {"uri": uri}, "range": diagnostic["range"],
+               "context": {"diagnostics": [diagnostic]}}),
+    );
+    let actions = response["result"].as_array().expect("actions");
+    assert_eq!(actions.len(), 1, "{actions:?}");
+    assert_eq!(
+        actions[0]["title"],
+        "Add @frappe.whitelist() to `recalculate_fines`"
+    );
+
+    // The edit is in api.py, not in the buffer that produced the diagnostic.
+    let target = format!(
+        "file://{}",
+        bench
+            .join("apps/circulation-app/circulation/api.py")
+            .display()
+    );
+    let changes = &actions[0]["edit"]["changes"];
+    assert!(changes.get(&uri).is_none(), "{changes:?}");
+    let edit = &changes[&target][0];
+    assert_eq!(edit["newText"], "@frappe.whitelist()\n");
+    // Inserted at column zero of the `def` line, so the decorator lands above
+    // it rather than inside the line.
+    assert_eq!(edit["range"]["start"]["character"], 0);
+    assert_eq!(edit["range"]["start"], edit["range"]["end"]);
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
 fn a_typo_with_no_single_candidate_offers_no_fix() {
     // Spec 23 allows a replacement only for a single candidate; guessing
     // between several is how a quick fix corrupts a codebase.
