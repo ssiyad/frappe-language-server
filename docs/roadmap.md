@@ -59,6 +59,11 @@ Diagnostics are **done**: every code in [23](specs/23-diagnostics.md) is
 implemented, each with a positive and a negative case in the fixture bench,
 both checked by `tests/annotations.rs` against the real server.
 
+The hooks surface is **done**: `doctype_js` binds a form script as a
+navigation target and anchors `frm` inside it, and `hooks.py` completes hook
+keys, doc events, frequencies and DocType map keys
+([12](specs/12-surface-hooks.md)).
+
 References and symbols are **done**. The reverse occurrence table holds 89 523
 sites across `frappe` and `erpnext`, built after the index publishes and cached
 with it; `references` on `Item` returns 821 hits from Python, JavaScript, other

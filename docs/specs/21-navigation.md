@@ -27,6 +27,11 @@ highlights the name and not the quotes.
 goes to the DocType JSON. `implementation` on a controller class lists
 `override_doctype_class` and `extend_doctype_class` targets.
 
+A DocType's form scripts are both the `<x>.js` beside its JSON and anything
+`doctype_js` bound to it from elsewhere in the workspace — including from
+another app. The directory cannot show the second, and the hook is the only
+record ([12](12-surface-hooks.md)).
+
 ## References
 
 `textDocument/references` on a DocType or field is a workspace-wide reverse

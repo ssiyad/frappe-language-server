@@ -73,6 +73,7 @@ pub fn at(index: &Index, buffer: &Buffer, offset: usize, context: Context<'_>) -
 pub fn context_for<'a>(index: &'a Index, path: Option<&std::path::Path>) -> Context<'a> {
     let controller = path.and_then(|path| controller_doctype(index, path));
     Context {
+        frm_doctype: path.and_then(|path| index.doctype_bound_to(path)),
         self_doctype: controller.map(|doctype| doctype.name.as_str()),
         self_class: controller
             .and_then(|doctype| doctype.controller.as_ref())

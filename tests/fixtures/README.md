@@ -92,6 +92,15 @@ Settings"]`. All of it must stay silent
 ([04](../../docs/specs/04-metadata-index.md),
 [11](../../docs/specs/11-surface-javascript.md)).
 
+## Hook-bound form scripts
+
+`library/hooks.py` binds `public/js/library_member.js` to Library Member and
+`circulation/hooks.py` binds `public/js/loan_helpers.js` to Loan — neither sits
+beside its DocType's JSON, which is the only way a `doctype_js` binding can be
+tested. `loan_helpers.js` deliberately carries no `frappe.ui.form.on`: its
+`frm` is anchored by the hook alone, so the wrong fieldname in it is the
+positive case for that anchoring ([12](../../docs/specs/12-surface-hooks.md)).
+
 ## References
 
 `Library Member` is named from every surface [21](../../docs/specs/21-navigation.md)

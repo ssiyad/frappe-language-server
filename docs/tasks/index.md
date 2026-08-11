@@ -11,10 +11,10 @@ Python and JavaScript surfaces and inside `hooks.py`. Phases in
 
 | # | Task | Depends on |
 | --- | --- | --- |
-| 010 | [Hooks surface](010-hooks-surface.md) | — · remainder |
 | 018 | [Test running](018-test-runner.md) | — · independent |
 
-Diagnostics (`012`) and references (`013`) are done.
+Diagnostics (`012`), references (`013`) and the hooks surface (`010`) are done;
+`018` is all that is left in phase 3.
 
 ## Phase 4 — Bridge and templates
 
@@ -47,8 +47,11 @@ check set to a committed allowlist over `frappe` and `erpnext`. Its one open
 item — `Degraded` confidence — moved to [014](014-live-bridge.md), which is
 the task that gives that state a way to occur.
 
-`010` holds only completion for hook keys and binding `doctype_js` scripts as
-navigation targets. `018` needs workspace discovery and nothing else.
+`010` is done and its file is deleted: `doctype_js` scripts are navigation
+targets and anchor `frm` in the files they bind, and `hooks.py` completes hook
+keys, doc events, frequencies and DocType map keys.
+
+`018` needs workspace discovery and nothing else.
 
 ## Carried forward
 

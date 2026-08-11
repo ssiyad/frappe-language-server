@@ -381,6 +381,7 @@ fn self_binds_to_the_controllers_doctype() {
         &tree,
         source,
         Context {
+            frm_doctype: None,
             self_doctype: Some("Library Member"),
             self_class: None,
         },

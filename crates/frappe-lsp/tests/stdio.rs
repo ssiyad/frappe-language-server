@@ -2235,3 +2235,122 @@ fn workspace_symbols_are_fuzzy_and_exclude_fields() {
     session.notify("exit", json!(null));
     session.finish();
 }
+
+#[test]
+fn a_script_bound_by_doctype_js_is_a_definition_target() {
+    // The script lives in `public/js/`, not beside the JSON, so the directory
+    // rule cannot find it — `hooks.py` is the only record (specs/12).
+    let (mut session, bench) = scanned_session();
+
+    let path = bench.join("apps/circulation-app/circulation/api.py");
+    let uri = format!("file://{}", path.display());
+    let text = std::fs::read_to_string(&path).expect("readable");
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {
+            "uri": uri, "languageId": "python", "version": 1, "text": text
+        }}),
+    );
+
+    let line = text
+        .lines()
+        .position(|line| line.contains("\"Library Member\""))
+        .expect("a Library Member literal");
+    let character = text
+        .lines()
+        .nth(line)
+        .expect("the line")
+        .find("Library Member")
+        .expect("the name");
+
+    let response = session.request(
+        100,
+        "textDocument/definition",
+        json!({"textDocument": {"uri": uri},
+               "position": {"line": line, "character": character}}),
+    );
+
+    let targets: Vec<String> = response["result"]
+        .as_array()
+        .expect("targets")
+        .iter()
+        .filter_map(|target| {
+            target["targetUri"]
+                .as_str()
+                .or_else(|| target["uri"].as_str())
+        })
+        .map(str::to_string)
+        .collect();
+
+    assert!(
+        targets
+            .iter()
+            .any(|uri| uri.ends_with("public/js/library_member.js")),
+        "{targets:?}"
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn hooks_py_completes_keys_events_and_frequencies() {
+    let (mut session, bench) = scanned_session();
+
+    let path = bench.join("apps/library/library/hooks.py");
+    let uri = format!("file://{}", path.display());
+    let text = std::fs::read_to_string(&path).expect("readable");
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {
+            "uri": uri, "languageId": "python", "version": 1, "text": text
+        }}),
+    );
+
+    let labels = |session: &mut Session, id: i64, line: usize, character: usize| -> Vec<String> {
+        let response = session.request(
+            id,
+            "textDocument/completion",
+            json!({"textDocument": {"uri": uri},
+                   "position": {"line": line, "character": character}}),
+        );
+        let items = response["result"]["items"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        items
+            .iter()
+            .filter_map(|item| item["label"].as_str())
+            .map(str::to_string)
+            .collect()
+    };
+
+    // The assignment key itself.
+    let line = text
+        .lines()
+        .position(|line| line.starts_with("doctype_js"))
+        .expect("doctype_js");
+    let found = labels(&mut session, 100, line, 3);
+    assert!(found.contains(&"doctype_js".to_string()), "{found:?}");
+
+    // A `doc_events` inner key offers document events, not hook names.
+    let line = text
+        .lines()
+        .position(|line| line.contains("\"validate\": "))
+        .expect("a doc_events inner key");
+    let character = text
+        .lines()
+        .nth(line)
+        .expect("the line")
+        .find("validate")
+        .expect("it");
+    // Filtered by what is already typed, as every provider here is: the key
+    // reads `validate`, so the offer is the document events containing it.
+    let found = labels(&mut session, 101, line, character + 2);
+    assert_eq!(found, ["before_validate", "validate"], "{found:?}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}

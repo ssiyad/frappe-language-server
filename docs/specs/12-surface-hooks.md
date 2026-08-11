@@ -108,7 +108,9 @@ Hooks feed the rest of the index rather than only being validated:
 - `jinja.methods` / `jinja.filters` → template completion.
 
 Because of the last two, `hooks.py` MUST be indexed before any JS or template
-file in the same app.
+file in the same app. The build applies hooks after the controllers and the
+whitelist registry exist — it alters both — and before the JavaScript pass, so
+a bound script anchors to the DocType the hook names rather than to nothing.
 
 ## App-level checks
 

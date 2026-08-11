@@ -6,3 +6,10 @@ frappe.ui.form.on("Library Member", {
 		});
 	},
 });
+
+// No `frappe.ui.form.on` of its own: `frm` here is anchored by the
+// `doctype_js` hook that bound this file, which is why spec 12 requires
+// `hooks.py` to be indexed first. expect: clean
+function stamp_membership(frm) {
+	frm.set_value("email_id", frm.doc.member_name);
+}

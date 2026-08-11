@@ -25,6 +25,12 @@ pub struct Context<'a> {
     /// The DocType a controller file owns. Binds `self`
     /// ([06](../../../docs/specs/06-analysis-pipeline.md)).
     pub self_doctype: Option<&'a str>,
+    /// The DocType a `doctype_js` hook bound this file to.
+    ///
+    /// A bound script need not contain a `frappe.ui.form.on` block at all —
+    /// the hook is what says which form it is for
+    /// ([12](../../../docs/specs/12-surface-hooks.md)).
+    pub frm_doctype: Option<&'a str>,
     /// The controller class `self` belongs to. A controller file holds other
     /// classes too — erpnext's `stock_entry_type.py` carries a plain
     /// `ManufactureEntry` beside the `Document` subclass — and their `self` is
@@ -58,7 +64,7 @@ pub fn extract(language: Language, tree: &Tree, source: &str, context: Context<'
             language,
             source,
             imports: Imports::default(),
-            scopes: javascript_scopes(root, source),
+            scopes: javascript_scopes(root, source, context.frm_doctype),
             matches: Vec::new(),
         },
         // DocType JSON carries no call shapes; the index reads it with
@@ -894,6 +900,7 @@ mod tests {
             buffer.tree(),
             source,
             Context {
+                frm_doctype: None,
                 self_doctype,
                 self_class: None,
             },

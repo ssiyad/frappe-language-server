@@ -306,8 +306,6 @@ impl Index {
         index.read_fixtures();
         index.read_python();
 
-        index.read_javascript();
-
         let names: Vec<String> = index.sources.keys().cloned().collect();
         for name in names {
             index.assemble(&name, &mut raws);
@@ -317,6 +315,10 @@ impl Index {
         // alters both: hooks feed the index rather than only being validated
         // ([12](../../../docs/specs/12-surface-hooks.md)).
         index.apply_hooks();
+        // …and before any JavaScript, because `doctype_js` decides which
+        // DocType a form script anchors to, which spec 12 states as an
+        // ordering requirement rather than a preference.
+        index.read_javascript();
         index.sort_reports();
 
         index.build_time = started.elapsed();
@@ -1479,6 +1481,7 @@ impl Index {
             .values()
             .find(|doctype| doctype.controller.as_ref().is_some_and(|c| c.path == path));
         let context = frappe_syntax::Context {
+            frm_doctype: self.doctype_bound_to(path),
             self_doctype: controller.map(|doctype| doctype.name.as_str()),
             self_class: controller
                 .and_then(|doctype| doctype.controller.as_ref())
@@ -1563,6 +1566,42 @@ impl Index {
     #[must_use]
     pub fn reads_hook(&self, key: &str) -> bool {
         self.hook_reads.contains(key)
+    }
+
+    /// Form scripts bound to a DocType by `doctype_js` and its family.
+    ///
+    /// A script need not sit beside the DocType JSON: an app can bind one from
+    /// anywhere, including to a DocType another app defines, and the hook is
+    /// the only record of it ([12](../../../docs/specs/12-surface-hooks.md)).
+    #[must_use]
+    pub fn scripts_for(&self, doctype: &str) -> Vec<PathBuf> {
+        let mut found = Vec::new();
+        for app in &self.workspace.apps {
+            let Some(hooks) = self.hooks.get(&app.name) else {
+                continue;
+            };
+            for written in hooks.scripts_for(doctype) {
+                if let Some(path) = crate::hooks::asset_path(&app.package, &app.name, written)
+                    && !found.contains(&path)
+                {
+                    found.push(path);
+                }
+            }
+        }
+        found
+    }
+
+    /// The DocType a form script is bound to, if `doctype_js` bound it.
+    ///
+    /// The reverse of [`Index::scripts_for`], and what lets `frm` anchor in a
+    /// file that has no `frappe.ui.form.on` of its own
+    /// ([11](../../../docs/specs/11-surface-javascript.md)).
+    #[must_use]
+    pub fn doctype_bound_to(&self, path: &Path) -> Option<&str> {
+        self.doctypes
+            .keys()
+            .find(|name| self.scripts_for(name).iter().any(|bound| bound == path))
+            .map(String::as_str)
     }
 
     /// Every app's hooks, by app name.

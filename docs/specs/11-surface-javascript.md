@@ -114,3 +114,10 @@ DocType is what follows the colon.
 
 `frm.doc` is the **parent** document even inside a child DocType's handler
 block, because `frm` is always the parent form.
+
+A file bound by `doctype_js` anchors `frm` to the DocType the hook names, for
+the whole file. A bound script need not contain a `frappe.ui.form.on` block at
+all — a helper taking `frm` is ordinary — and the hook is then the only record
+of which form it is for ([12](12-surface-hooks.md)). The binding is a fallback:
+any `frappe.ui.form.on` block in the same file wins inside its own body, since
+the innermost scope decides.

@@ -288,3 +288,101 @@ fn doctype_documentation(index: &Index, doctype: &frappe_index::DocType) -> Stri
     let _ = index;
     out
 }
+
+/// Completion inside `hooks.py` — [20](../../../docs/specs/20-completion.md).
+///
+/// A separate entry point from [`complete`] because `hooks.py` is not resolved
+/// through the shape tables: a hook key is a dict key in a module-level
+/// assignment, and what it may hold depends on the hook, not on an anchor
+/// ([12](../../../docs/specs/12-surface-hooks.md)).
+#[must_use]
+pub fn complete_hook(
+    index: &Index,
+    located: &crate::hooks::Located,
+    edit_range: Option<tower_lsp_server::ls_types::Range>,
+    support: ClientSupport,
+    max_items: usize,
+) -> Option<CompletionResponse> {
+    use crate::hooks::HookTarget;
+    use frappe_syntax::generated;
+
+    let (typed, mut items) = match &located.target {
+        // The key of the assignment itself: every hook frappe reads.
+        HookTarget::Key { name, .. } => (
+            name.clone(),
+            generated::HOOKS
+                .iter()
+                .map(|(hook, schema)| CompletionItem {
+                    label: (*hook).to_string(),
+                    kind: Some(CompletionItemKind::PROPERTY),
+                    detail: Some(format!("{schema:?}")),
+                    ..Default::default()
+                })
+                .collect::<Vec<_>>(),
+        ),
+        // The inner key of `doc_events`, which is a document event and is only
+        // meaningful against the DocType above it.
+        HookTarget::DocEvent { name, doctype, .. } => (
+            name.clone(),
+            generated::DOC_EVENTS
+                .iter()
+                .filter(|event| {
+                    // A submit-only event on a DocType that is not submittable
+                    // never fires, so offering it is offering a mistake.
+                    !generated::is_submit_only(event)
+                        || doctype.as_deref().is_none_or(|doctype| {
+                            index.doctype(doctype).is_none_or(|d| d.is_submittable)
+                        })
+                })
+                .map(|event| CompletionItem {
+                    label: (*event).to_string(),
+                    kind: Some(CompletionItemKind::EVENT),
+                    detail: Some("document event".to_string()),
+                    ..Default::default()
+                })
+                .collect(),
+        ),
+        HookTarget::Frequency { name, .. } => (
+            name.clone(),
+            generated::SCHEDULER_FREQUENCIES
+                .iter()
+                .map(|frequency| CompletionItem {
+                    label: (*frequency).to_string(),
+                    kind: Some(CompletionItemKind::EVENT),
+                    detail: Some("scheduler frequency".to_string()),
+                    ..Default::default()
+                })
+                .collect(),
+        ),
+        // A DocType map key — `doc_events`, `override_doctype_class` and the
+        // rest are keyed by DocType, and that list is already built.
+        HookTarget::DocType(name) => (name.clone(), doctypes(index, name)),
+        _ => return None,
+    };
+
+    let lowered = typed.to_ascii_lowercase();
+    items.retain(|item| typed.is_empty() || item.label.to_ascii_lowercase().contains(&lowered));
+
+    for (position, item) in items.iter_mut().enumerate() {
+        item.sort_text = Some(format!("{position:05}"));
+        item.filter_text = Some(item.label.clone());
+        item.text_edit = edit_range.map(|range| {
+            tower_lsp_server::ls_types::CompletionTextEdit::Edit(TextEdit {
+                range,
+                new_text: item.label.clone(),
+            })
+        });
+        if !support.label_details {
+            item.label_details = None;
+        }
+    }
+
+    let incomplete = items.len() > max_items;
+    items.truncate(max_items);
+    Some(CompletionResponse::List(
+        tower_lsp_server::ls_types::CompletionList {
+            is_incomplete: incomplete,
+            items,
+        },
+    ))
+}

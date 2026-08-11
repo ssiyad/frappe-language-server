@@ -711,6 +711,20 @@ impl LanguageServer for Backend {
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
         let position = params.text_document_position;
         let max_items = self.write(|state| state.config.completion.max_items);
+        let support = self.write(|state| state.support);
+
+        // `hooks.py` is not resolved through the shape tables, so it takes its
+        // own path ([12](../../../docs/specs/12-surface-hooks.md)).
+        if let Some(response) = self.with_hook(
+            &position.text_document.uri,
+            position.position,
+            |index, located, range| {
+                completion::complete_hook(index, located, Some(range), support, max_items)
+            },
+        ) {
+            return Ok(Some(response));
+        }
+
         Ok(
             self.with_position(&position.text_document.uri, position.position, |ctx| {
                 completion::complete(ctx.index, ctx.buffer, &ctx.found, ctx.support, max_items)

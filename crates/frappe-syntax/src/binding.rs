@@ -187,8 +187,26 @@ fn in_class(node: Node<'_>, source: &str, name: &str) -> bool {
     false
 }
 
-pub(crate) fn javascript_scopes(root: Node<'_>, source: &str) -> Scopes {
+pub(crate) fn javascript_scopes(root: Node<'_>, source: &str, frm_doctype: Option<&str>) -> Scopes {
     let mut scopes = Scopes::default();
+
+    // The whole file, as a fallback. `lookup` takes the smallest enclosing
+    // scope, so any `frappe.ui.form.on` block below wins over this one; a
+    // helper outside every block falls back to what the hook bound.
+    if let Some(doctype) = frm_doctype {
+        let span: Span = root.into();
+        scopes.scopes.push(Scope {
+            span,
+            bound: ["frm", "cur_frm"]
+                .into_iter()
+                .map(|name| Scoped {
+                    name: name.to_string(),
+                    span,
+                    binding: Binding::DocType(doctype.to_string()),
+                })
+                .collect(),
+        });
+    }
     let mut stack = vec![root];
     let mut cursor = root.walk();
     while let Some(node) = stack.pop() {

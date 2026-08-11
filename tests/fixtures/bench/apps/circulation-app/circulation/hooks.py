@@ -17,6 +17,9 @@ doctype_javascript = {"Loan": "public/js/loan.js"}  # expect: unknown-hook
 
 app_include_js = "/assets/circulation/js/missing.js"  # expect: missing-asset
 
+# Binds a script that carries no `frappe.ui.form.on` of its own.
+doctype_js = {"Loan": "public/js/loan_helpers.js"}
+
 doc_events = {
 	"Loan": {
 		"on_validate": "circulation.api.before_loan",  # expect: unknown-doc-event

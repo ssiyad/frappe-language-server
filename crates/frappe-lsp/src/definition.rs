@@ -74,11 +74,17 @@ fn doctype_targets(index: &Index, name: &str) -> Vec<Target> {
 
     targets.push(Target::whole(doctype.path.to_path_buf(), doctype.range));
 
-    // `<x>.js` beside the JSON. Bound by directory here; `doctype_js` binds
-    // scripts from elsewhere and arrives with the hooks surface in 010.
+    // `<x>.js` beside the JSON, bound by directory.
     let script = doctype.path.with_extension("js");
     if script.is_file() {
-        targets.push(Target::file(script));
+        targets.push(Target::file(script.clone()));
+    }
+    // …and anything `doctype_js` bound from elsewhere, which the directory
+    // cannot show ([12](../../../docs/specs/12-surface-hooks.md)).
+    for bound in index.scripts_for(name) {
+        if bound != script {
+            targets.push(Target::file(bound));
+        }
     }
 
     targets

@@ -20,8 +20,13 @@ quotes. `TextEdit` range is the literal's interior.
 | `doc.<attr>`, `frm.doc.<attr>` | Same, as members |
 | `frappe.ui.form.on` object key | Lifecycle events + fieldnames + `<table>_add`/`_remove` ([11](11-surface-javascript.md)) |
 | `hooks.py` dict key at module level | Hook names ([12](12-surface-hooks.md)) |
-| `doc_events` inner key | Doc event names |
+| `doc_events` inner key | Doc event names, minus submit-only events on a DocType that is not submittable |
 | `scheduler_events` key | Frequencies |
+| A hook keyed by DocType | DocType names |
+
+`hooks.py` takes its own path rather than going through the shape tables: a
+hook key is a dict key in a module-level assignment, and what it may hold
+depends on the hook rather than on a resolved anchor.
 | `method:` / `frappe.call` | Whitelisted method paths |
 | `patches.txt` line | Module paths under the current app |
 | DocType JSON `"fieldtype"` | Fieldtype names |
