@@ -111,11 +111,18 @@ impl Session {
     }
 }
 
+/// The cache is off for every test.
+///
+/// The fixture bench is a committed directory the server writes
+/// `.frappe-lsp/` into, and that cache outlives the run. A test that reuses it
+/// asserts against whatever the *previous* run indexed — which is exactly how
+/// a reference test passed against a table that had not been built yet.
 fn initialize_params() -> Value {
     json!({
         "processId": null,
         "clientInfo": {"name": "integration-test"},
         "rootUri": null,
+        "initializationOptions": {"index": {"cache": false}},
         "capabilities": {
             "general": {"positionEncodings": ["utf-8", "utf-16"]},
             "textDocument": {
@@ -2008,6 +2015,221 @@ fn a_typo_with_no_single_candidate_offers_no_fix() {
                "context": {"diagnostics": [diagnostic]}}),
     );
     assert!(response["result"].is_null(), "{response}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+/// A session with the fixture bench indexed and the occurrence table built.
+///
+/// The table is filled after the index publishes, so `references` has to wait
+/// for it rather than for the build ([21](../../../docs/specs/21-navigation.md)).
+fn scanned_session() -> (Session, std::path::PathBuf) {
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    for id in 20..80 {
+        let status = session.request(id, "frappe-lsp/indexStatus", json!(null));
+        if status["result"]["occurrences"].is_u64() {
+            return (session, bench);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+    panic!("the occurrence table was never built");
+}
+
+#[test]
+fn references_cover_every_surface_at_once() {
+    // Spec 21: a result set that silently omits a surface is worse than none.
+    // `Library Member` is named from Python, JavaScript, another DocType's
+    // `options`, `hooks.py` and a fixtures file.
+    let (mut session, bench) = scanned_session();
+
+    let path = bench.join("apps/library/library/library/doctype/library_member/library_member.py");
+    let uri = format!("file://{}", path.display());
+    let text = std::fs::read_to_string(&path).expect("readable");
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {
+            "uri": uri, "languageId": "python", "version": 1, "text": text
+        }}),
+    );
+
+    // The `"Library Member"` literal inside `validate`.
+    let line = text
+        .lines()
+        .position(|line| line.contains("frappe.db.get_value(\"Library Member\""))
+        .expect("the call");
+    let character = text
+        .lines()
+        .nth(line)
+        .expect("the line")
+        .find("Library")
+        .expect("the name");
+
+    let response = session.request(
+        100,
+        "textDocument/references",
+        json!({"textDocument": {"uri": uri},
+               "position": {"line": line, "character": character},
+               "context": {"includeDeclaration": true}}),
+    );
+
+    let locations = response["result"].as_array().expect("locations");
+    let files: std::collections::BTreeSet<String> = locations
+        .iter()
+        .filter_map(|location| location["uri"].as_str())
+        .map(|uri| uri.rsplit('/').next().unwrap_or(uri).to_string())
+        .collect();
+
+    assert!(files.contains("library_member.py"), "{files:?}");
+    assert!(files.contains("library_member.js"), "{files:?}");
+    assert!(files.contains("library_member.json"), "{files:?}");
+    assert!(files.contains("hooks.py"), "{files:?}");
+    // `Loan` in the other app links to it, and the fixture file names it.
+    assert!(files.contains("loan.json"), "{files:?}");
+    assert!(files.contains("custom_field.json"), "{files:?}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn field_references_do_not_cross_doctypes() {
+    // Spec 21: `member_name` on Library Member must not return occurrences
+    // anchored to another DocType that happens to have the same fieldname.
+    let (mut session, bench) = scanned_session();
+
+    let path = bench.join("apps/circulation-app/circulation/api.py");
+    let uri = format!("file://{}", path.display());
+    let text = std::fs::read_to_string(&path).expect("readable");
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {
+            "uri": uri, "languageId": "python", "version": 1, "text": text
+        }}),
+    );
+
+    let line = text
+        .lines()
+        .position(|line| line.contains("filters={\"member_name\""))
+        .expect("a member_name literal");
+    let character = text
+        .lines()
+        .nth(line)
+        .expect("the line")
+        .find("member_name")
+        .expect("the name");
+
+    let response = session.request(
+        100,
+        "textDocument/references",
+        json!({"textDocument": {"uri": uri},
+               "position": {"line": line, "character": character},
+               "context": {"includeDeclaration": true}}),
+    );
+    let locations = response["result"].as_array().expect("locations");
+    assert!(!locations.is_empty(), "no references at all");
+
+    // The circulation app's Custom Field declares `member_name` on the same
+    // DocType, so it belongs; nothing from a different DocType may appear.
+    for location in locations {
+        let uri = location["uri"].as_str().unwrap_or_default();
+        assert!(
+            !uri.contains("library_membership") && !uri.contains("library_settings"),
+            "a field reference crossed DocTypes: {uri}"
+        );
+    }
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_doctype_json_outlines_into_sections() {
+    let (mut session, bench) = scanned_session();
+
+    let path =
+        bench.join("apps/library/library/library/doctype/library_member/library_member.json");
+    let uri = format!("file://{}", path.display());
+    let response = session.request(
+        100,
+        "textDocument/documentSymbol",
+        json!({"textDocument": {"uri": uri}}),
+    );
+
+    let symbols = response["result"].as_array().expect("symbols");
+    assert_eq!(symbols.len(), 1, "one root per DocType");
+    assert_eq!(symbols[0]["name"], "Library Member");
+    assert_eq!(symbols[0]["kind"], 5, "SymbolKind::CLASS");
+
+    let children = symbols[0]["children"].as_array().expect("children");
+    let names: Vec<&str> = children
+        .iter()
+        .filter_map(|child| child["name"].as_str())
+        .collect();
+    assert!(!names.is_empty(), "no fields in the outline");
+
+    // Every field is reachable: loose ones at the top level, the rest under
+    // the layout field that introduces them.
+    let total: usize = children
+        .iter()
+        .map(|child| 1 + child["children"].as_array().map_or(0, Vec::len))
+        .sum();
+    assert!(total >= names.len(), "{total} < {}", names.len());
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_controller_gets_no_document_symbols() {
+    // Spec 21 leaves `.py` and `.js` to the general language server; two
+    // servers answering means every symbol appears twice.
+    let (mut session, bench) = scanned_session();
+
+    let path = bench.join("apps/library/library/api.py");
+    let uri = format!("file://{}", path.display());
+    let response = session.request(
+        100,
+        "textDocument/documentSymbol",
+        json!({"textDocument": {"uri": uri}}),
+    );
+    assert!(response["result"].is_null(), "{:?}", response["result"]);
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn workspace_symbols_are_fuzzy_and_exclude_fields() {
+    let (mut session, _bench) = scanned_session();
+
+    let response = session.request(100, "workspace/symbol", json!({"query": "libmem"}));
+    let symbols = response["result"].as_array().expect("symbols");
+    let names: Vec<&str> = symbols
+        .iter()
+        .filter_map(|symbol| symbol["name"].as_str())
+        .collect();
+    assert!(names.contains(&"Library Member"), "{names:?}");
+
+    // Fields are not workspace symbols — 100k of them would drown the rest.
+    let response = session.request(101, "workspace/symbol", json!({"query": "member_name"}));
+    let symbols = response["result"].as_array().expect("symbols");
+    assert!(
+        symbols.iter().all(|symbol| symbol["kind"] != 8),
+        "a field reached the workspace symbols: {symbols:?}"
+    );
 
     session.request(200, "shutdown", json!(null));
     session.notify("exit", json!(null));

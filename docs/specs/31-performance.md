@@ -32,6 +32,10 @@ the build completes.
   occurrences. Intern to `u32` symbols; store names once.
 - **Lazy tree-sitter.** Only open buffers hold trees. Closed files contribute
   through the index and the reverse-occurrence table.
+- **Deferred occurrence scan.** The reverse table costs a full extract pass and
+  is built after the index is published, not inside the cold budget
+  ([21](21-navigation.md)). It is cached with the index, so the cost is paid
+  once per bench rather than once per session.
 - **Debounce.** Watcher events coalesce at 250 ms per path; diagnostics recompute
   at most every 150 ms per buffer. Access events are ignored: the index reads
   every file it indexes, so acting on a read makes indexing trigger indexing.
@@ -70,7 +74,10 @@ hold back the answer the cache exists to deliver sooner.
 
 Measured on `frappe` 17.0.0-dev plus `erpnext` and two custom apps — 863
 DocTypes, 14 303 fields, 4 650 Python modules: **cold start 744 ms, warm start
-133 ms** (medians of 5, release). On `frappe` plus the two custom apps alone —
+133 ms** (medians of 5, release). With the reverse occurrence table
+([21](21-navigation.md)) the cache grows to 18 MiB and warm start to 197 ms —
+still inside the 500 ms ceiling, and the alternative is a 1.9 s scan on every
+session. On `frappe` plus the two custom apps alone —
 331 DocTypes, 2 055 files, a 2.2 MiB cache — cold 155 ms and warm 37 ms. Both
 are inside the budgets above. Add `.frappe-lsp/` to `.gitignore` guidance in
 [development](../development.md).

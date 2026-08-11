@@ -13,7 +13,7 @@ use crate::index::Index;
 
 /// Bumped whenever the cached types change shape. An old file is then simply
 /// not this format, which is the same as absent.
-pub const SCHEMA_VERSION: u32 = 2;
+pub const SCHEMA_VERSION: u32 = 3;
 
 /// Default cache directory, relative to the bench root — spec 30.
 pub const DIRECTORY: &str = ".frappe-lsp";
@@ -257,6 +257,31 @@ mod tests {
         assert!(loaded.doctype("Library Settings").is_none());
         // And it matches what a full rebuild would have produced.
         assert_eq!(loaded.fingerprint(), Index::build(&bench).fingerprint());
+
+        std::fs::remove_dir_all(&bench).expect("cleanup");
+    }
+
+    #[test]
+    fn an_incremental_occurrence_update_matches_a_full_scan() {
+        let bench = fixture_copy("occurrences");
+        let mut built = Index::build(&bench);
+        built.scan_occurrences();
+
+        // Touch a file that both declares fields and names other DocTypes.
+        let path =
+            bench.join("apps/library/library/library/doctype/library_member/library_member.py");
+        let text = std::fs::read_to_string(&path).expect("readable");
+        std::fs::write(&path, format!("{text}\n\ndef extra():\n\tpass\n")).expect("write");
+
+        built.reindex(&path);
+
+        let mut fresh = Index::build(&bench);
+        fresh.scan_occurrences();
+        assert_eq!(
+            built.occurrences(),
+            fresh.occurrences(),
+            "an incremental update diverged from a full scan"
+        );
 
         std::fs::remove_dir_all(&bench).expect("cleanup");
     }

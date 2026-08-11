@@ -17,6 +17,7 @@ pub mod hooks;
 pub mod index;
 pub mod installed;
 pub mod intern;
+pub mod occurrences;
 pub mod paths;
 pub mod resolve;
 pub mod site;

@@ -34,9 +34,33 @@ lookup. It MUST cover every surface — a DocType is referenced from Python, JS,
 other DocTypes' `options`, hooks, and fixtures, and a result set that silently
 omits one is worse than none.
 
-This requires a reverse index (name → occurrence sites) built during the initial
-scan, not an on-demand grep. Occurrences are stored per file and invalidated with
-that file. Budget in [31](31-performance.md).
+This requires a reverse index (name → occurrence sites) built by a scan, not an
+on-demand grep. Occurrences are stored per file and invalidated with that file.
+
+The scan is a full extract-and-resolve pass over every source file and costs
+about as much as the index build itself — 1.9 s against 1.4 s on `frappe` plus
+`erpnext` — so it runs **after** the index is published rather than inside the
+cold-index budget of [31](31-performance.md), and the cache carries the result
+so a warm start pays nothing. `frappe-lsp/indexStatus` reports `occurrences`
+only once the table exists, so a client can tell "no references" from "not
+yet"; until then `references` answers nothing rather than answering wrongly.
+
+Measured on that bench: 89 523 sites, 18 MiB of cache, and a `references`
+request on `Item` — 821 sites across 300 files — in 18.7 ms against a 100 ms
+target.
+
+Sites come from five surfaces, and each was added because leaving it out made
+the result wrong rather than merely short:
+
+| Surface | What contributes |
+| --- | --- |
+| Python, JavaScript | Every resolved DocType and field position |
+| DocType JSON | `Link` / `Table` / `Table MultiSelect` `options`, and each field's own declaration |
+| `hooks.py` | Map keys of the hooks written `Map<DocTypeName, …>` in [12](12-surface-hooks.md) |
+| Fixtures | A Custom Field's `dt` and fieldname, a Property Setter's `doc_type` |
+
+A field's declaration is itself a reference: a list that omits where the field
+is defined sends the reader nowhere.
 
 Field references are scoped to their DocType: `customer` on `Sales Invoice` MUST
 NOT return `customer` occurrences anchored to `Sales Order`. Occurrences whose

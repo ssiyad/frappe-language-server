@@ -11,9 +11,10 @@ Python and JavaScript surfaces and inside `hooks.py`. Phases in
 
 | # | Task | Depends on |
 | --- | --- | --- |
-| 013 | [References and symbols](013-references-symbols.md) | — |
 | 010 | [Hooks surface](010-hooks-surface.md) | — · remainder |
 | 018 | [Test running](018-test-runner.md) | — · independent |
+
+Diagnostics (`012`) and references (`013`) are done.
 
 ## Phase 4 — Bridge and templates
 
@@ -35,8 +36,9 @@ Python and JavaScript surfaces and inside `hooks.py`. Phases in
 Nothing blocks anything else inside phase 3, so the order is a choice about
 risk.
 
-`013` is the only structural work left: a reverse occurrence index built during
-the scan rather than an on-demand grep ([21](../specs/21-navigation.md)).
+`013` is done and its file is deleted. The reverse occurrence table is built
+after the index publishes and cached with it; `references`, `documentSymbol`
+and `workspaceSymbol` answer from it ([21](../specs/21-navigation.md)).
 
 `012` is done and its file is deleted. Every code in the registry of
 [23](../specs/23-diagnostics.md) is implemented, each with a positive and a

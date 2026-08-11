@@ -25,7 +25,7 @@ use crate::buffers::Buffers;
 use crate::capabilities::{ClientSupport, server_capabilities};
 use crate::config::{Config, ConfigError, ConfigSources};
 use crate::watcher::{self, FileWatcher};
-use crate::{completion, definition, diagnostics, hover, locations};
+use crate::{completion, definition, diagnostics, hover, locations, symbols};
 use std::time::Duration;
 
 pub const SERVER_NAME: &str = "frappe-lsp";
@@ -327,6 +327,43 @@ impl Backend {
             // The conflict pair is published only now, because until the build
             // lands there is no conflict to publish.
             publish_conflicts(&client, &index, &state).await;
+
+            // The reverse occurrence table costs about as much as the build
+            // itself, so it runs after the index is already answering
+            // ([21](../../../docs/specs/21-navigation.md)). A warm start finds
+            // it in the cache and skips this.
+            let scanning = {
+                let index = Arc::clone(&index);
+                tokio::task::spawn_blocking(move || {
+                    let scanned = index
+                        .read()
+                        .expect("index lock poisoned by a panic")
+                        .occurrences()
+                        .scanned;
+                    if scanned {
+                        return;
+                    }
+                    let started = std::time::Instant::now();
+                    let mut guard = index.write().expect("index lock poisoned by a panic");
+                    guard.scan_occurrences();
+                    tracing::info!(
+                        sites = guard.occurrences().len(),
+                        elapsed = ?started.elapsed(),
+                        "reverse occurrence table built"
+                    );
+                })
+            };
+            if scanning.await.is_err() {
+                tracing::error!("the occurrence scan panicked");
+                return;
+            }
+
+            // Written after the scan so the cache carries the table; a warm
+            // start then answers `references` immediately.
+            if let Some(directory) = cache.as_deref() {
+                let guard = index.read().expect("index lock poisoned by a panic");
+                let _ = frappe_index::cache::save(&guard, &root, directory);
+            }
         });
     }
 
@@ -818,19 +855,56 @@ impl LanguageServer for Backend {
         )
     }
 
-    async fn references(&self, _: ReferenceParams) -> Result<Option<Vec<Location>>> {
-        Ok(None)
+    /// `textDocument/references` — spec 21's workspace-wide reverse lookup.
+    async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
+        let position = params.text_document_position;
+        let include = params.context.include_declaration;
+        Ok(
+            self.with_position(&position.text_document.uri, position.position, |ctx| {
+                symbols::references(ctx.index, &ctx.found, include)
+            }),
+        )
     }
 
+    /// `textDocument/documentSymbol` — the outline of a DocType JSON,
+    /// `hooks.py` or `patches.txt`, and nothing for a controller.
     async fn document_symbol(
         &self,
-        _: DocumentSymbolParams,
+        params: DocumentSymbolParams,
     ) -> Result<Option<DocumentSymbolResponse>> {
-        Ok(None)
+        let uri = params.text_document.uri;
+        let Some(path) = uri.to_file_path().map(|path| path.into_owned()) else {
+            return Ok(None);
+        };
+
+        // The buffer's text when it is open, the file's otherwise: a JSON the
+        // user is editing has ranges the file on disk no longer has.
+        let source = {
+            let state = self.state.read().expect("state lock poisoned by a panic");
+            state
+                .buffers
+                .get(&uri)
+                .map(|buffer| buffer.text().to_string())
+        };
+        let Some(source) = source.or_else(|| std::fs::read_to_string(&path).ok()) else {
+            return Ok(None);
+        };
+
+        let index = self.index.read().expect("index lock poisoned by a panic");
+        let found = symbols::document_symbols(&index, &path, &source);
+        Ok((!found.is_empty()).then_some(DocumentSymbolResponse::Nested(found)))
     }
 
-    async fn symbol(&self, _: WorkspaceSymbolParams) -> Result<Option<WorkspaceSymbolResponse>> {
-        Ok(None)
+    /// `workspace/symbol` — spec 21's fuzzy search over DocTypes, whitelisted
+    /// methods, reports, pages and web forms.
+    async fn symbol(
+        &self,
+        params: WorkspaceSymbolParams,
+    ) -> Result<Option<WorkspaceSymbolResponse>> {
+        let index = self.index.read().expect("index lock poisoned by a panic");
+        Ok(Some(WorkspaceSymbolResponse::Nested(
+            symbols::workspace_symbols(&index, &params.query),
+        )))
     }
 
     /// Quick fixes for the diagnostics the client is showing — spec 23.
@@ -897,6 +971,9 @@ impl Backend {
             "modules": status.modules,
             "conflicts": status.conflicts,
             "problems": status.problems,
+            // Absent until the scan has run, so a client can tell "no
+            // references" from "not yet" (specs/21).
+            "occurrences": status.occurrences,
             "frappeVersion": status.frappe_version,
             "buildTimeMs": status.build_time.as_millis() as u64,
         }))

@@ -77,6 +77,9 @@ pub struct IndexStatus {
     pub conflicts: usize,
     /// Files the index could not use.
     pub problems: usize,
+    /// Sites in the reverse occurrence table, or `None` until the scan that
+    /// fills it has run ([21](../../../docs/specs/21-navigation.md)).
+    pub occurrences: Option<usize>,
     /// Detected Frappe version, or `None` when every version-gated check must
     /// stay silent ([31](../../../docs/specs/31-performance.md)).
     pub frappe_version: Option<String>,
@@ -190,6 +193,7 @@ pub struct Index {
     modules: BTreeMap<PathBuf, python::Module>,
     hook_reads: BTreeSet<String>,
     handlers: BTreeSet<String>,
+    occurrences: crate::occurrences::Occurrences,
     class_attributes: BTreeMap<String, BTreeSet<String>>,
     class_bases: BTreeMap<String, Vec<String>>,
     packages: Vec<(String, PathBuf)>,
@@ -245,6 +249,7 @@ impl Index {
             hooks: BTreeMap::new(),
             hook_reads: BTreeSet::new(),
             handlers: BTreeSet::new(),
+            occurrences: crate::occurrences::Occurrences::default(),
             class_attributes: BTreeMap::new(),
             class_bases: BTreeMap::new(),
             controller_extras: BTreeMap::new(),
@@ -277,6 +282,7 @@ impl Index {
             hooks: BTreeMap::new(),
             hook_reads: BTreeSet::new(),
             handlers: BTreeSet::new(),
+            occurrences: crate::occurrences::Occurrences::default(),
             class_attributes: BTreeMap::new(),
             class_bases: BTreeMap::new(),
             controller_extras: BTreeMap::new(),
@@ -1213,6 +1219,7 @@ impl Index {
             modules: self.modules.len(),
             conflicts: self.conflicts.len(),
             problems: self.problems.len(),
+            occurrences: self.occurrences.scanned.then(|| self.occurrences.len()),
             frappe_version: self.workspace.frappe_version().map(str::to_string),
             build_time: self.build_time,
         }
@@ -1278,6 +1285,265 @@ impl Index {
     #[must_use]
     pub fn hooks(&self, app: &str) -> Option<&crate::hooks::Hooks> {
         self.hooks.get(app)
+    }
+
+    /// The reverse occurrence table — [21](../../../docs/specs/21-navigation.md).
+    #[must_use]
+    pub fn occurrences(&self) -> &crate::occurrences::Occurrences {
+        &self.occurrences
+    }
+
+    /// Fill the reverse occurrence table.
+    ///
+    /// Kept out of `build`: a full extract-and-resolve pass over every source
+    /// file costs seconds, against a two-second budget for the whole cold
+    /// index ([31](../../../docs/specs/31-performance.md)). The server runs it
+    /// after the index is published, and the cache carries the result, so a
+    /// warm start pays nothing.
+    pub fn scan_occurrences(&mut self) {
+        let files: Vec<PathBuf> = self
+            .workspace
+            .apps
+            .iter()
+            .flat_map(|app| {
+                Walk::new(&app.package).filter(|path| {
+                    path.extension()
+                        .is_some_and(|extension| extension == "py" || extension == "js")
+                })
+            })
+            .collect();
+
+        let found: Vec<(PathBuf, Vec<(crate::occurrences::Key, Range)>)> = files
+            .into_par_iter()
+            .filter_map(|path| {
+                let source = std::fs::read_to_string(&path).ok()?;
+                Some((self.occurrences_in(&path, &source), path))
+            })
+            .map(|(found, path)| (path, found))
+            .collect();
+
+        for (path, keys) in found {
+            let path: Arc<Path> = Arc::from(path.as_path());
+            for (key, range) in keys {
+                self.occurrences.insert(key, &path, range);
+            }
+        }
+
+        self.schema_occurrences();
+        self.hook_occurrences();
+        self.fixture_occurrences();
+        self.occurrences.sort();
+        self.occurrences.scanned = true;
+    }
+
+    /// Re-scan one file's occurrences, and those of every DocType it touched.
+    ///
+    /// A DocType JSON contributes its own rows; a source file contributes
+    /// whatever it names. Both are keyed by file, so the fix is to forget the
+    /// file and read it again — the table stays exactly what a full scan would
+    /// have produced ([32](../../../docs/specs/32-testing.md) asserts it).
+    fn reindex_occurrences(&mut self, path: &Path, affected: &BTreeSet<String>) {
+        if !self.occurrences.scanned {
+            return;
+        }
+
+        self.occurrences.forget(path);
+        if let Ok(source) = std::fs::read_to_string(path) {
+            let found = self.occurrences_in(path, &source);
+            let owned: Arc<Path> = Arc::from(path);
+            for (key, range) in found {
+                self.occurrences.insert(key, &owned, range);
+            }
+        }
+
+        // A DocType JSON's own rows are derived from the merged graph rather
+        // than from the file, so they are rebuilt for every name it touched.
+        for name in affected {
+            if let Some(doctype) = self.doctypes.get(name) {
+                self.occurrences.forget(&doctype.path);
+            }
+        }
+        self.schema_occurrences();
+        self.occurrences.sort();
+    }
+
+    /// DocType names used as hook map keys.
+    ///
+    /// `hooks.py` is a `.py` file, but a `doc_events` key is a dict literal
+    /// and the general extractor has no reason to call it a DocType. Only the
+    /// schemas written `Map<DocTypeName, …>` in
+    /// [12](../../../docs/specs/12-surface-hooks.md) are walked, which is the
+    /// same rule the diagnostics use.
+    fn hook_occurrences(&mut self) {
+        use crate::occurrences::Key;
+        use frappe_syntax::generated::Schema;
+        use frappe_syntax::hooks::Value;
+
+        let files: Vec<PathBuf> = self
+            .workspace
+            .apps
+            .iter()
+            .map(|app| app.package.join("hooks.py"))
+            .collect();
+
+        let mut found: Vec<(String, PathBuf, Range)> = Vec::new();
+        for path in files {
+            let Ok(source) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(assignments) = frappe_syntax::hooks::read(&source) else {
+                continue;
+            };
+            for assignment in assignments {
+                let keyed_by_doctype = frappe_syntax::generated::hook_schema(&assignment.key)
+                    .is_some_and(|schema| {
+                        matches!(
+                            schema,
+                            Schema::DocEvents
+                                | Schema::MapToClass
+                                | Schema::MapToClasses
+                                | Schema::MapToCallable
+                                | Schema::MapToFile
+                        )
+                    });
+                if !keyed_by_doctype {
+                    continue;
+                }
+                let Value::Map(entries) = &assignment.value else {
+                    continue;
+                };
+                for (key, _) in entries {
+                    if self.doctypes.contains_key(&key.text) {
+                        found.push((key.text.clone(), path.clone(), Range::from(key.span)));
+                    }
+                }
+            }
+        }
+
+        for (name, path, range) in found {
+            let path: Arc<Path> = Arc::from(path.as_path());
+            self.occurrences.insert(Key::DocType(name), &path, range);
+        }
+    }
+
+    /// DocType names a Layer-2 fixtures file targets — spec 21 counts fixtures
+    /// as a surface, and a Custom Field is how half a bench's schema arrives.
+    fn fixture_occurrences(&mut self) {
+        use crate::occurrences::Key;
+
+        let mut found: Vec<(Key, PathBuf, Range)> = Vec::new();
+        for (path, layer) in &self.fixtures {
+            for record in &layer.fixture.custom_fields {
+                found.push((
+                    Key::DocType(record.doctype.clone()),
+                    path.clone(),
+                    record.field.range,
+                ));
+                found.push((
+                    Key::Field(record.doctype.clone(), record.field.fieldname.clone()),
+                    path.clone(),
+                    record.field.range,
+                ));
+            }
+            for record in &layer.fixture.property_setters {
+                found.push((
+                    Key::DocType(record.doctype.clone()),
+                    path.clone(),
+                    record.range,
+                ));
+            }
+        }
+
+        for (key, path, range) in found {
+            let path: Arc<Path> = Arc::from(path.as_path());
+            self.occurrences.insert(key, &path, range);
+        }
+    }
+
+    /// Occurrences in one source file, without touching the table.
+    fn occurrences_in(&self, path: &Path, source: &str) -> Vec<(crate::occurrences::Key, Range)> {
+        use crate::occurrences::Key;
+
+        let Some(language) = frappe_syntax::Language::from_path(path) else {
+            return Vec::new();
+        };
+        let Ok(mut parser) = language.parser() else {
+            return Vec::new();
+        };
+        let Some(tree) = parser.parse(source, None) else {
+            return Vec::new();
+        };
+
+        let controller = self
+            .doctypes
+            .values()
+            .find(|doctype| doctype.controller.as_ref().is_some_and(|c| c.path == path));
+        let context = frappe_syntax::Context {
+            self_doctype: controller.map(|doctype| doctype.name.as_str()),
+            self_class: controller
+                .and_then(|doctype| doctype.controller.as_ref())
+                .map(|controller| controller.class_name.as_str()),
+        };
+
+        let matches = frappe_syntax::extract(language, &tree, source, context);
+        crate::resolve::resolve_all(self, &matches)
+            .into_iter()
+            .filter_map(|resolved| {
+                let key = match resolved.target {
+                    // Only what resolved. An `Unknown` anchor would flood the
+                    // result set, and spec 21 excludes it by name.
+                    crate::resolve::Target::DocType { name } => Key::DocType(name),
+                    crate::resolve::Target::Field {
+                        doctype, fieldname, ..
+                    } => Key::Field(doctype, fieldname),
+                    _ => return None,
+                };
+                Some((key, Range::from(resolved.span)))
+            })
+            .collect()
+    }
+
+    /// The occurrences the schema itself holds: a `Link` naming a DocType, a
+    /// `fetch_from` naming a field, the field declarations themselves.
+    fn schema_occurrences(&mut self) {
+        use crate::occurrences::Key;
+
+        let mut found: Vec<(Key, PathBuf, Range)> = Vec::new();
+        for doctype in self.doctypes.values() {
+            let path: PathBuf = doctype.path.to_path_buf();
+            for field in &doctype.fields {
+                let Some(range) = field.ranges.options else {
+                    continue;
+                };
+                let fieldtype = self.interner.resolve(field.fieldtype);
+                if matches!(fieldtype, "Link" | "Table" | "Table MultiSelect")
+                    && let Some(options) = field.options.as_deref()
+                    && self.doctypes.contains_key(options)
+                {
+                    found.push((Key::DocType(options.to_string()), path.clone(), range));
+                }
+            }
+            // The declaration is a reference to itself: `references` on a field
+            // that does not include where it is declared sends the reader
+            // nowhere ([21](../../../docs/specs/21-navigation.md)).
+            for field in &doctype.fields {
+                found.push((
+                    Key::Field(
+                        doctype.name.clone(),
+                        self.interner.resolve(field.fieldname).to_string(),
+                    ),
+                    path.clone(),
+                    // The `fieldname` value, not the whole field object: a
+                    // reference list of 40-line ranges is unreadable.
+                    field.ranges.fieldname.unwrap_or(field.range),
+                ));
+            }
+        }
+
+        for (key, path, range) in found {
+            let path: Arc<Path> = Arc::from(path.as_path());
+            self.occurrences.insert(key, &path, range);
+        }
     }
 
     /// Whether anything in the workspace calls a form handler by this name —
@@ -1408,6 +1674,7 @@ impl Index {
             known = true;
             self.reindex_python(path, &package, &mut affected);
             self.collect_hook_reads();
+            self.collect_classes();
         } else if fixtures::is_fixture(&package, path) {
             known = true;
             self.reindex_fixture(path, order, &app, &mut affected);
@@ -1424,6 +1691,7 @@ impl Index {
             self.assemble(name, &mut raws);
         }
         self.sort_reports();
+        self.reindex_occurrences(path, &affected);
 
         Reindexed {
             doctypes: affected.into_iter().collect(),

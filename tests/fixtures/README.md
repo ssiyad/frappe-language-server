@@ -92,6 +92,16 @@ Settings"]`. All of it must stay silent
 ([04](../../docs/specs/04-metadata-index.md),
 [11](../../docs/specs/11-surface-javascript.md)).
 
+## References
+
+`Library Member` is named from every surface [21](../../docs/specs/21-navigation.md)
+requires `references` to cover, which is what makes the fixture a test of the
+rule rather than of one code path: `library_member.py` and `api.py` (Python),
+`library_member.js` and `library_member_list.js` (JavaScript),
+`library_member.json` and `loan.json` (a `Link` in another app), `hooks.py`
+(a `doc_events` map key), and `custom_field.json` and `property_setter.json`
+(fixtures).
+
 ## Annotations
 
 Sources that take comments carry the expectation inline:

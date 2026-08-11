@@ -16,4 +16,5 @@ pub mod hover;
 pub mod locations;
 pub mod logging;
 pub mod server;
+pub mod symbols;
 pub mod watcher;

@@ -26,7 +26,8 @@ table or a parse failure are on, and so are the absence checks — `doc.x` alone
 stays off, because a Frappe document is an open Python object. `cargo xtask
 smoke` measures this over `frappe` and `erpnext` on every run: 7 079 files, 214
 findings, each one checked against the source and allowlisted with a reason.
-References and document symbols are next.
+References and symbols answer from a reverse occurrence table of 89 523 sites,
+built after the index publishes and cached with it.
 
 ## Decisions
 
