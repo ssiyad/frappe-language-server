@@ -19,7 +19,9 @@ notify.workspace = true
 ropey.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tokio = { workspace = true, features = ["io-std", "macros", "rt-multi-thread", "time"] }
+# `process` is the test runner of spec 25 — the one feature that executes
+# anything, and it is opt-in.
+tokio = { workspace = true, features = ["io-std", "macros", "process", "rt-multi-thread", "time"] }
 toml.workspace = true
 tower-lsp-server.workspace = true
 tracing.workspace = true

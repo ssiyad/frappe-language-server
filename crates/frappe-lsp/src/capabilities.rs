@@ -5,11 +5,11 @@
 //! [`ClientSupport`] has a fallback the rest of the server has to respect.
 
 use tower_lsp_server::ls_types::{
-    ClientCapabilities, CodeActionProviderCapability, CompletionOptions,
+    ClientCapabilities, CodeActionProviderCapability, CodeLensOptions, CompletionOptions,
     CompletionOptionsCompletionItem, DiagnosticOptions, DiagnosticServerCapabilities,
-    HoverProviderCapability, ImplementationProviderCapability, MarkupKind, OneOf,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability,
+    ExecuteCommandOptions, HoverProviderCapability, ImplementationProviderCapability, MarkupKind,
+    OneOf, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TypeDefinitionProviderCapability,
     WorkspaceFoldersServerCapabilities, WorkspaceServerCapabilities,
 };
 
@@ -24,6 +24,14 @@ const COMPLETION_TRIGGERS: [&str; 4] = ["\"", "'", ".", "["];
 /// Identifier reported on pull diagnostics; matches the `frappe-lsp/` code
 /// prefix of spec 23.
 const DIAGNOSTIC_SOURCE: &str = "frappe-lsp";
+
+/// The command a lens carries, and the one `workspace/executeCommand` accepts
+/// for the server-run fallback of [25](../../../docs/specs/25-test-runner.md).
+pub const RUN_TEST: &str = "frappe-lsp.runTest";
+
+/// Asks which site to run against, when a bench has several and none is
+/// configured. Answering is what makes the lenses runnable.
+pub const SELECT_SITE: &str = "frappe-lsp.selectSite";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ClientSupport {
@@ -111,6 +119,16 @@ pub fn server_capabilities(support: ClientSupport) -> ServerCapabilities {
         document_symbol_provider: Some(OneOf::Left(true)),
         workspace_symbol_provider: Some(OneOf::Left(true)),
         code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+        // Spec 25. Lenses are advertised unconditionally: they are discovery,
+        // and a bench with no site still shows what is runnable and why it is
+        // not.
+        code_lens_provider: Some(CodeLensOptions {
+            resolve_provider: Some(false),
+        }),
+        execute_command_provider: Some(ExecuteCommandOptions {
+            commands: vec![RUN_TEST.to_string(), SELECT_SITE.to_string()],
+            ..Default::default()
+        }),
         // Push via `publishDiagnostics` is the fallback, so the pull provider is
         // advertised only to clients that asked for it.
         diagnostic_provider: support.pull_diagnostics.then(|| {

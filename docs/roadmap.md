@@ -33,7 +33,7 @@ The JavaScript surface arrived here rather than in phase 3: extraction covered
 both languages from the start, so turning it on was resolution and presentation
 rather than new machinery.
 
-## Phase 3 — References, diagnostics
+## Phase 3 — References, diagnostics, test running ✅
 
 Workspace references, symbols, the diagnostic set, quick fixes. Test running
 ([25](specs/25-test-runner.md)) rides along — it depends only on workspace
@@ -58,6 +58,13 @@ checked against the source and recorded with a reason in
 Diagnostics are **done**: every code in [23](specs/23-diagnostics.md) is
 implemented, each with a positive and a negative case in the fixture bench,
 both checked by `tests/annotations.rs` against the real server.
+
+Test running is **done**: code lenses on every runnable scope, resolved through
+the workspace class graph so erpnext's `ERPNextTestSuite` subclasses are found
+— 929 of 953 test files on the reference bench, 9 532 lenses. Execution is the
+client's, through a `frappe-lsp.runTest` command carrying argv; the server-run
+fallback is opt-in and logs rather than diagnosing
+([25](specs/25-test-runner.md)).
 
 The hooks surface is **done**: `doctype_js` binds a form script as a
 navigation target and anchors `frm` inside it, and `hooks.py` completes hook

@@ -9,12 +9,8 @@ Python and JavaScript surfaces and inside `hooks.py`. Phases in
 
 ## Phase 3 — References, diagnostics, test running
 
-| # | Task | Depends on |
-| --- | --- | --- |
-| 018 | [Test running](018-test-runner.md) | — · independent |
-
-Diagnostics (`012`), references (`013`) and the hooks surface (`010`) are done;
-`018` is all that is left in phase 3.
+**Complete.** Diagnostics (`012`), references and symbols (`013`), the hooks
+surface (`010`) and test running (`018`) are all done and their files deleted.
 
 ## Phase 4 — Bridge and templates
 
@@ -33,25 +29,16 @@ Diagnostics (`012`), references (`013`) and the hooks surface (`010`) are done;
 
 ## Critical path
 
-Nothing blocks anything else inside phase 3, so the order is a choice about
-risk.
+Phase 4 is next, and `014` is its only entry point: `015` depends on it and
+`016` on both. `017` is independent and experimental.
 
-`013` is done and its file is deleted. The reverse occurrence table is built
-after the index publishes and cached with it; `references`, `documentSymbol`
-and `workspaceSymbol` answer from it ([21](../specs/21-navigation.md)).
+What phase 3 left behind:
 
-`012` is done and its file is deleted. Every code in the registry of
-[23](../specs/23-diagnostics.md) is implemented, each with a positive and a
-negative case in the fixture bench, and `cargo xtask smoke` holds the whole
-check set to a committed allowlist over `frappe` and `erpnext`. Its one open
-item — `Degraded` confidence — moved to [014](014-live-bridge.md), which is
-the task that gives that state a way to occur.
-
-`010` is done and its file is deleted: `doctype_js` scripts are navigation
-targets and anchor `frm` in the files they bind, and `hooks.py` completes hook
-keys, doc events, frequencies and DocType map keys.
-
-`018` needs workspace discovery and nothing else.
+- `012`'s one open item — `Degraded` confidence — moved to
+  [014](014-live-bridge.md), which is the task that gives that state a way to
+  occur.
+- `018` shipped the client-run path; the Neovim glue for
+  `frappe-lsp.runTest` is documented by [016](016-distribution.md).
 
 ## Carried forward
 

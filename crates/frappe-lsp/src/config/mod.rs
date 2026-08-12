@@ -125,6 +125,15 @@ impl ConfigSources {
     /// Merge in the order of spec 30 and fill in defaults.
     pub fn resolve(&self) -> Config {
         let mut merged = self.bench_file.clone();
+        // `.frappe-lsp.toml` is committed team-wide configuration, which means
+        // it arrives with a `git clone` from whoever wrote the repository. It
+        // may not choose what gets executed: `test.bench` from that source is
+        // dropped, so a cloned workspace cannot point the one feature that
+        // runs anything at a program of its choosing
+        // ([25](../../../../docs/specs/25-test-runner.md)).
+        if let Some(test) = merged.test.as_mut() {
+            test.bench = None;
+        }
         merged.merge(self.user_file.clone());
         merged.merge(self.initialization_options.clone());
         merged.merge(self.workspace_configuration.clone());
@@ -250,6 +259,43 @@ mod tests {
         assert!(error.to_string().contains(&path.display().to_string()));
 
         std::fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn a_committed_config_cannot_choose_what_gets_executed() {
+        // `.frappe-lsp.toml` arrives with a `git clone`. Every other key in it
+        // is the repository's business; the program the test runner spawns is
+        // not ([25](../../../../docs/specs/25-test-runner.md)).
+        let sources = ConfigSources {
+            bench_file: parse(
+                Origin::BenchFile("/x/.frappe-lsp.toml".into()),
+                serde_json::json!({"test": {"bench": "/tmp/not-bench", "failfast": true}}),
+            )
+            .expect("valid"),
+            ..Default::default()
+        };
+
+        let config = sources.resolve();
+        assert_eq!(
+            config.test.bench, "bench",
+            "a cloned repo chose the program"
+        );
+        // The rest of the block still applies: only the executable is refused.
+        assert!(config.test.failfast);
+    }
+
+    #[test]
+    fn a_user_file_may_still_set_the_bench_path() {
+        // The user's own config is theirs; a venv-local `bench` is ordinary.
+        let sources = ConfigSources {
+            user_file: parse(
+                Origin::UserFile("/home/x/config.toml".into()),
+                serde_json::json!({"test": {"bench": "/home/x/env/bin/bench"}}),
+            )
+            .expect("valid"),
+            ..Default::default()
+        };
+        assert_eq!(sources.resolve().test.bench, "/home/x/env/bin/bench");
     }
 
     #[test]

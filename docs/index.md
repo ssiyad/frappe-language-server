@@ -27,7 +27,9 @@ stays off, because a Frappe document is an open Python object. `cargo xtask
 smoke` measures this over `frappe` and `erpnext` on every run: 7 079 files, 214
 findings, each one checked against the source and allowlisted with a reason.
 References and symbols answer from a reverse occurrence table of 89 523 sites,
-built after the index publishes and cached with it.
+built after the index publishes and cached with it. Test lenses run a scope
+from the file it lives in, through the client's terminal. Phase 3 is complete;
+the live bridge is next.
 
 ## Decisions
 

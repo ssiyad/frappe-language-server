@@ -17,4 +17,5 @@ pub mod locations;
 pub mod logging;
 pub mod server;
 pub mod symbols;
+pub mod testing;
 pub mod watcher;

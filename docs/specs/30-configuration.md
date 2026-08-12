@@ -58,6 +58,16 @@ detail = true
 
 [hover]
 enabled = true
+
+[test]                   # spec 25 — the one feature that executes anything
+enabled = true           # discovery only; lenses cost nothing
+runner = "client"        # "client" | "server" — server-run has no TTY, so it is opt-in
+site = ""                # overrides resolution; required when a bench has several sites
+bench = "bench"          # ignored from .frappe-lsp.toml — see 25
+failfast = false
+profile = false
+coverage = false
+lightmode = false
 ```
 
 Diagnostic keys mirror the codes in [23](23-diagnostics.md) with the
@@ -71,6 +81,19 @@ environment, then a named `frappe-cli` profile. `bridge.profile` names a profile
 it never contains a secret. A config file containing something that looks like a
 key MUST be rejected with a logged error, not silently used — committed
 credentials are the failure mode worth designing against.
+
+## What a committed file may not decide
+
+`.frappe-lsp.toml` is source 1 and arrives with a `git clone`, so it is trusted
+with settings and not with actions. `test.bench` — the program the test runner
+spawns — is dropped from it and taken only from the user's own configuration
+([25](25-test-runner.md)). Cloning a repository must not be enough to have the
+editor offer to run a program its author chose, under a lens labelled "Run
+test".
+
+This is the same reasoning as the credentials rule above, in the other
+direction: that one keeps secrets from leaving, this one keeps instructions
+from arriving.
 
 ## Capabilities
 

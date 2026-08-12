@@ -2354,3 +2354,248 @@ fn hooks_py_completes_keys_events_and_frequencies() {
     session.notify("exit", json!(null));
     session.finish();
 }
+
+#[test]
+fn test_lenses_carry_a_bench_invocation_for_each_scope() {
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let path =
+        bench.join("apps/library/library/library/doctype/library_member/test_library_member.py");
+    let uri = format!("file://{}", path.display());
+    let response = session.request(
+        100,
+        "textDocument/codeLens",
+        json!({"textDocument": {"uri": uri}}),
+    );
+
+    let lenses = response["result"].as_array().expect("lenses");
+    let titles: Vec<&str> = lenses
+        .iter()
+        .filter_map(|lens| lens["command"]["title"].as_str())
+        .collect();
+    assert_eq!(
+        titles,
+        ["Run module", "Run class", "Run test"],
+        "{titles:?}"
+    );
+
+    // The fixture bench has one site, named by `currentsite.txt`, so the
+    // lenses are runnable. What they carry is the scope, not a command line:
+    // the server rebuilds the argv from this against its own index, so a lens
+    // that travelled through the client cannot choose what runs (specs/25).
+    assert_eq!(lenses[2]["command"]["command"], "frappe-lsp.runTest");
+    assert_eq!(
+        lenses[2]["command"]["arguments"][0],
+        json!({
+            "app": "library",
+            "module": "library.library.doctype.library_member.test_library_member",
+            "doctype": null,
+            "case": "TestLibraryMember",
+            "test": "test_referred_by_email_is_fetched",
+        })
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_doctype_json_beside_a_test_file_offers_the_doctype_scope() {
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let path =
+        bench.join("apps/library/library/library/doctype/library_member/library_member.json");
+    let uri = format!("file://{}", path.display());
+    let response = session.request(
+        100,
+        "textDocument/codeLens",
+        json!({"textDocument": {"uri": uri}}),
+    );
+
+    let lenses = response["result"].as_array().expect("lenses");
+    assert_eq!(lenses.len(), 1);
+    assert_eq!(lenses[0]["command"]["title"], "Run DocType tests");
+    assert_eq!(
+        lenses[0]["command"]["arguments"][0]["doctype"],
+        "Library Member"
+    );
+    assert_eq!(lenses[0]["command"]["arguments"][0]["app"], "library");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn run_test_hands_the_client_a_command_it_did_not_have_to_build() {
+    // The lens carries a scope; `executeCommand` is where it becomes an argv,
+    // built by the server against its own index (specs/25).
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let response = session.request(
+        100,
+        "workspace/executeCommand",
+        json!({"command": "frappe-lsp.runTest", "arguments": [{
+            "app": "library",
+            "module": "library.library.doctype.library_member.test_library_member",
+            "case": "TestLibraryMember",
+            "test": "test_referred_by_email_is_fetched",
+        }]}),
+    );
+
+    let argv: Vec<String> =
+        serde_json::from_value(response["result"]["argv"].clone()).expect("argv");
+    assert_eq!(
+        argv,
+        [
+            "bench",
+            "--site",
+            "library.localhost",
+            "run-tests",
+            "--app",
+            "library",
+            "--module",
+            "library.library.doctype.library_member.test_library_member",
+            "--case",
+            "TestLibraryMember",
+            "--test",
+            "test_referred_by_email_is_fetched",
+        ]
+    );
+
+    // A scope naming an app this workspace does not have builds nothing.
+    let response = session.request(
+        101,
+        "workspace/executeCommand",
+        json!({"command": "frappe-lsp.runTest", "arguments": [{
+            "app": "not_installed",
+            "module": "not_installed.tests.test_thing",
+        }]}),
+    );
+    assert!(response["result"].is_null(), "{:?}", response["result"]);
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_chosen_site_is_remembered_for_the_session() {
+    // Spec 25 refuses to guess between sites. Asking is the other half: the
+    // answer holds until the session ends, and the lenses become runnable.
+    let bench = fixture_bench();
+    let root = std::env::temp_dir().join(format!("frappe-lsp-twosites-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    copy_tree(&bench, &root);
+
+    // Two sites and no `currentsite.txt`: the ambiguous case, which is the
+    // shape of a real bench that has never had `bench use` run in it.
+    let sites = root.join("sites");
+    let _ = std::fs::remove_file(sites.join("currentsite.txt"));
+    let second = sites.join("second.localhost");
+    std::fs::create_dir_all(&second).expect("create");
+    std::fs::write(second.join("site_config.json"), "{}\n").expect("write");
+
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", root.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let path =
+        root.join("apps/library/library/library/doctype/library_member/test_library_member.py");
+    let uri = format!("file://{}", path.display());
+
+    // Ambiguous: the lens asks rather than running.
+    let response = session.request(
+        100,
+        "textDocument/codeLens",
+        json!({"textDocument": {"uri": uri}}),
+    );
+    let lenses = response["result"].as_array().expect("lenses").clone();
+    assert_eq!(lenses[0]["command"]["command"], "frappe-lsp.selectSite");
+    assert_eq!(lenses[0]["command"]["title"], "Run module — choose a site");
+
+    // Answer the prompt the server raises, which `request` would otherwise
+    // skip past — and the server is blocked on it, so this is the only way
+    // the command ever returns.
+    session.send(json!({
+        "jsonrpc": "2.0", "id": 101, "method": "workspace/executeCommand",
+        "params": {"command": "frappe-lsp.selectSite",
+                   "arguments": [["library.localhost", "second.localhost"]]}
+    }));
+    let chosen = loop {
+        let message = session.receive();
+        // Anything the server asks gets an answer; a test that ignores a
+        // server-initiated request deadlocks against a handler awaiting it.
+        if message["method"] == "workspace/codeLens/refresh" {
+            session.send(json!({
+                "jsonrpc": "2.0", "id": message["id"].clone(), "result": null
+            }));
+        }
+        if message["method"] == "window/showMessageRequest" {
+            let offered: Vec<String> = message["params"]["actions"]
+                .as_array()
+                .expect("actions")
+                .iter()
+                .filter_map(|action| action["title"].as_str())
+                .map(str::to_string)
+                .collect();
+            assert_eq!(offered, ["library.localhost", "second.localhost"]);
+            session.send(json!({
+                "jsonrpc": "2.0", "id": message["id"].clone(),
+                "result": {"title": "second.localhost"}
+            }));
+        }
+        if message.get("id").and_then(Value::as_i64) == Some(101) {
+            break message;
+        }
+    };
+    assert_eq!(chosen["result"]["site"], "second.localhost");
+
+    // The lenses are a different set now, and they run.
+    let response = session.request(
+        102,
+        "textDocument/codeLens",
+        json!({"textDocument": {"uri": uri}}),
+    );
+    let lenses = response["result"].as_array().expect("lenses");
+    assert_eq!(lenses[0]["command"]["command"], "frappe-lsp.runTest");
+    assert_eq!(lenses[0]["command"]["title"], "Run module");
+
+    // And the choice reaches the command that builds the invocation.
+    let response = session.request(
+        103,
+        "workspace/executeCommand",
+        json!({"command": "frappe-lsp.runTest",
+               "arguments": [{"app": "library", "module": "library.tests.test_thing"}]}),
+    );
+    let argv: Vec<String> =
+        serde_json::from_value(response["result"]["argv"].clone()).expect("argv");
+    assert_eq!(argv[1..3], ["--site", "second.localhost"]);
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+    std::fs::remove_dir_all(&root).expect("cleanup");
+}

@@ -25,7 +25,7 @@ use crate::buffers::Buffers;
 use crate::capabilities::{ClientSupport, server_capabilities};
 use crate::config::{Config, ConfigError, ConfigSources};
 use crate::watcher::{self, FileWatcher};
-use crate::{completion, definition, diagnostics, hover, locations, symbols};
+use crate::{completion, definition, diagnostics, hover, locations, symbols, testing};
 use std::time::Duration;
 
 pub const SERVER_NAME: &str = "frappe-lsp";
@@ -59,6 +59,11 @@ struct State {
     /// Files a conflict was published to that the user never opened, so the
     /// next build can clear the ones that no longer conflict.
     conflicting: Vec<Uri>,
+    /// The site the user picked this session, when the bench has several.
+    /// Not written back to any file: choosing which database a test suite
+    /// runs against is the user's to make permanent, in their own config
+    /// ([25](../../../docs/specs/25-test-runner.md)).
+    chosen_site: Option<String>,
 }
 
 impl Backend {
@@ -921,6 +926,123 @@ impl LanguageServer for Backend {
         )))
     }
 
+    /// `textDocument/codeLens` — one lens per runnable test scope, spec 25.
+    async fn code_lens(&self, params: CodeLensParams) -> Result<Option<Vec<CodeLens>>> {
+        let uri = params.text_document.uri;
+        let Some(path) = uri.to_file_path().map(|path| path.into_owned()) else {
+            return Ok(None);
+        };
+
+        let source = {
+            let state = self.state.read().expect("state lock poisoned by a panic");
+            state
+                .buffers
+                .get(&uri)
+                .map(|buffer| buffer.text().to_string())
+        };
+        let Some(source) = source.or_else(|| std::fs::read_to_string(&path).ok()) else {
+            return Ok(None);
+        };
+
+        let config = self.write(|state| state.config.clone());
+        let chosen = self.write(|state| state.chosen_site.clone());
+        let index = self.index.read().expect("index lock poisoned by a panic");
+        let lenses = testing::lenses(&index, &config, chosen.as_deref(), &path, &source);
+        Ok((!lenses.is_empty()).then_some(lenses))
+    }
+
+    /// `workspace/executeCommand` — the server-run fallback of spec 25.
+    ///
+    /// Strictly worse than the client running it: no TTY, no interactivity,
+    /// and the output arrives as log lines. Opt-in for exactly that reason.
+    async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
+        if params.command == crate::capabilities::SELECT_SITE {
+            return self.select_site(&params).await;
+        }
+        if params.command != crate::capabilities::RUN_TEST {
+            return Ok(None);
+        }
+
+        // The argv is rebuilt here rather than taken from the request. What a
+        // lens carries has passed through the client and is not evidence of
+        // anything; the scope descriptor is re-validated against the index and
+        // the program comes from configuration this process trusts
+        // ([25](../../../docs/specs/25-test-runner.md)).
+        let Some(scope) = params
+            .arguments
+            .first()
+            .and_then(|value| serde_json::from_value::<testing::Invocation>(value.clone()).ok())
+        else {
+            return Ok(None);
+        };
+        let config = self.write(|state| state.config.clone());
+        let chosen = self.write(|state| state.chosen_site.clone());
+        let argv = {
+            let index = self.index.read().expect("index lock poisoned by a panic");
+            testing::rebuild(&index, &config, chosen.as_deref(), &scope)
+        };
+        let Some(argv) = argv else {
+            self.client
+                .log_message(
+                    MessageType::ERROR,
+                    "that test scope no longer resolves in this workspace",
+                )
+                .await;
+            return Ok(None);
+        };
+        let Some((program, rest)) = argv.split_first() else {
+            return Ok(None);
+        };
+        let root = self.write(|state| state.root.clone());
+
+        // The client asked what to run and runs it itself: it gets a TTY, its
+        // own scrollback, and the command this server built rather than one it
+        // had to assemble from a scope it cannot validate
+        // ([25](../../../docs/specs/25-test-runner.md)).
+        let runner = self.write(|state| state.config.test.runner.clone());
+        if runner != "server" {
+            return Ok(Some(json!({
+                "argv": argv,
+                "cwd": root.as_ref().map(|root| root.display().to_string()),
+            })));
+        }
+
+        tracing::info!(argv = ?argv, "running tests");
+        self.client
+            .log_message(MessageType::INFO, format!("$ {}", argv.join(" ")))
+            .await;
+
+        let mut command = tokio::process::Command::new(program);
+        command.args(rest);
+        if let Some(root) = root {
+            command.current_dir(root);
+        }
+        // Output is logged, never parsed: a failing test is not a defect in
+        // the line it points at, and turning it into a diagnostic would make
+        // spec 23's precision rule meaningless.
+        match command.output().await {
+            Ok(output) => {
+                for stream in [&output.stdout, &output.stderr] {
+                    for line in String::from_utf8_lossy(stream).lines() {
+                        self.client
+                            .log_message(MessageType::LOG, line.to_string())
+                            .await;
+                    }
+                }
+                Ok(Some(json!({"exitCode": output.status.code()})))
+            }
+            Err(error) => {
+                self.client
+                    .log_message(
+                        MessageType::ERROR,
+                        format!("could not run {program}: {error}"),
+                    )
+                    .await;
+                Ok(None)
+            }
+        }
+    }
+
     /// Quick fixes for the diagnostics the client is showing — spec 23.
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
         let uri = params.text_document.uri;
@@ -970,6 +1092,72 @@ impl LanguageServer for Backend {
 }
 
 impl Backend {
+    /// `frappe-lsp.selectSite` — ask which site to run against.
+    ///
+    /// Spec 25 refuses to guess when a bench has several sites, because
+    /// guessing runs a suite against the wrong database. Asking is the other
+    /// half of that: the user says which one, the choice holds for the
+    /// session, and the lenses become runnable.
+    async fn select_site(&self, params: &ExecuteCommandParams) -> Result<Option<Value>> {
+        let sites: Vec<String> = params
+            .arguments
+            .first()
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        if sites.is_empty() {
+            return Ok(None);
+        }
+
+        let actions = sites
+            .iter()
+            .map(|site| MessageActionItem {
+                title: site.clone(),
+                properties: std::collections::HashMap::new(),
+            })
+            .collect();
+        let picked = self
+            .client
+            .show_message_request(
+                MessageType::INFO,
+                "Which site should tests run against?",
+                Some(actions),
+            )
+            .await?;
+
+        let Some(picked) = picked else {
+            // Dismissed. Nothing is chosen, and nothing is assumed.
+            return Ok(None);
+        };
+        // Only a site the bench actually has: the answer comes back through
+        // the client, and the list is the server's.
+        if !sites.contains(&picked.title) {
+            return Ok(None);
+        }
+
+        tracing::info!(site = %picked.title, "site chosen for this session");
+        self.write(|state| state.chosen_site = Some(picked.title.clone()));
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!(
+                    "tests will run against {}; set test.site to keep it across sessions",
+                    picked.title
+                ),
+            )
+            .await;
+        // The lenses were titled "choose a site" and carried no command that
+        // runs anything; they are a different set now.
+        //
+        // Detached on purpose: the choice is already stored, and the refresh
+        // is a request *to* the client. Awaiting it would let a client that
+        // ignores `codeLens/refresh` hang the action the user just took.
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            let _ = client.code_lens_refresh().await;
+        });
+        Ok(Some(json!({"site": picked.title})))
+    }
+
     /// `frappe-lsp/indexStatus` — app and DocType counts, confidence, build
     /// time. Spec 32's integration tests assert against this rather than
     /// reaching inside the process, and a bug report starts here.

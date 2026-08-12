@@ -137,6 +137,23 @@ config_schema! {
     hover: Hover / HoverPatch {
         enabled: bool = true,
     }
+
+    // Spec 25: the one feature that executes anything. Discovery is on —
+    // lenses cost nothing and a read-only checkout still shows what is
+    // runnable — and the server-run fallback is opt-in.
+    test: Test / TestPatch {
+        enabled: bool = true,
+        // `"client"` or `"server"`. Server-run has no TTY and no
+        // interactivity, so it is never the default.
+        runner: String = String::from("client"),
+        // Overrides site resolution; required when a bench has several sites.
+        site: String = String::new(),
+        bench: String = String::from("bench"),
+        failfast: bool = false,
+        profile: bool = false,
+        coverage: bool = false,
+        lightmode: bool = false,
+    }
 }
 
 /// `workspace.root`: `"auto"` or an absolute path.

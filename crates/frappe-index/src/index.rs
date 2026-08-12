@@ -483,6 +483,33 @@ impl Index {
         }
     }
 
+    /// Whether `class_name` derives, transitively, from any of `bases`.
+    ///
+    /// Uses the same bare-name class graph as [`Index::has_attribute`], which
+    /// exists whether or not anything asks this question. Matching by bare
+    /// name can only ever say yes too often, and the cost of that here is a
+    /// code lens on a class that is not a test — visible, harmless, and
+    /// nothing like the cost of no lens at all on the 484 erpnext test classes
+    /// that derive from `ERPNextTestSuite`
+    /// ([25](../../../docs/specs/25-test-runner.md)).
+    #[must_use]
+    pub fn derives_from(&self, class_name: &str, bases: &[&str]) -> bool {
+        let mut pending = vec![class_name.to_string()];
+        let mut seen: BTreeSet<String> = BTreeSet::new();
+        while let Some(current) = pending.pop() {
+            if !seen.insert(current.clone()) {
+                continue;
+            }
+            if bases.contains(&current.as_str()) {
+                return true;
+            }
+            if let Some(inherited) = self.class_bases.get(&current) {
+                pending.extend(inherited.iter().cloned());
+            }
+        }
+        false
+    }
+
     /// Whether `class_name` or anything it derives from assigns `name`.
     fn class_assigns(&self, class_name: &str, name: &str) -> bool {
         let mut pending = vec![class_name.to_string()];
@@ -1180,6 +1207,32 @@ impl Index {
     #[must_use]
     pub fn module(&self, path: &Path) -> Option<&python::Module> {
         self.modules.get(path)
+    }
+
+    /// The dotted module path of a file, and the app it belongs to.
+    ///
+    /// The reverse of [07](../../../docs/specs/07-dotted-paths.md): a path
+    /// under `<package>/a/b.py` is `<package>.a.b`, and `__init__.py` is the
+    /// package it sits in rather than a module of its own.
+    #[must_use]
+    pub fn dotted_module(&self, path: &Path) -> Option<(&str, String)> {
+        let app = self
+            .workspace
+            .apps
+            .iter()
+            .find(|app| path.starts_with(&app.package))?;
+        let relative = path.strip_prefix(app.package.parent()?).ok()?;
+
+        let mut parts: Vec<String> = relative
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy().into_owned())
+            .collect();
+        let last = parts.pop()?;
+        let stem = last.strip_suffix(".py")?;
+        if stem != "__init__" {
+            parts.push(stem.to_string());
+        }
+        Some((app.name.as_str(), parts.join(".")))
     }
 
     /// Merge conflicts, sorted.
