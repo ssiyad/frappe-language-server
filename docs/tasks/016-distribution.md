@@ -11,7 +11,7 @@ and the troubleshooting steps. The Neovim block is the one
 crates/frappe-lsp` builds one binary that links only the C library.
 
 `.github/workflows/release.yml` builds Linux (static, musl) and macOS,
-x86_64 and aarch64, on a `v<version>` tag. It refuses a tag that does not match
+x86_64 and aarch64, on a `<version>` or `v<version>` tag. It refuses a tag that does not match
 the crate version, runs each binary its runner can execute, and publishes the
 archives with a `SHA256SUMS` file. It has not run yet: that takes a tag.
 

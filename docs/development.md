@@ -131,7 +131,7 @@ Levels and what belongs in each: [32](specs/32-testing.md).
 ## Releasing
 
 1. Set `version` in the workspace `Cargo.toml`, and commit.
-2. Tag the commit `v<version>` and push the tag.
+2. Tag the commit `<version>` (or `v<version>`) and push the tag.
 
 `.github/workflows/release.yml` refuses a tag that does not match the version,
 then builds and publishes Linux (static) and macOS binaries for x86_64 and

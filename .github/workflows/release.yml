@@ -1,12 +1,12 @@
 name: Release
 
-# A tag `v<version>` builds the server for Linux and macOS, x86_64 and aarch64,
+# A tag `<version>` or `v<version>` builds the server for Linux and macOS, x86_64 and aarch64,
 # and publishes them with their checksums. Linux builds are static (musl), so
 # one file runs on any distribution — task 016.
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["v[0-9]*", "[0-9]*"]
 
 permissions:
   contents: read
@@ -26,7 +26,7 @@ jobs:
       - name: The tag matches the crate version
         run: |
           version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+          if [ "$version" != "${GITHUB_REF_NAME#v}" ]; then
             echo "tag $GITHUB_REF_NAME, crate version $version" >&2
             exit 1
           fi
