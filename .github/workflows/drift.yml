@@ -1,0 +1,32 @@
+name: Drift
+
+# The vendored tables against frappe's develop branch. A hook, doc event or
+# form event frappe starts reading fails this job the week it lands, rather
+# than reaching users as a false positive — docs/development.md.
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  tables:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Clone frappe develop
+        run: |
+          git clone --depth 1 --branch develop \
+            https://github.com/frappe/frappe.git "$RUNNER_TEMP/frappe"
+      - name: Check the tables
+        run: cargo xtask codegen --check "$RUNNER_TEMP/frappe"

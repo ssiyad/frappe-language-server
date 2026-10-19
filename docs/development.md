@@ -87,7 +87,8 @@ hook names from five sources, doc events from `run_method`, form events from
 `trigger` — and fails on any name a table lacks. Its first run found 23 hooks,
 three doc events and one form event missing, each a false positive or a dead
 path waiting for an app that used it ([23](specs/23-diagnostics.md)). Add the
-name with its schema, and run the check again.
+name with its schema, and run the check again. `.github/workflows/drift.yml` runs it
+weekly against frappe's `develop`.
 
 ## Testing
 
