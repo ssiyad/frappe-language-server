@@ -13,12 +13,14 @@ crates/frappe-lsp` builds one binary that links only the C library.
 `.github/workflows/release.yml` builds Linux (static, musl) and macOS,
 x86_64 and aarch64, on a `<version>` or `v<version>` tag. It refuses a tag that does not match
 the crate version, runs each binary its runner can execute, and publishes the
-archives with a `SHA256SUMS` file. It has not run yet: that takes a tag.
+archives with a `SHA256SUMS` file. 0.1.1 is the first release: all four
+archives match their checksums, and the x86_64 Linux binary is static and
+passes `tests/editors/neovim.lua` against the reference bench.
 
 ## Scope
 
-- Push the first tag, and check every archive on its platform: the static
-  Linux builds in particular, which are built by `cross` and not locally.
+- Run the aarch64 Linux and both macOS archives on their platforms; CI only
+  runs `--version` on two of them.
 - The `--git` install path checked against a tag.
 - Setup for Zed and VS Code. VS Code needs an extension or a generic client,
   which [00](../specs/00-overview.md) keeps out of scope for now.
