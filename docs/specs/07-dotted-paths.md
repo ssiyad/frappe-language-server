@@ -59,6 +59,11 @@ marker. Each non-empty line is a `Module` path, optionally
 - Module paths resolve for go-to-definition and MUST expose a `execute()`.
 - A patch listed twice, or missing on disk, is a diagnostic.
 
+"Listed twice" means the same **line**, comment included. `Patch Log` records
+the whole line, so `path #2026-08-02` is a different patch from `path` and runs
+again: that is how frappe and erpnext re-run a migration. Comparing paths
+reported every such re-run as a duplicate.
+
 ## Non-Python targets
 
 `doctype_js`, `app_include_js`, `base_template` and friends hold **file** paths,

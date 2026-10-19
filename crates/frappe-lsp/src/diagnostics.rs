@@ -666,7 +666,8 @@ fn patches(index: &Index, source: &str) -> Vec<Finding> {
     for patch in frappe_index::hooks::read_patches(source) {
         let span = frappe_syntax::Span::new(patch.span.0, patch.span.1);
 
-        if seen.contains(&patch.dotted) {
+        // The same path with a new comment is a new patch to frappe.
+        if seen.contains(&patch.entry) {
             findings.push(Finding {
                 code: "duplicate-patch",
                 span,
@@ -697,7 +698,7 @@ fn patches(index: &Index, source: &str) -> Vec<Finding> {
             }
         }
 
-        seen.push(patch.dotted);
+        seen.push(patch.entry);
     }
 
     findings
@@ -1345,6 +1346,24 @@ mod tests {
         assert_eq!(near_miss("after_instal"), Some("after_install"));
         // No suggestion is offered where none is credible.
         assert_eq!(near_miss("doctype_javascript"), None);
+    }
+
+    #[test]
+    fn only_a_repeated_line_is_a_duplicate_patch() {
+        let duplicates = |source: &str| {
+            patches(&Index::partial(), source)
+                .into_iter()
+                .filter(|finding| finding.code == "duplicate-patch")
+                .count()
+        };
+
+        assert_eq!(duplicates("app.patches.one\napp.patches.one\n"), 1);
+        assert_eq!(duplicates("app.patches.one #a\napp.patches.one #a\n"), 1);
+        // erpnext and frappe both re-run a patch by changing its comment.
+        assert_eq!(
+            duplicates("app.patches.one\napp.patches.one #2026-08-02\n"),
+            0
+        );
     }
 
     #[test]

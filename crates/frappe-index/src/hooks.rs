@@ -311,6 +311,10 @@ mod tests {
 pub struct Patch {
     /// The module path as written.
     pub dotted: String,
+    /// The whole line, comment included. `Patch Log` records this, not the
+    /// path, so it is the patch's identity: appending `#<date>` to a line is
+    /// how frappe runs a patch again.
+    pub entry: String,
     /// Byte range of the path within the file.
     pub span: (usize, usize),
     /// Whether it sits under `[post_model_sync]`.
@@ -349,6 +353,7 @@ pub fn read_patches(source: &str) -> Vec<Patch> {
         let at = line.find(path).unwrap_or(0);
         found.push(Patch {
             dotted: path.to_string(),
+            entry: trimmed.to_string(),
             span: (start + at, start + at + path.len()),
             post_model_sync: post,
         });
@@ -383,5 +388,6 @@ mod patch_tests {
             &source[patches[1].span.0..patches[1].span.1],
             "app.patches.v1_0.two"
         );
+        assert_eq!(patches[1].entry, "app.patches.v1_0.two #idempotent");
     }
 }

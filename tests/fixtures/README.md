@@ -150,6 +150,12 @@ JSON takes no comments, so those expectations live here:
 | `library_member.json` | `sort_field: creation` | clean — `creation` is an implicit field |
 | `library-old/**` | both DocTypes | clean — the app is not installed |
 
+`patches.txt` takes `#` comments, but a comment is part of a patch's identity
+([07](../../docs/specs/07-dotted-paths.md)). A true `duplicate-patch` is two
+identical lines, and only the second fires, so no per-line annotation can
+express it. A unit test in `diagnostics.rs` holds that case; the fixture holds
+the near miss, a path repeated with a new comment.
+
 ## Byte shape
 
 Every DocType JSON is written the way `frappe` writes it, so a fixture and an

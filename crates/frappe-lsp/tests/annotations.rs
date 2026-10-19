@@ -51,6 +51,7 @@ fn annotated(bench: &Path) -> Vec<PathBuf> {
         .filter(|path| {
             path.extension()
                 .is_some_and(|extension| extension == "py" || extension == "js")
+                || path.file_name().is_some_and(|name| name == "patches.txt")
         })
         .filter(|path| std::fs::read_to_string(path).is_ok_and(|source| source.contains("expect:")))
         .collect();

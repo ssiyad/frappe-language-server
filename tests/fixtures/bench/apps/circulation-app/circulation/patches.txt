@@ -1,7 +1,7 @@
 [pre_model_sync]
 circulation.patches.v1_0.no_such_patch #expect: unresolvable-patch
 circulation.patches.v1_0.set_loan_status
-circulation.patches.v1_0.set_loan_status #expect: duplicate-patch
+circulation.patches.v1_0.set_loan_status #2026-02-01 expect: clean, a new comment runs it again
 execute:frappe.db.sql("update `tabLoan` set status = 'Open'") #expect: clean, execute: lines are opaque
 
 [post_model_sync]
