@@ -65,6 +65,9 @@ struct State {
     /// runs against is the user's to make permanent, in their own config
     /// ([25](../../../docs/specs/25-test-runner.md)).
     chosen_site: Option<String>,
+    /// Every template name, for `include` completion, and the index revision
+    /// it was listed at. Listing walks every app, so it is not done per key.
+    templates: Option<(u64, Arc<Vec<String>>)>,
 }
 
 impl Backend {
@@ -118,7 +121,7 @@ impl Backend {
         &self,
         uri: &Uri,
         position: Position,
-        f: impl FnOnce(&Index, &str, Range) -> Option<T>,
+        f: impl FnOnce(&Index, &frappe_syntax::jinja::TemplateRef, usize, Range) -> Option<T>,
     ) -> Option<T> {
         let index = self.index.read_or_recover();
         let state = self.state.read_or_recover();
@@ -139,7 +142,52 @@ impl Backend {
             start: lines.position(named.span.start),
             end: lines.position(named.span.end),
         };
-        f(&index, &named.path, range)
+        f(&index, &named, offset, range)
+    }
+
+    /// Template names, listed once per index revision.
+    fn template_names(&self) -> Arc<Vec<String>> {
+        let revision = self.index.read_or_recover().revision();
+        if let Some((cached, names)) = &self.state.read_or_recover().templates
+            && *cached == revision
+        {
+            return Arc::clone(names);
+        }
+        let names = Arc::new(crate::templates::names(&self.index.read_or_recover()));
+        self.write(|state| state.templates = Some((revision, Arc::clone(&names))));
+        names
+    }
+
+    /// Completion inside an `include` or `extends` path.
+    fn complete_template(&self, uri: &Uri, position: Position) -> Option<CompletionResponse> {
+        let (typed, range) = self.with_template(uri, position, |_, named, offset, range| {
+            let end = offset
+                .saturating_sub(named.span.start)
+                .min(named.path.len());
+            Some((named.path.get(..end)?.to_string(), range))
+        })?;
+        let names = self.template_names();
+        let mut matching: Vec<&String> =
+            names.iter().filter(|name| name.contains(&typed)).collect();
+        matching.sort_by_key(|name| (!name.starts_with(&typed), name.len()));
+        let items = matching
+            .into_iter()
+            .take(1000)
+            .map(|name| CompletionItem {
+                label: name.clone(),
+                kind: Some(CompletionItemKind::FILE),
+                filter_text: Some(name.clone()),
+                text_edit: Some(CompletionTextEdit::Edit(TextEdit {
+                    range,
+                    new_text: name.clone(),
+                })),
+                ..CompletionItem::default()
+            })
+            .collect();
+        Some(CompletionResponse::List(CompletionList {
+            is_incomplete: true,
+            items,
+        }))
     }
 
     /// Run `f` against whatever sits at `position`.
@@ -820,6 +868,12 @@ impl LanguageServer for Backend {
         let max_items = self.write(|state| state.config.completion.max_items);
         let support = self.write(|state| state.support);
 
+        if let Some(response) =
+            self.complete_template(&position.text_document.uri, position.position)
+        {
+            return Ok(Some(response));
+        }
+
         // `hooks.py` is not resolved through the shape tables, so it takes its
         // own path ([12](../../../docs/specs/12-surface-hooks.md)).
         if let Some(response) = self.with_hook(
@@ -859,7 +913,8 @@ impl LanguageServer for Backend {
         let uri = &position.text_document.uri;
         let markdown_client = self.write(|state| state.support.markdown);
 
-        if let Some(found) = self.with_template(uri, position.position, |index, path, range| {
+        if let Some(found) = self.with_template(uri, position.position, |index, named, _, range| {
+            let path = named.path.as_str();
             let body = match crate::templates::resolve(index, path) {
                 Some(file) => format!(
                     "**Template** `{path}`\n\n`{}`",
@@ -941,16 +996,18 @@ impl LanguageServer for Backend {
         // write guard in there deadlocks the thread against itself.
         let support = self.write(|state| state.support);
 
-        if let Some(response) = self.with_template(uri, position.position, |index, path, range| {
-            let file = crate::templates::resolve(index, path)?;
-            locations::links(
-                &[locations::Target::file(file)],
-                Some(range),
-                support.position_encoding,
-                support.location_link,
-            )
-            .map(Into::into)
-        }) {
+        if let Some(response) =
+            self.with_template(uri, position.position, |index, named, _, range| {
+                let file = crate::templates::resolve(index, &named.path)?;
+                locations::links(
+                    &[locations::Target::file(file)],
+                    Some(range),
+                    support.position_encoding,
+                    support.location_link,
+                )
+                .map(Into::into)
+            })
+        {
             return Ok(Some(response));
         }
 

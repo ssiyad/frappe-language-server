@@ -35,6 +35,28 @@ pub fn resolve(index: &Index, written: &str) -> Option<PathBuf> {
         .find(|path| path.is_file())
 }
 
+/// Every template the loader could serve, by the path a template names it
+/// with: relative to its app's package.
+#[must_use]
+pub fn names(index: &Index) -> Vec<String> {
+    let mut names: Vec<String> = index
+        .apps()
+        .iter()
+        .flat_map(|app| {
+            frappe_index::walk::Walk::new(&app.package).filter_map(|path| {
+                if path.extension().is_none_or(|extension| extension != "html") {
+                    return None;
+                }
+                let relative = path.strip_prefix(&app.package).ok()?;
+                Some(relative.to_string_lossy().replace('\\', "/"))
+            })
+        })
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -58,5 +80,12 @@ mod tests {
         let prefixed = resolve(&index, "library/www/books.html").expect("by prefix");
         assert_eq!(prefixed, unprefixed);
         assert_eq!(resolve(&index, "templates/nowhere.html"), None);
+    }
+
+    #[test]
+    fn names_are_the_paths_a_template_includes_by() {
+        let index = Index::build(&bench());
+        let names = names(&index);
+        assert!(names.contains(&"www/books.html".to_string()), "{names:?}");
     }
 }

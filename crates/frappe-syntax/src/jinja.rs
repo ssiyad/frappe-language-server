@@ -86,9 +86,11 @@ pub fn references(template: &str) -> Vec<TemplateRef> {
             continue;
         };
         let quote = inner.as_bytes()[open];
-        let Some(length) = inner[open + 1..].find(quote as char) else {
-            continue;
-        };
+        // While it is being typed the string has no closing quote yet; the
+        // path is what has been typed so far.
+        let length = inner[open + 1..]
+            .find(quote as char)
+            .unwrap_or_else(|| inner[open + 1..].trim_end().len());
         let start = block.inner.start + open + 1;
         found.push(TemplateRef {
             path: inner[open + 1..open + 1 + length].to_string(),
@@ -447,6 +449,12 @@ mod tests {
         let python = to_python(template);
         assert_eq!(python.len(), template.len());
         assert!(parses(&python), "{python}");
+    }
+
+    #[test]
+    fn a_path_still_being_typed_is_a_reference() {
+        let found = references("{% include \"templates/inc");
+        assert_eq!(found[0].path, "templates/inc");
     }
 
     #[test]

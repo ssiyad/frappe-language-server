@@ -57,7 +57,8 @@ loader finds it, never relative to the file. `frappe/utils/jinja.py` chains a
 prefix loader — `app/templates/x.html` is read from that app's package — and
 then every app's package, most recently installed first, for
 `templates/x.html`. Definition follows that order; hover shows the file, or
-says no installed app has it.
+says no installed app has it. Completion offers every `.html` under every
+app's package by the path relative to it, prefix matches first.
 
 ## Diagnostics
 

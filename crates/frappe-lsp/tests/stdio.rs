@@ -949,6 +949,23 @@ fn a_jinja_template_navigates_hovers_and_completes() {
         .unwrap_or_default();
     assert!(labels.contains(&"member_name"), "{completion}");
 
+    // A path still being typed completes from every app's templates.
+    session.notify(
+        "textDocument/didChange",
+        json!({"textDocument": {"uri": uri, "version": 2},
+               "contentChanges": [{"text": "{% include \"www/bo"}]}),
+    );
+    let paths = session.request(2004, "textDocument/completion", at(0, 18));
+    let labels: Vec<&str> = paths["result"]["items"]
+        .as_array()
+        .map(|items| items.iter().filter_map(|item| item["label"].as_str()).collect())
+        .unwrap_or_default();
+    assert!(labels.contains(&"www/books.html"), "{paths}");
+    session.notify(
+        "textDocument/didChange",
+        json!({"textDocument": {"uri": uri, "version": 3}, "contentChanges": [{"text": source}]}),
+    );
+
     // Not yet measured quiet on the corpus, so nothing is reported.
     let report = session.request(
         2003,
