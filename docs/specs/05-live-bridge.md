@@ -72,8 +72,12 @@ On enable, and on explicit `frappe-lsp/refreshBridge`:
 | `Client Script` — `dt`, `view`, `script`, `enabled` | Virtual documents |
 | `Server Script` — `script_type`, `reference_doctype`, `script` | Virtual documents |
 
-Paging is `limit_page_length=500` with `order_by=name asc`: without a stable
-order the page boundaries move between calls and a sync silently drops rows. A
+Paging is `start` and `limit=500` with `order_by=name asc`, read until the
+site's `has_next_page` is false. Without a stable order the page boundaries move
+between calls and a sync silently drops rows. The parameter names matter: v2
+ignores v1's `limit_start` and `limit_page_length` and answers 20 rows, so a
+client using them read 20 Custom Fields of a site's thousands and reported the
+rest as absent. A
 per-DocType ceiling stops a pathological site from making the server allocate
 without bound.
 
@@ -86,7 +90,7 @@ field on it would resolve to nothing, and the fields need a second read of
 `DocField`. Client and Server Scripts are not read at all — the virtual
 document surface below is untouched.
 
-Paged, `limit_page_length` bounded. Results are cached with the index but always
+Paged, and bounded per DocType. Results are cached with the index but always
 tagged Layer 3 so they can be evicted without a rebuild.
 
 Refresh is manual or on an interval (default: never). The server MUST NOT poll

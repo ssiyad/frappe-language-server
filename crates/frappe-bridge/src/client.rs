@@ -14,8 +14,8 @@ use crate::credentials::Credentials;
 /// How long a single request may take before the site counts as unreachable.
 const TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Frappe's default page length is 20, which would make a sync of 5 000 Custom
-/// Fields 250 round trips. Its ceiling for a list call is what this tracks.
+/// `/api/v2` pages by `start` and `limit`, and `limit` defaults to 20 — which
+/// would make a sync of 5 000 Custom Fields 250 round trips.
 const PAGE: usize = 500;
 
 /// Total rows accepted for one doctype, so a pathological site cannot make the
@@ -101,10 +101,14 @@ impl Client {
                 .map_err(|error| Error::Malformed(error.to_string()))?;
             let start_text = start.to_string();
             let page = PAGE.to_string();
+            // `start` and `limit`, not v1's `limit_start` and
+            // `limit_page_length`: v2 ignores those, answers 20 rows, and a
+            // sync that reads 20 of 3 000 Custom Fields reports the rest as
+            // absent.
             let mut query: Vec<(&str, &str)> = vec![
                 ("fields", fields.as_str()),
-                ("limit_start", start_text.as_str()),
-                ("limit_page_length", page.as_str()),
+                ("start", start_text.as_str()),
+                ("limit", page.as_str()),
                 // Without an order the page boundaries are not stable and a
                 // sync can miss or repeat rows.
                 ("order_by", "name asc"),
@@ -113,11 +117,14 @@ impl Client {
                 query.push(("filters", filters));
             }
 
-            let mut page_rows: Vec<T> = self.get(doctype, &query).await?;
+            let (mut page_rows, more): (Vec<T>, Option<bool>) = self.get(doctype, &query).await?;
             let count = page_rows.len();
             rows.append(&mut page_rows);
 
-            if count < PAGE || rows.len() >= CEILING {
+            // The site says whether there is more. A site that does not say is
+            // read until a page comes back short.
+            let more = more.unwrap_or(count >= PAGE);
+            if !more || count == 0 || rows.len() >= CEILING {
                 if rows.len() >= CEILING {
                     tracing::warn!(doctype, ceiling = CEILING, "stopped reading at the ceiling");
                 }
@@ -133,7 +140,7 @@ impl Client {
         &self,
         doctype: &str,
         query: &[(&str, &str)],
-    ) -> Result<Vec<T>, Error> {
+    ) -> Result<(Vec<T>, Option<bool>), Error> {
         let url = format!(
             "{}/api/v2/document/{}",
             self.credentials.site,
@@ -170,13 +177,14 @@ impl Client {
         #[derive(serde::Deserialize)]
         struct Envelope<T> {
             data: Vec<T>,
+            has_next_page: Option<bool>,
         }
 
         let envelope: Envelope<T> = response
             .json()
             .await
             .map_err(|error| Error::Malformed(error.to_string()))?;
-        Ok(envelope.data)
+        Ok((envelope.data, envelope.has_next_page))
     }
 }
 

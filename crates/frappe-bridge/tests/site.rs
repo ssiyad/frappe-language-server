@@ -112,34 +112,81 @@ async fn a_sync_reads_the_three_record_types_with_a_token() {
     assert!(requests[2].contains("custom"), "{}", requests[2]);
 }
 
+/// A site that pages the way `/api/v2/document/<doctype>` does: `start` and
+/// `limit`, `limit` defaulting to 20, and `has_next_page` in the answer. A
+/// fake that served pages whatever was asked could not see a client sending
+/// v1's parameter names, which v2 ignores.
+async fn serve_rows(rows: Vec<String>, log: Arc<Mutex<Log>>) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let address = listener.local_addr().expect("addr");
+    let rows = Arc::new(rows);
+
+    tokio::spawn(async move {
+        while let Ok((stream, _)) = listener.accept().await {
+            let log = Arc::clone(&log);
+            let rows = Arc::clone(&rows);
+            tokio::spawn(async move {
+                let mut reader = BufReader::new(stream);
+                let mut request = String::new();
+                loop {
+                    let mut line = String::new();
+                    if reader.read_line(&mut line).await.unwrap_or(0) == 0 {
+                        return;
+                    }
+                    if line == "\r\n" {
+                        break;
+                    }
+                    request.push_str(&line);
+                }
+                let query = request.lines().next().unwrap_or("").to_string();
+                log.lock().expect("lock").requests.push(request);
+
+                let parameter = |name: &str| {
+                    query
+                        .split(['?', '&', ' '])
+                        .find_map(|pair| pair.strip_prefix(&format!("{name}=")))
+                        .and_then(|value| value.parse::<usize>().ok())
+                };
+                let start = parameter("start").unwrap_or(0).min(rows.len());
+                let limit = parameter("limit").unwrap_or(20);
+                let end = (start + limit).min(rows.len());
+                let body = format!(
+                    r#"{{"data":[{}],"has_next_page":{}}}"#,
+                    rows[start..end].join(","),
+                    end < rows.len()
+                );
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = reader.into_inner().write_all(response.as_bytes()).await;
+            });
+        }
+    });
+
+    format!("http://{address}")
+}
+
 #[tokio::test]
-async fn paging_stops_at_a_short_page() {
-    // 500 rows is a full page, so the bridge must ask for another; the second
-    // is short, so it must stop rather than loop.
-    let full: Vec<String> = (0..500)
+async fn paging_reads_every_row_in_pages_of_500() {
+    let rows: Vec<String> = (0..1234)
         .map(|i| format!(r#"{{"name":"f{i}","dt":"Item","fieldname":"f{i}"}}"#))
         .collect();
     let log = Arc::new(Mutex::new(Log::default()));
-    let site = serve(
-        vec![
-            format!(r#"{{"data":[{}]}}"#, full.join(",")),
-            r#"{"data":[{"name":"last","dt":"Item","fieldname":"last"}]}"#.to_string(),
-        ],
-        Arc::clone(&log),
-    )
-    .await;
+    let site = serve_rows(rows, Arc::clone(&log)).await;
 
     let client = Client::new(credentials(&site)).expect("client");
-    let rows: Vec<serde_json::Value> = client
+    let read: Vec<serde_json::Value> = client
         .list("Custom Field", &["name"], None)
         .await
         .expect("list");
 
-    assert_eq!(rows.len(), 501);
+    // Every row: a client that asks with names v2 does not read gets 20.
+    assert_eq!(read.len(), 1234);
     let requests = log.lock().expect("lock").requests.clone();
-    assert_eq!(requests.len(), 2);
-    assert!(requests[0].contains("limit_start=0"), "{}", requests[0]);
-    assert!(requests[1].contains("limit_start=500"), "{}", requests[1]);
+    assert_eq!(requests.len(), 3, "500 + 500 + 234");
+    assert!(requests[0].contains("start=0&limit=500"), "{}", requests[0]);
+    assert!(requests[2].contains("start=1000&limit=500"), "{}", requests[2]);
     // Unstable paging silently drops rows, so the order is pinned.
     assert!(requests[0].contains("order_by=name"), "{}", requests[0]);
 }
