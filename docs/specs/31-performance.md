@@ -32,15 +32,16 @@ the build completes.
   occurrences. Intern to `u32` symbols; store names once.
 - **Lazy tree-sitter.** Only open buffers hold trees. Closed files contribute
   through the index and the reverse-occurrence table.
-- **Bounded malloc arenas.** Most resident memory is not the index. On the
-  reference bench of eight apps the live index is about 60 MB, yet the process
-  held 660 MB: tree-sitter allocates through the C library, and glibc keeps a
-  separate arena per thread and seldom returns freed pages. On Linux with glibc
-  the server re-executes itself once with `MALLOC_ARENA_MAX=2`, unless the user
-  set it, which brings the same bench to about 440 MB. Other allocators for the
-  Rust side were measured and change nothing, since the retained memory is not
-  theirs. `malloc_trim` would release more, but it needs `unsafe`, which the
-  workspace forbids.
+- **Memory is a cold-start cost.** A warm start from the cache parses nothing
+  and holds 188 MB on the eight-app reference bench. A cold start holds about
+  650 MB for a live index of about 60 MB: tree-sitter allocates through glibc,
+  which keeps an arena per parsing thread and seldom returns freed pages. The
+  cache makes the cold path rare, so it is accepted. Two remedies were measured
+  and rejected. `MALLOC_ARENA_MAX=2` saved 180 MB but made the cold build 5.5 s
+  instead of 1.4 s and the occurrence scan 11.7 s instead of 3.7 s, because 14
+  threads then share two locks. Capping the parse at 4 threads held 348 MB at
+  2.9 s and 7.6 s. `malloc_trim` would release the pages, but it needs
+  `unsafe`, which the workspace forbids.
 - **Deferred occurrence scan.** The reverse table costs a full extract pass and
   is built after the index is published, not inside the cold budget
   ([21](21-navigation.md)). It is cached with the index, so the cost is paid

@@ -97,6 +97,27 @@ depends only on phase 2 and blocks nothing.
 
 **Done when** a field added through Customize Form completes without a restart.
 
+### Hardening
+
+Before the rest of phase 4, the server was driven the way an editor drives it.
+`cargo xtask stress` opens every file of `frappe` and `erpnext`, asks about it
+and types into it: 634 346 requests, with no crash, hang, error response or
+panic. It also sends what a careless client sends, and CI runs it over the
+fixture bench. `tests/editors/neovim.lua` checks every feature from stock
+Neovim. What that found, and what changed:
+
+- The occurrence scan held the index's write lock for seconds after every
+  build, freezing every request. It now scans a snapshot.
+- A panic in one request ended the session. It now answers that request with
+  an error.
+- Every range was in UTF-16 while Neovim negotiates UTF-8, so non-ASCII text
+  moved diagnostics and jumps.
+- Completion found nothing on a line still being typed, which is when it is
+  asked. `references` answered "none" until its table existed.
+- A warm start holds 188 MB on an eight-app bench. A cold start holds about
+  650 MB, and the remedies measured cost more start time than they saved
+  ([31](specs/31-performance.md)).
+
 ## Phase 5 — Distribution and upstream
 
 Release binaries, editor setup docs, packaging. Then the upstream conversation
