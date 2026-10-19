@@ -840,6 +840,18 @@ fn completion_works_on_a_line_still_being_typed() {
             "frappe.ui.form.on(\"Library Member\", {\n\trefresh(frm) {\n\t\tfrm.doc.|",
             "member_name",
         ),
+        (
+            "javascript",
+            "apps/library/library/public/js/typing_probe.js",
+            "frappe.call({ method: \"library.api.get_mem|",
+            "library.api.get_member_summary",
+        ),
+        (
+            "python",
+            "apps/library/library/typing_probe.py",
+            "import frappe\nfrappe.call(\"library.api.|\")",
+            "library.api.get_member_summary",
+        ),
     ];
 
     let bench = fixture_bench();

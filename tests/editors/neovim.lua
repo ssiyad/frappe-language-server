@@ -143,6 +143,17 @@ hover, err = request(client, buf, 'textDocument/hover')
 text = hover and hover.contents and (hover.contents.value or hover.contents) or ''
 check('hover on a fieldname', type(text) == 'string' and text:find('delivery_date', 1, true) ~= nil, err or text:sub(1, 60))
 
+-- A whitelisted path in frappe.call completes from the bench's methods.
+for number, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, -1, false)) do
+  local column, path = line:match('method: "()(erpnext%.[%w_.]+)"')
+  if path then
+    vim.api.nvim_win_set_cursor(0, { number, column - 1 + #'erpnext.' })
+    seen, count = labels(request(client, buf, 'textDocument/completion'))
+    check('completion of a whitelisted method path', seen[path] == true, count .. ' items, wanted ' .. path)
+    break
+  end
+end
+
 -- A DocType JSON has an outline: sections, then their fields.
 buf, client = open('apps/erpnext/erpnext/selling/doctype/sales_order/sales_order.json')
 local symbols = client:request_sync('textDocument/documentSymbol', { textDocument = vim.lsp.util.make_text_document_params(buf) }, 10000, buf)

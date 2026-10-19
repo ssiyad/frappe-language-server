@@ -7,7 +7,7 @@
 
 use frappe_index::Index;
 use frappe_index::resolve::{Resolved, Target, resolve};
-use frappe_syntax::{Buffer, Context, Language, Match, Role, Slot, Span, extract};
+use frappe_syntax::{Buffer, Context, Language, Match, PathKind, Role, Slot, Span, extract};
 
 /// A position, its surrounding call, and what it names.
 #[derive(Debug, Clone)]
@@ -243,7 +243,10 @@ fn span_len(span: Span) -> usize {
 /// Whether a position is one completion has candidates for.
 #[must_use]
 pub fn completable(role: Role) -> bool {
-    matches!(role, Role::DocType | Role::Field | Role::ChildField)
+    matches!(
+        role,
+        Role::DocType | Role::Field | Role::ChildField | Role::Path(PathKind::Whitelisted)
+    )
 }
 
 /// Whether this buffer is a surface the server reads.

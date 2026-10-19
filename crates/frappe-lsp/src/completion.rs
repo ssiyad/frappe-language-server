@@ -36,6 +36,7 @@ pub fn complete(
         Role::DocType => doctypes(index, &typed),
         Role::Field | Role::ChildField => fields(index, found, &typed)?,
         Role::FormEvent => form_events(index, found, &typed)?,
+        Role::Path(frappe_syntax::PathKind::Whitelisted) => methods(index, &typed),
         _ => return None,
     };
 
@@ -97,6 +98,40 @@ fn doctypes(index: &Index, typed: &str) -> Vec<CompletionItem> {
                 description: Some(doctype.app.to_string()),
             }),
             ..Default::default()
+        })
+        .collect()
+}
+
+/// Whitelisted functions for a `frappe.call` path (spec 20). A controller's
+/// whitelisted methods are reached through `frm.call`, never by path, so they
+/// are left out.
+fn methods(index: &Index, typed: &str) -> Vec<CompletionItem> {
+    let lowered = typed.to_ascii_lowercase();
+    let mut candidates: Vec<&frappe_index::whitelist::WhitelistedMethod> = index
+        .whitelisted_methods()
+        .filter(|method| method.owner.is_none())
+        .filter(|method| typed.is_empty() || method.dotted.to_ascii_lowercase().contains(&lowered))
+        .collect();
+    candidates.sort_by(|a, b| {
+        prefix_rank(&a.dotted, &lowered)
+            .cmp(&prefix_rank(&b.dotted, &lowered))
+            .then(a.dotted.cmp(&b.dotted))
+    });
+
+    candidates
+        .into_iter()
+        .map(|method| {
+            let signature = format!("({})", method.parameters.join(", "));
+            CompletionItem {
+                label: method.dotted.clone(),
+                kind: Some(CompletionItemKind::FUNCTION),
+                detail: Some(signature.clone()),
+                label_details: Some(CompletionItemLabelDetails {
+                    detail: Some(signature),
+                    description: method.allow_guest.then(|| "allow_guest".to_string()),
+                }),
+                ..Default::default()
+            }
         })
         .collect()
 }
