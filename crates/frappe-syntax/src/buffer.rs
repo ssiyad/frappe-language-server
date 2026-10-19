@@ -100,9 +100,11 @@ impl Buffer {
         encoding: PositionEncoding,
     ) -> Result<Self, GrammarError> {
         let mut parser = language.parser()?;
-        let tree = parser
-            .parse(text, None)
-            .ok_or(GrammarError::Empty { language })?;
+        let tree = match language {
+            Language::Jinja => parser.parse(crate::jinja::to_python(text), None),
+            _ => parser.parse(text, None),
+        }
+        .ok_or(GrammarError::Empty { language })?;
         Ok(Self {
             language,
             encoding,
@@ -181,10 +183,19 @@ impl Buffer {
         }
         self.version = version;
 
-        let old = (!full_reparse).then_some(&self.tree);
+        // A template's tree is of the rewritten text, which an edit to the
+        // template changes in more places than the edit itself, so it is parsed
+        // whole. Templates are small.
+        let parsed = if self.language == Language::Jinja {
+            let python = crate::jinja::to_python(&self.text.to_string());
+            self.parser.parse(python, None)
+        } else {
+            let old = (!full_reparse).then_some(&self.tree);
+            parse_rope(&mut self.parser, &self.text, old)
+        };
         // A `None` here means the parser produced no tree at all; the last good
         // tree is kept — see specs/02, "Grammar parse error".
-        if let Some(tree) = parse_rope(&mut self.parser, &self.text, old) {
+        if let Some(tree) = parsed {
             self.tree = tree;
         }
     }

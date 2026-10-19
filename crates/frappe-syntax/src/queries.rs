@@ -61,7 +61,9 @@ fn query(language: Language) -> Option<&'static Query> {
     static JAVASCRIPT_QUERY: OnceLock<Option<Query>> = OnceLock::new();
 
     let compiled = match language {
-        Language::Python => PYTHON_QUERY.get_or_init(|| compile(language, PYTHON)),
+        Language::Python | Language::Jinja => {
+            PYTHON_QUERY.get_or_init(|| compile(language, PYTHON))
+        }
         Language::JavaScript => JAVASCRIPT_QUERY.get_or_init(|| compile(language, JAVASCRIPT)),
         Language::Json => return None,
     };

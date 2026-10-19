@@ -112,6 +112,36 @@ impl Backend {
         f(&index, &located, range)
     }
 
+    /// Run `f` against a template path under `position` — the string of an
+    /// `include`, `extends`, `import` or `from` ([13](../../../docs/specs/13-surface-jinja.md)).
+    fn with_template<T>(
+        &self,
+        uri: &Uri,
+        position: Position,
+        f: impl FnOnce(&Index, &str, Range) -> Option<T>,
+    ) -> Option<T> {
+        let index = self.index.read_or_recover();
+        let state = self.state.read_or_recover();
+        let buffer = state.buffers.get(uri)?;
+        if buffer.language() != frappe_syntax::Language::Jinja {
+            return None;
+        }
+        let source = buffer.text();
+        let offset = buffer.offset(frappe_syntax::Position::new(
+            position.line,
+            position.character,
+        ));
+        let named = frappe_syntax::jinja::references(&source)
+            .into_iter()
+            .find(|named| named.span.start <= offset && offset <= named.span.end)?;
+        let lines = locations::LineIndex::new(&source, state.support.position_encoding);
+        let range = Range {
+            start: lines.position(named.span.start),
+            end: lines.position(named.span.end),
+        };
+        f(&index, &named.path, range)
+    }
+
     /// Run `f` against whatever sits at `position`.
     ///
     /// The three features differ only in what they do with the answer, so the
@@ -829,6 +859,33 @@ impl LanguageServer for Backend {
         let uri = &position.text_document.uri;
         let markdown_client = self.write(|state| state.support.markdown);
 
+        if let Some(found) = self.with_template(uri, position.position, |index, path, range| {
+            let body = match crate::templates::resolve(index, path) {
+                Some(file) => format!(
+                    "**Template** `{path}`\n\n`{}`",
+                    hover::workspace_relative(index, &file)
+                ),
+                None => format!("**Template** `{path}`\n\nNo installed app has it."),
+            };
+            Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: if markdown_client {
+                        MarkupKind::Markdown
+                    } else {
+                        MarkupKind::PlainText
+                    },
+                    value: if markdown_client {
+                        body
+                    } else {
+                        hover::as_plain_text(&body)
+                    },
+                }),
+                range: Some(range),
+            })
+        }) {
+            return Ok(Some(found));
+        }
+
         if let Some(found) = self.with_hook(uri, position.position, |index, located, range| {
             let body = hover::hook_markdown(index, &located.target)?;
             Some(Hover {
@@ -883,6 +940,19 @@ impl LanguageServer for Backend {
         // guard on the state lock for the whole closure, and asking for the
         // write guard in there deadlocks the thread against itself.
         let support = self.write(|state| state.support);
+
+        if let Some(response) = self.with_template(uri, position.position, |index, path, range| {
+            let file = crate::templates::resolve(index, path)?;
+            locations::links(
+                &[locations::Target::file(file)],
+                Some(range),
+                support.position_encoding,
+                support.location_link,
+            )
+            .map(Into::into)
+        }) {
+            return Ok(Some(response));
+        }
 
         // `hooks.py` is never a call surface, so it is asked first and the
         // shape tables are not consulted for it at all (spec 12).

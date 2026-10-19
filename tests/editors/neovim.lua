@@ -16,7 +16,7 @@ local binary = os.getenv('FRAPPE_LSP') or (repo .. '/target/release/frappe-lsp')
 -- >>> setup
 vim.lsp.config('frappe_lsp', {
   cmd = { binary },
-  filetypes = { 'python', 'javascript', 'json', 'text' },
+  filetypes = { 'python', 'javascript', 'json', 'text', 'html', 'htmldjango', 'jinja' },
   -- A bench is the directory holding sites/apps.txt.
   root_dir = function(bufnr, on_dir)
     for dir in vim.fs.parents(vim.api.nvim_buf_get_name(bufnr)) do

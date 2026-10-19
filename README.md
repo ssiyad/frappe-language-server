@@ -26,8 +26,9 @@ the bench and turns those strings into links.
   `bench run-tests` for that scope in the editor's terminal.
 - **Outlines** of DocType JSON, `hooks.py` and `patches.txt`.
 
-It works on Python, JavaScript and DocType JSON, in every installed app of the
-bench, with no configuration.
+It works on Python, JavaScript, DocType JSON and Jinja templates, in every
+installed app of the bench, with no configuration. In a template, `include`
+and `extends` paths go to the file, and `frappe.*` calls work as in Python.
 
 ## What it does not do
 
@@ -74,8 +75,8 @@ answer and the server log to a bug report.
 The index, navigation, completion, references, diagnostics and test lenses are
 done. A live site can be read too, and the bridge is off by default: its Custom
 Fields, Property Setters, DocTypes created through the UI, and Client and
-Server Scripts ([05](docs/specs/05-live-bridge.md)). Jinja templates are not covered yet. The
-[roadmap](docs/roadmap.md) has the rest.
+Server Scripts ([05](docs/specs/05-live-bridge.md)). Templates have no
+diagnostics yet. The [roadmap](docs/roadmap.md) has the rest.
 
 ## Development
 

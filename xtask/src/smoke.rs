@@ -248,6 +248,12 @@ const CANONICAL: [&str; 2] = ["frappe", "erpnext"];
 
 /// Every file the checks read, across the canonical apps.
 pub(crate) fn corpus(index: &Index, all: bool) -> Vec<PathBuf> {
+    files(index, all, false)
+}
+
+/// The corpus, optionally with the Jinja templates that smoke does not check
+/// but the editor drive must survive.
+pub(crate) fn files(index: &Index, all: bool, templates: bool) -> Vec<PathBuf> {
     let mut files = Vec::new();
     for app in index.apps() {
         if !all && !CANONICAL.contains(&app.name.as_str()) {
@@ -260,6 +266,7 @@ pub(crate) fn corpus(index: &Index, all: bool) -> Vec<PathBuf> {
                 .unwrap_or("");
             let extension = path.extension().and_then(|e| e.to_str()).unwrap_or("");
             let wanted = matches!(extension, "py" | "js")
+                || (templates && extension == "html")
                 || name == "patches.txt"
                 || (extension == "json"
                     && path.file_stem() == path.parent().and_then(Path::file_name));

@@ -22,6 +22,7 @@ pub mod extract;
 pub mod generated;
 pub mod handlers;
 pub mod hooks;
+pub mod jinja;
 pub mod language;
 pub mod matches;
 pub mod queries;

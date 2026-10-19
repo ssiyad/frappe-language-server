@@ -41,9 +41,12 @@ pub struct Context<'a> {
 /// Every recognized shape in a parsed buffer, in source order.
 #[must_use]
 pub fn extract(language: Language, tree: &Tree, source: &str, context: Context<'_>) -> Vec<Match> {
+    // A template's tree is a Python parse of its expressions, and the spans in
+    // it are spans in the template, so the template text reads as Python too.
+    let language = language.reads_as();
     let root = tree.root_node();
     let mut extractor = match language {
-        Language::Python => {
+        Language::Python | Language::Jinja => {
             let imports = Imports::collect(root, source);
             let scopes = python_scopes(
                 root,

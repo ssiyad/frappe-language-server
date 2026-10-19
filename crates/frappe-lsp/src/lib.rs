@@ -20,5 +20,6 @@ pub mod logging;
 pub mod scripts;
 pub mod server;
 pub mod symbols;
+pub mod templates;
 pub mod testing;
 pub mod watcher;

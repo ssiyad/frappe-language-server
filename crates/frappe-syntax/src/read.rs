@@ -39,7 +39,7 @@ pub(crate) fn text<'a>(node: Node<'_>, source: &'a str) -> &'a str {
 /// read as one here too.
 pub(crate) fn literal(node: Node<'_>, source: &str, language: Language) -> Option<Literal> {
     match language {
-        Language::Python => python_literal(node, source),
+        Language::Python | Language::Jinja => python_literal(node, source),
         Language::JavaScript => javascript_literal(node, source),
         Language::Json => (node.kind() == "string").then(|| Literal {
             text: string_content(node, source),
@@ -194,7 +194,7 @@ pub(crate) fn translation_arg(node: Node<'_>, source: &str, language: Language) 
 /// The callee and argument-list nodes of a call.
 pub(crate) fn call_parts<'t>(node: Node<'t>, language: Language) -> Option<(Node<'t>, Node<'t>)> {
     let kind = match language {
-        Language::Python => "call",
+        Language::Python | Language::Jinja => "call",
         Language::JavaScript => "call_expression",
         Language::Json => return None,
     };
@@ -237,7 +237,7 @@ pub(crate) fn keyword_arguments<'t>(
 /// The elements of a list, tuple or array literal.
 pub(crate) fn sequence<'t>(node: Node<'t>, language: Language) -> Option<Vec<Node<'t>>> {
     let matches = match language {
-        Language::Python => matches!(node.kind(), "list" | "tuple" | "set"),
+        Language::Python | Language::Jinja => matches!(node.kind(), "list" | "tuple" | "set"),
         Language::JavaScript => node.kind() == "array",
         Language::Json => node.kind() == "array",
     };
@@ -251,7 +251,7 @@ pub(crate) fn sequence<'t>(node: Node<'t>, language: Language) -> Option<Vec<Nod
 /// The `key: value` pairs of a dict or object literal.
 pub(crate) fn mapping<'t>(node: Node<'t>, language: Language) -> Option<Vec<(Node<'t>, Node<'t>)>> {
     let matches = match language {
-        Language::Python => node.kind() == "dictionary",
+        Language::Python | Language::Jinja => node.kind() == "dictionary",
         Language::JavaScript | Language::Json => node.kind() == "object",
     };
     matches.then(|| {

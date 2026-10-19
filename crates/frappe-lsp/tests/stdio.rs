@@ -896,6 +896,73 @@ fn completion_works_on_a_line_still_being_typed() {
 }
 
 #[test]
+fn a_jinja_template_navigates_hovers_and_completes() {
+    // Spec 13: a template's expressions are read as Python, and its include
+    // paths resolve the way frappe's loader does.
+    let source = "{% extends \"www/books.html\" %}\n\
+                  <h1>{{ frappe.get_doc(\"Library Member\", name).member_name }}</h1>\n\
+                  {{ frappe.db.get_value(\"Library Member\", name, \"memb\") }}\n";
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let uri = format!(
+        "file://{}",
+        bench
+            .join("apps/library/library/templates/probe.html")
+            .display()
+    );
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {"uri": uri, "languageId": "html", "version": 1, "text": source}}),
+    );
+    let at = |line: u32, character: u32| json!({"textDocument": {"uri": uri}, "position": {"line": line, "character": character}});
+
+    let definition = session.request(2000, "textDocument/definition", at(0, 15));
+    let target = definition["result"][0]["targetUri"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        target.ends_with("library/library/www/books.html"),
+        "{definition}"
+    );
+
+    let hover = session.request(2001, "textDocument/hover", at(1, 28));
+    let rendered = hover["result"]["contents"]["value"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(rendered.contains("Library Member"), "{hover}");
+
+    let completion = session.request(2002, "textDocument/completion", at(2, 50));
+    let labels: Vec<&str> = completion["result"]["items"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item["label"].as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(labels.contains(&"member_name"), "{completion}");
+
+    // Not yet measured quiet on the corpus, so nothing is reported.
+    let report = session.request(
+        2003,
+        "textDocument/diagnostic",
+        json!({"textDocument": {"uri": uri}}),
+    );
+    assert_eq!(report["result"]["items"], json!([]), "{report}");
+
+    session.request(2100, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
 fn completion_offers_the_fields_of_the_resolved_doctype() {
     let source = "import frappe\nfrappe.get_all(\"Library Member\", fields=[\"|\"])\n";
     let (text, position) = cursor(source);

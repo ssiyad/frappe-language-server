@@ -97,6 +97,7 @@ pub fn language_of(uri: &Uri, language_id: &str) -> Option<Language> {
         "python" => Some(Language::Python),
         "javascript" | "javascriptreact" => Some(Language::JavaScript),
         "json" | "jsonc" => Some(Language::Json),
+        "html" | "jinja" | "jinja2" | "jinja-html" | "htmldjango" => Some(Language::Jinja),
         _ => Language::from_path(uri.to_file_path()?.as_ref()),
     }
 }

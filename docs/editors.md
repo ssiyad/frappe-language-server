@@ -16,7 +16,7 @@ runs this block against a real bench, so it is the tested configuration.
 ```lua
 vim.lsp.config('frappe_lsp', {
   cmd = { 'frappe-lsp' },
-  filetypes = { 'python', 'javascript', 'json', 'text' },
+  filetypes = { 'python', 'javascript', 'json', 'text', 'html', 'htmldjango', 'jinja' },
   -- A bench is the directory holding sites/apps.txt.
   root_dir = function(bufnr, on_dir)
     for dir in vim.fs.parents(vim.api.nvim_buf_get_name(bufnr)) do
@@ -67,14 +67,18 @@ language-servers = ["pyright", "ruff", "frappe-lsp"]
 [[language]]
 name = "javascript"
 language-servers = ["typescript-language-server", "frappe-lsp"]
+
+[[language]]
+name = "html"
+language-servers = ["vscode-html-language-server", "frappe-lsp"]
 ```
 
 Helix has no code lens support, so tests do not run from the editor.
 
 ## Other editors
 
-Register a stdio server with the command `frappe-lsp` for Python, JavaScript
-and JSON files. Then check three things:
+Register a stdio server with the command `frappe-lsp` for Python, JavaScript,
+JSON and HTML files. HTML files are read as Jinja templates. Then check three things:
 
 1. The client sends `rootUri` or `workspaceFolders`. The server cannot find the
    bench without one of them.

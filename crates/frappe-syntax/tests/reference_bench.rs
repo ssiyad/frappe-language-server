@@ -139,13 +139,15 @@ fn extraction_over_frappe_is_stable_and_finds_every_pattern() {
     // 17.0.0-dev `c7a96ecc99` — a different corpus gives different totals, so
     // a moved checkout fails here first. Re-measure at the commit before your
     // change to tell the corpus from the change.
-    assert_eq!(totals.matches, 21_716, "match count moved");
-    assert_eq!(totals.slots, 29_214, "slot count moved");
+    // Templates joined the walk with spec 13: 223 files, 391 matches and 404
+    // slots, 382 of them unknown, mostly `_()` in markup.
+    assert_eq!(totals.matches, 22_107, "match count moved");
+    assert_eq!(totals.slots, 29_618, "slot count moved");
     // 1 325 slots moved from anchored to unknown when `frm` inside
     // `frappe.ui.form.on(D, …)` became a binding the resolver settles: `D`
     // may be a child, whose block runs on its parent's form (specs/11).
-    assert_eq!(totals.anchored, 16_607, "anchored slot count moved");
-    assert_eq!(totals.unknown, 12_607, "unknown slot count moved");
+    assert_eq!(totals.anchored, 16_629, "anchored slot count moved");
+    assert_eq!(totals.unknown, 12_989, "unknown slot count moved");
 
     // A pattern that never fires on the reference corpus is a pattern nothing
     // is testing at scale.

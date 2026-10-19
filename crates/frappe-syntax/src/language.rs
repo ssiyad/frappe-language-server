@@ -4,9 +4,6 @@ use std::fmt;
 use std::path::Path;
 
 /// A grammar this crate can parse with.
-///
-/// HTML+Jinja is deliberately absent: its grammar choice is deferred to phase 4
-/// ([13](../../../docs/specs/13-surface-jinja.md)).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Language {
     /// Controllers, `hooks.py`, reports, patches.
@@ -19,9 +16,23 @@ pub enum Language {
     /// open buffer has in-buffer positions
     /// ([06](../../../docs/specs/06-analysis-pipeline.md)).
     Json,
+    /// Jinja templates. Parsed with the Python grammar after
+    /// [`crate::jinja::to_python`] rewrites the template to a Python document
+    /// of the same bytes ([13](../../../docs/specs/13-surface-jinja.md)).
+    Jinja,
 }
 
 impl Language {
+    /// The language the extractor reads it as: a template's expressions are
+    /// Python.
+    #[must_use]
+    pub fn reads_as(self) -> Self {
+        match self {
+            Self::Jinja => Self::Python,
+            other => other,
+        }
+    }
+
     /// The grammar a file extension selects, or `None` for a file this crate
     /// has nothing to say about.
     #[must_use]
@@ -30,6 +41,7 @@ impl Language {
             "py" => Some(Self::Python),
             "js" => Some(Self::JavaScript),
             "json" => Some(Self::Json),
+            "html" | "jinja" | "j2" => Some(Self::Jinja),
             _ => None,
         }
     }
@@ -38,7 +50,7 @@ impl Language {
     #[must_use]
     pub fn grammar(self) -> tree_sitter::Language {
         match self {
-            Self::Python => tree_sitter_python::LANGUAGE.into(),
+            Self::Python | Self::Jinja => tree_sitter_python::LANGUAGE.into(),
             Self::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
             Self::Json => tree_sitter_json::LANGUAGE.into(),
         }
@@ -67,6 +79,7 @@ impl fmt::Display for Language {
             Self::Python => "Python",
             Self::JavaScript => "JavaScript",
             Self::Json => "JSON",
+            Self::Jinja => "Jinja",
         })
     }
 }
@@ -138,18 +151,27 @@ mod tests {
             Language::from_path(Path::new("a/b/library_member.json")),
             Some(Language::Json)
         );
+        assert_eq!(
+            Language::from_path(Path::new("a/www/books.html")),
+            Some(Language::Jinja)
+        );
     }
 
     #[test]
     fn files_this_crate_does_not_read_select_nothing() {
-        for path in ["hooks.txt", "patches.txt", "library.css", "books.html", "x"] {
+        for path in ["hooks.txt", "patches.txt", "library.css", "x"] {
             assert_eq!(Language::from_path(Path::new(path)), None, "{path}");
         }
     }
 
     #[test]
     fn every_grammar_loads_under_the_pinned_abi() {
-        for language in [Language::Python, Language::JavaScript, Language::Json] {
+        for language in [
+            Language::Python,
+            Language::JavaScript,
+            Language::Json,
+            Language::Jinja,
+        ] {
             assert!(language.parser().is_ok(), "{language}");
         }
     }

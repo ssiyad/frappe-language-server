@@ -38,7 +38,7 @@ pub struct Options {
 /// Run the drive. Returns whether it was clean.
 pub fn run(options: &Options) -> std::io::Result<bool> {
     let index = Index::build(&options.bench);
-    let mut files = crate::smoke::corpus(&index, options.all);
+    let mut files = crate::smoke::files(&index, options.all, true);
     if options.limit > 0 && files.len() > options.limit {
         let stride = files.len() / options.limit;
         files = files.into_iter().step_by(stride).collect();
@@ -374,6 +374,7 @@ fn language(path: &Path) -> &'static str {
         Some("py") => "python",
         Some("js") => "javascript",
         Some("json") => "json",
+        Some("html") => "html",
         _ => "plaintext",
     }
 }

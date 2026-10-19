@@ -1636,9 +1636,12 @@ impl Index {
             .apps
             .iter()
             .flat_map(|app| {
+                // Templates too: `references` on a DocType that a print format
+                // or a web page names should find it there (spec 13).
                 Walk::new(&app.package).filter(|path| {
-                    path.extension()
-                        .is_some_and(|extension| extension == "py" || extension == "js")
+                    path.extension().is_some_and(|extension| {
+                        extension == "py" || extension == "js" || extension == "html"
+                    })
                 })
             })
             .collect();
@@ -1647,7 +1650,13 @@ impl Index {
             .into_par_iter()
             .filter_map(|path| {
                 let source = std::fs::read_to_string(&path).ok()?;
-                Some((self.occurrences_in(&path, &source), path))
+                // One file that trips a bug costs that file's sites, not the
+                // table: without the table every `references` waits for it.
+                let found = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    self.occurrences_in(&path, &source)
+                }))
+                .ok()?;
+                Some((found, path))
             })
             .map(|(found, path)| (path, found))
             .collect();
@@ -1816,7 +1825,13 @@ impl Index {
         let Ok(mut parser) = language.parser() else {
             return Vec::new();
         };
-        let Some(tree) = parser.parse(source, None) else {
+        let parsed = match language {
+            frappe_syntax::Language::Jinja => {
+                parser.parse(frappe_syntax::jinja::to_python(source), None)
+            }
+            _ => parser.parse(source, None),
+        };
+        let Some(tree) = parsed else {
             return Vec::new();
         };
 

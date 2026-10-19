@@ -250,7 +250,7 @@ fn path(index: &Index, resolution: &frappe_index::Resolution) -> Option<String> 
 
 /// Paths are shown relative to the bench: the absolute prefix is the same for
 /// every line and crowds out what differs.
-fn workspace_relative(index: &Index, path: &std::path::Path) -> String {
+pub(crate) fn workspace_relative(index: &Index, path: &std::path::Path) -> String {
     index
         .workspace()
         .detection

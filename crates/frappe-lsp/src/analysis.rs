@@ -287,5 +287,8 @@ pub fn completable(role: Role) -> bool {
 /// ([06](../../../docs/specs/06-analysis-pipeline.md)).
 #[must_use]
 pub fn supported(language: Language) -> bool {
-    matches!(language, Language::Python | Language::JavaScript)
+    matches!(
+        language,
+        Language::Python | Language::JavaScript | Language::Jinja
+    )
 }
