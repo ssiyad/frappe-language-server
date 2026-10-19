@@ -20,21 +20,29 @@ fn reference_bench() -> Option<PathBuf> {
     path.join("sites").is_dir().then_some(path)
 }
 
+/// One test at a time. Each indexes the whole bench across every core, so
+/// run side by side they measure each other: the cold budget failed at 20 s
+/// beside nine other builds and passes in 5 s alone.
+static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 macro_rules! bench_or_skip {
-    () => {
-        match reference_bench() {
+    ($bench:ident) => {
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let $bench = match reference_bench() {
             Some(bench) => bench,
             None => {
                 eprintln!("skipped: no reference bench (set FRAPPE_LSP_REFERENCE_BENCH)");
                 return;
             }
-        }
+        };
     };
 }
 
 #[test]
 fn frappe_yields_its_doctypes_and_rejects_the_rest() {
-    let bench = bench_or_skip!();
+    bench_or_skip!(bench);
     let workspace = Workspace::discover(&bench);
     assert_eq!(workspace.detection.mode, Mode::Bench);
 
@@ -68,7 +76,7 @@ fn frappe_yields_its_doctypes_and_rejects_the_rest() {
 
 #[test]
 fn an_app_on_disk_but_not_in_apps_txt_costs_nothing() {
-    let bench = bench_or_skip!();
+    bench_or_skip!(bench);
     let workspace = Workspace::discover(&bench);
 
     // Whether this bench has such an app is the developer's business, not the
@@ -120,7 +128,7 @@ fn an_app_on_disk_but_not_in_apps_txt_costs_nothing() {
 
 #[test]
 fn the_frappe_version_is_detected() {
-    let bench = bench_or_skip!();
+    bench_or_skip!(bench);
     let workspace = Workspace::discover(&bench);
 
     let version = workspace.frappe_version().expect("a version");
@@ -133,7 +141,7 @@ fn the_frappe_version_is_detected() {
 
 #[test]
 fn every_installed_app_is_named_by_hooks_not_by_its_directory() {
-    let bench = bench_or_skip!();
+    bench_or_skip!(bench);
     let workspace = Workspace::discover(&bench);
 
     for app in &workspace.apps {
@@ -154,7 +162,7 @@ fn every_installed_app_is_named_by_hooks_not_by_its_directory() {
 
 #[test]
 fn a_whole_bench_discovers_in_well_under_a_second() {
-    let bench = bench_or_skip!();
+    bench_or_skip!(bench);
 
     let start = Instant::now();
     let workspace = Workspace::discover(&bench);
@@ -174,7 +182,7 @@ fn a_whole_bench_discovers_in_well_under_a_second() {
 
 #[test]
 fn the_whole_bench_indexes_within_the_cold_budget() {
-    let bench = bench_or_skip!();
+    bench_or_skip!(bench);
 
     let start = Instant::now();
     let index = frappe_index::Index::build(&bench);
@@ -216,7 +224,7 @@ fn the_whole_bench_indexes_within_the_cold_budget() {
 
 #[test]
 fn a_frappe_doctype_merges_with_its_controller_and_implicit_fields() {
-    let bench = bench_or_skip!();
+    bench_or_skip!(bench);
     let index = frappe_index::Index::build(&bench);
 
     let user = index.doctype("User").expect("frappe defines User");
@@ -234,7 +242,7 @@ fn a_frappe_doctype_merges_with_its_controller_and_implicit_fields() {
 fn frappes_own_whitelisted_methods_resolve_as_whitelisted() {
     use frappe_index::paths::{Kind, Outcome};
 
-    let bench = bench_or_skip!();
+    bench_or_skip!(bench);
     let index = frappe_index::Index::build(&bench);
 
     let sample: Vec<&str> = index
@@ -263,7 +271,7 @@ fn frappes_own_whitelisted_methods_resolve_as_whitelisted() {
 
 #[test]
 fn re_indexing_one_doctype_json_stays_inside_the_incremental_budget() {
-    let bench = bench_or_skip!();
+    bench_or_skip!(bench);
     let mut index = frappe_index::Index::build(&bench);
 
     let path = index
@@ -312,7 +320,7 @@ fn re_indexing_one_doctype_json_stays_inside_the_incremental_budget() {
 /// mistake (specs/32).
 #[test]
 fn resolution_across_frappe_is_stable_and_precise() {
-    let bench = bench_or_skip!();
+    bench_or_skip!(bench);
     let index = frappe_index::index::Index::build(&bench);
 
     let mut files = 0;
