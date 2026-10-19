@@ -129,6 +129,11 @@ Client capabilities MUST be honoured, not assumed:
 | `frappe-lsp/indexStatus` | App/DocType counts, confidence, build time. Drives testing ([32](32-testing.md)) and bug reports |
 | `frappe-lsp/reindex` | Force a full rebuild |
 | `frappe-lsp/refreshBridge` | Re-sync Layer 3 ([05](05-live-bridge.md)) |
+| `frappe-lsp/describe` | `{doctype}` → a DocType's schema as data: fields with type, label, options, `reqd` and layer; controller; JSON path; parents; site scripts. Unknown names return `similar` |
+| `frappe-lsp/references` | `{doctype, fieldname?}` → every site naming it, as path, line and text, by name rather than cursor; `ready: false` until the occurrence table exists |
+
+The last two are for programs rather than editors: hover is markdown for a
+person, and an agent needs the schema as data. Both only read.
 
 ## Logging
 
