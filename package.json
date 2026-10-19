@@ -1,0 +1,17 @@
+{
+  "name": "pi-frappe-lsp",
+  "version": "0.1.1",
+  "private": true,
+  "description": "frappe-lsp for pi: Frappe's schema and references as tools, and frappe-lsp's checks on every file the agent edits",
+  "license": "GPL-3.0-only",
+  "keywords": ["pi-package"],
+  "type": "module",
+  "pi": {
+    "extensions": ["./pi/extension/index.ts"],
+    "skills": ["./pi/skills"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

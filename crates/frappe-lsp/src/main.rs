@@ -32,6 +32,8 @@ async fn main() -> ExitCode {
         .custom_method("frappe-lsp/indexStatus", Backend::index_status)
         .custom_method("frappe-lsp/reindex", Backend::reindex)
         .custom_method("frappe-lsp/refreshBridge", Backend::refresh_bridge)
+        .custom_method("frappe-lsp/describe", Backend::describe)
+        .custom_method("frappe-lsp/references", Backend::references_by_name)
         .finish();
     // A panic in one request answers that request with an error; unguarded,
     // it would end the session.

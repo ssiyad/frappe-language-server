@@ -1428,6 +1428,33 @@ impl Backend {
     /// `frappe-lsp/indexStatus` — app and DocType counts, confidence, build
     /// time. Spec 32's integration tests assert against this rather than
     /// reaching inside the process, and a bug report starts here.
+    /// `frappe-lsp/describe` — a DocType's schema as data, for agents and
+    /// scripts rather than hover ([`crate::agent`]).
+    pub async fn describe(&self, params: Option<Value>) -> Result<Value> {
+        let name = params
+            .as_ref()
+            .and_then(|params| params.get("doctype"))
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::invalid_params("expected {\"doctype\": \"<name>\"}"))?;
+        Ok(crate::agent::describe(&self.index.read_or_recover(), name))
+    }
+
+    /// `frappe-lsp/references` — the sites naming a DocType, or a field of
+    /// it, by name rather than by cursor ([`crate::agent`]).
+    pub async fn references_by_name(&self, params: Option<Value>) -> Result<Value> {
+        let params = params.unwrap_or_default();
+        let doctype = params
+            .get("doctype")
+            .and_then(Value::as_str)
+            .ok_or_else(|| Error::invalid_params("expected {\"doctype\": \"<name>\"}"))?;
+        let fieldname = params.get("fieldname").and_then(Value::as_str);
+        Ok(crate::agent::references(
+            &self.index.read_or_recover(),
+            doctype,
+            fieldname,
+        ))
+    }
+
     pub async fn index_status(&self, _: Option<Value>) -> Result<Value> {
         let status = self.status();
         Ok(json!({

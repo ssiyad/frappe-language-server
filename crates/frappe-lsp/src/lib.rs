@@ -3,6 +3,7 @@
 //! The binary is a thin wrapper over this crate; the split exists so the
 //! protocol layer can be exercised from tests.
 
+pub mod agent;
 pub mod analysis;
 pub mod bridge;
 pub mod buffers;

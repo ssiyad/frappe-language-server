@@ -47,6 +47,28 @@ real bench, so this is the tested configuration.
 A bench with more than one site asks which site to run tests against on the
 first click. Set `test.site` to skip the question ([30](specs/30-configuration.md)).
 
+## pi
+
+This repository is also a [pi](https://pi.dev) package. Install it from a
+checkout, or straight from the repository:
+
+```sh
+pi install /path/to/frappe-language-server
+pi install git:github.com/ssiyad/frappe-language-server
+```
+
+In a session inside a bench it starts frappe-lsp and gives the agent four
+tools: `frappe_doctype` (a DocType's fields, controller and JSON),
+`frappe_references` (every place that names a DocType or a field),
+`frappe_find` (DocTypes, whitelisted methods, reports and pages by name) and
+`frappe_check` (frappe-lsp's checks on a file). Every file the agent edits or
+writes in the bench is checked too, and any problem is appended to that edit's
+result, so a misspelt fieldname is caught on the turn it is written. A skill
+tells the agent when to reach for the tools.
+
+The binary is found through `FRAPPE_LSP`, then `PATH`, then the copy
+`:FrappeLspInstall` puts under Neovim's data directory.
+
 ## Helix
 
 In `~/.config/helix/languages.toml`. Keep the servers you already use, and add

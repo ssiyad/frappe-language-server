@@ -65,7 +65,9 @@ library.
 
 In Neovim, this repository is a plugin: install it with your plugin manager,
 call `require('frappe_lsp').setup()`, and run `:FrappeLspInstall` for the
-binary. For other editors, point the LSP client at the `frappe-lsp` command
+binary. It is also a [pi](https://pi.dev) package: `pi install` it, and the
+agent gets Frappe's schema and references as tools, and frappe-lsp's checks on
+every file it edits. For other editors, point the LSP client at the `frappe-lsp` command
 for Python, JavaScript, JSON and HTML files. [docs/editors.md](docs/editors.md)
 has Neovim, Helix, and what any other client needs.
 
