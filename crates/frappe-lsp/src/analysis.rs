@@ -86,6 +86,9 @@ pub fn at_while_typing(
 ) -> Option<Found> {
     let text = buffer.text();
     let offset = offset.min(text.len());
+    if !broken_at(buffer, offset) {
+        return None;
+    }
     let line = &text[text[..offset].rfind('\n').map_or(0, |newline| newline + 1)..offset];
 
     // The line's own closers first: in the middle of a file, what follows the
@@ -114,6 +117,30 @@ pub fn at_while_typing(
         return Some(found);
     }
     None
+}
+
+/// Whether the parse is broken around the cursor.
+///
+/// Every retry parses the whole buffer again, and a minified bundle is one
+/// 60 KB line whose quotes count odd as often as even. Valid code never needs
+/// a retry, so only a cursor inside an `ERROR` or next to a missing node gets
+/// one.
+fn broken_at(buffer: &Buffer, offset: usize) -> bool {
+    let root = buffer.tree().root_node();
+    if !root.has_error() {
+        return false;
+    }
+    let mut node = root.descendant_for_byte_range(offset.saturating_sub(1), offset);
+    while let Some(current) = node {
+        if current.is_error() || current.is_missing() {
+            return true;
+        }
+        if current.id() == root.id() {
+            return false;
+        }
+        node = current.parent();
+    }
+    false
 }
 
 /// What might close the line, most likely first. Empty when nothing on the line
