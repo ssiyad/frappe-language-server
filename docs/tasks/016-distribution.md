@@ -10,12 +10,16 @@ and the troubleshooting steps. The Neovim block is the one
 `tests/editors/neovim.lua` runs against a real bench. `cargo install --path
 crates/frappe-lsp` builds one binary that links only the C library.
 
+`.github/workflows/release.yml` builds Linux (static, musl) and macOS,
+x86_64 and aarch64, on a `v<version>` tag. It refuses a tag that does not match
+the crate version, runs each binary its runner can execute, and publishes the
+archives with a `SHA256SUMS` file. It has not run yet: that takes a tag.
+
 ## Scope
 
-- Release binaries for Linux and macOS, x86_64 and aarch64. Static where
-  possible — the point of choosing Rust was a dependency-free drop-in.
-- Tagged releases with checksums, and the `--git` install path checked
-  against a tag.
+- Push the first tag, and check every archive on its platform: the static
+  Linux builds in particular, which are built by `cross` and not locally.
+- The `--git` install path checked against a tag.
 - Setup for Zed and VS Code. VS Code needs an extension or a generic client,
   which [00](../specs/00-overview.md) keeps out of scope for now.
 

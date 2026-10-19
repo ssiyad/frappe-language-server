@@ -1,0 +1,118 @@
+name: Release
+
+# A tag `v<version>` builds the server for Linux and macOS, x86_64 and aarch64,
+# and publishes them with their checksums. Linux builds are static (musl), so
+# one file runs on any distribution — task 016.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      # A tag that does not match the crate version publishes a binary that
+      # reports the wrong version to every bug report.
+      - name: The tag matches the crate version
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME, crate version $version" >&2
+            exit 1
+          fi
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+            runs: true
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+            runs: false
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            cross: false
+            runs: false
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            cross: false
+            runs: true
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - if: matrix.cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      - name: Build
+        env:
+          TARGET: ${{ matrix.target }}
+          CROSS: ${{ matrix.cross }}
+        run: |
+          tool=cargo
+          if [ "$CROSS" = "true" ]; then tool=cross; fi
+          "$tool" build --release --locked --package frappe-lsp \
+            --target "$TARGET"
+
+      # Where the runner can execute the binary, it must start.
+      - if: matrix.runs
+        name: The binary runs
+        run: target/${{ matrix.target }}/release/frappe-lsp --version
+
+      - name: Package
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          name="frappe-lsp-$GITHUB_REF_NAME-$TARGET"
+          mkdir "$name"
+          cp "target/$TARGET/release/frappe-lsp" README.md LICENSE "$name/"
+          tar czf "$name.tar.gz" "$name"
+          shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: frappe-lsp-*.tar.gz*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cat dist/*.sha256 > dist/SHA256SUMS
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes

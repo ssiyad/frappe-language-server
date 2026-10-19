@@ -124,6 +124,16 @@ Levels and what belongs in each: [32](specs/32-testing.md).
 - Public items in `frappe-index` and `frappe-syntax` carry doc comments; the
   binary crate does not need them.
 
+## Releasing
+
+1. Set `version` in the workspace `Cargo.toml`, and commit.
+2. Tag the commit `v<version>` and push the tag.
+
+`.github/workflows/release.yml` refuses a tag that does not match the version,
+then builds and publishes Linux (static) and macOS binaries for x86_64 and
+aarch64 with their checksums. Run `cargo xtask stress` against a real bench
+before tagging: CI only drives the fixture bench.
+
 ## Ignore
 
 Add `.frappe-lsp/` to `.gitignore` — the index cache

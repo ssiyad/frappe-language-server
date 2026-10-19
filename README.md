@@ -40,7 +40,13 @@ click a lens. The full list is in [00](docs/specs/00-overview.md).
 
 ## Install
 
-You need Rust 1.95 or later. From a checkout:
+Tagged releases carry one binary per platform — Linux and macOS, x86_64 and
+aarch64 — with a `SHA256SUMS` file. The Linux builds are static. Download the
+archive for your platform from the
+[releases page](https://github.com/ssiyad/frappe-language-server/releases),
+check it against `SHA256SUMS`, and put `frappe-lsp` on your `PATH`.
+
+To build it instead, you need Rust 1.95 or later. From a checkout:
 
 ```sh
 cargo install --locked --path crates/frappe-lsp
