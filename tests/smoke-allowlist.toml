@@ -10,70 +10,49 @@ file = "apps/erpnext/erpnext/accounts/doctype/account/account.js"
 code = "unknown-field"
 message = "`Account` has no field `warehouse`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/erpnext/erpnext/accounts/doctype/accounting_dimension_filter/accounting_dimension_filter.js"
-code = "parent-field-on-child"
-message = "`dimensions` is a field on `Accounting Dimension Filter`, not on its child `Allowed Dimension`"
-count = 1
-reason = "REVIEW: no class reason recorded — decide before committing"
-
-[[allow]]
-file = "apps/erpnext/erpnext/accounts/doctype/budget/budget.js"
-code = "parent-field-on-child"
-message = "`budget_distribution` is a field on `Budget`, not on its child `Budget Distribution`"
-count = 2
-reason = "REVIEW: no class reason recorded — decide before committing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/budget/budget.js"
 code = "unknown-field"
 message = "`Budget` has no field `monthly_distribution`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/chart_of_accounts_importer/chart_of_accounts_importer.js"
 code = "unknown-field"
 message = "`Chart of Accounts Importer` has no field `import_file_section`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/cost_center/cost_center.js"
 code = "unknown-field"
 message = "`Cost Center` has no field `sb1`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/exchange_rate_revaluation/exchange_rate_revaluation.py"
 code = "unknown-field"
 message = "`Journal Entry Account` has no field `balance`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/invoice_discounting/invoice_discounting.py"
 code = "unknown-field"
 message = "`Account` has no field `currency`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/erpnext/erpnext/accounts/doctype/ledger_merge/ledger_merge.js"
-code = "parent-field-on-child"
-message = "`merge_accounts` is a field on `Ledger Merge`, not on its child `Ledger Merge Accounts`"
-count = 1
-reason = "REVIEW: no class reason recorded — decide before committing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/payment_entry/payment_entry.js"
 code = "unknown-field"
 message = "`Payment Entry` has no field `advance_tax_account`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/payment_request/payment_request.js"
@@ -90,32 +69,18 @@ count = 1
 reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
 
 [[allow]]
-file = "apps/erpnext/erpnext/accounts/doctype/pos_settings/pos_settings.js"
-code = "unknown-field"
-message = "`POS Field` has no field `fields`"
-count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/erpnext/erpnext/accounts/doctype/pos_settings/pos_settings.js"
-code = "unknown-field"
-message = "`POS Search Fields` has no field `fields`"
-count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/pricing_rule/pricing_rule.py"
 code = "unknown-field"
 message = "`Pricing Rule` has no field `suggestion`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/process_deferred_accounting/process_deferred_accounting.js"
 code = "unknown-field"
 message = "`Process Deferred Accounting` has no field `document_type`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/process_statement_of_accounts/process_statement_of_accounts.js"
@@ -129,14 +94,14 @@ file = "apps/erpnext/erpnext/accounts/doctype/purchase_invoice/purchase_invoice.
 code = "unknown-field"
 message = "`Purchase Invoice` has no field `additional_discount_account`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/sales_invoice/sales_invoice.js"
 code = "unknown-field"
 message = "`Sales Invoice` has no field `adjustment_against`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/doctype/subscription_plan/subscription_plan.js"
@@ -150,14 +115,14 @@ file = "apps/erpnext/erpnext/accounts/party.py"
 code = "unknown-field"
 message = "`Address` has no field `tax_category`"
 count = 2
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/party.py"
 code = "unknown-field"
 message = "`Contact` has no field `is_billing_contact`"
 count = 2
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/report/customer_ledger_summary/customer_ledger_summary.py"
@@ -192,42 +157,35 @@ file = "apps/erpnext/erpnext/accounts/utils.py"
 code = "unknown-field"
 message = "`Account` has no field `is_root`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/accounts/utils.py"
 code = "unknown-field"
 message = "`Desktop Icon` has no field `_report`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/erpnext/erpnext/assets/doctype/asset/asset.js"
-code = "parent-field-on-child"
-message = "`finance_books` is a field on `Asset`, not on its child `Asset Finance Book`"
-count = 1
-reason = "REVIEW: no class reason recorded — decide before committing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/assets/doctype/asset/asset.js"
 code = "unknown-field"
 message = "`Asset` has no field `warehouse`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/assets/doctype/asset/asset.py"
 code = "unknown-field"
 message = "`Asset` has no field `remarks`"
 count = 2
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/assets/doctype/asset_movement/test_asset_movement.py"
 code = "parent-field-on-child"
 message = "`next_depreciation_date` is a field on `Asset`, not on its child `Asset Finance Book`"
 count = 2
-reason = "REVIEW: no class reason recorded — decide before committing"
+reason = "a row given a field only its parent declares: frappe drops it from the row, so the value never lands"
 
 [[allow]]
 file = "apps/erpnext/erpnext/assets/doctype/asset_repair/asset_repair.js"
@@ -248,49 +206,35 @@ file = "apps/erpnext/erpnext/buying/doctype/supplier/supplier.py"
 code = "unknown-field"
 message = "`Supplier` has no field `address_line1`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/erpnext/erpnext/buying/doctype/supplier_scorecard/supplier_scorecard.js"
-code = "parent-field-on-child"
-message = "`criteria` is a field on `Supplier Scorecard`, not on its child `Supplier Scorecard Scoring Criteria`"
-count = 1
-reason = "REVIEW: no class reason recorded — decide before committing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/controllers/accounts_controller.py"
 code = "unknown-field"
 message = "`Journal Entry` has no field `reference_name`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/controllers/accounts_controller.py"
 code = "unknown-field"
 message = "`Journal Entry` has no field `reference_type`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/erpnext/erpnext/crm/doctype/appointment/appointment.py"
-code = "unknown-field"
-message = "`Event` has no field `type`"
-count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/crm/doctype/campaign/campaign.py"
 code = "unknown-field"
 message = "`UTM Campaign` has no field `crm_campaign`"
-count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+count = 3
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
-file = "apps/erpnext/erpnext/crm/doctype/lead/lead.json"
-code = "dangling-depends-on"
-message = "`source` is not a field on `Lead`"
+file = "apps/erpnext/erpnext/deprecation_dumpster.py"
+code = "translation-literal"
+message = "translations are extracted statically, so a concatenation is never translated"
 count = 1
-reason = "names a field no schema declares: either a leftover, or a Customize Form field only the live site can see, which is what Static confidence means"
+reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
 
 [[allow]]
 file = "apps/erpnext/erpnext/erpnext_integrations/utils.py"
@@ -379,21 +323,7 @@ reason = "no reader anywhere in the bench — dead config kept for a frappe vers
 [[allow]]
 file = "apps/erpnext/erpnext/hooks.py"
 code = "unknown-hook"
-message = "`pre_submit_validation_doctypes` is not a hook frappe reads; setting it does nothing"
-count = 1
-reason = "no reader anywhere in the bench — dead config kept for a frappe version that no longer looks for it"
-
-[[allow]]
-file = "apps/erpnext/erpnext/hooks.py"
-code = "unknown-hook"
 message = "`source_link` is not a hook frappe reads; setting it does nothing"
-count = 1
-reason = "no reader anywhere in the bench — dead config kept for a frappe version that no longer looks for it"
-
-[[allow]]
-file = "apps/erpnext/erpnext/hooks.py"
-code = "unknown-hook"
-message = "`user_privacy_documents` is not a hook frappe reads; setting it does nothing"
 count = 1
 reason = "no reader anywhere in the bench — dead config kept for a frappe version that no longer looks for it"
 
@@ -405,25 +335,18 @@ count = 1
 reason = "the dotted path defines no such attribute; frappe's own override_whitelisted_methods carries two of these"
 
 [[allow]]
-file = "apps/erpnext/erpnext/maintenance/doctype/maintenance_schedule/maintenance_schedule.py"
-code = "unknown-field"
-message = "`Serial No` has no field `delivery_date`"
-count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
 file = "apps/erpnext/erpnext/manufacturing/doctype/bom_creator/bom_creator.js"
 code = "unknown-field"
 message = "`BOM Creator Item` has no field `bom_no`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/manufacturing/doctype/bom_creator/bom_creator.js"
 code = "unknown-field"
 message = "`BOM Creator` has no field `workstation`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/manufacturing/doctype/job_card/job_card.js"
@@ -444,28 +367,28 @@ file = "apps/erpnext/erpnext/manufacturing/doctype/job_card/job_card.py"
 code = "unknown-field"
 message = "`Job Card Item` has no field `amount`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/manufacturing/doctype/job_card/job_card.py"
 code = "unknown-field"
 message = "`Job Card Item` has no field `rate`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/manufacturing/doctype/job_card/job_card.py"
 code = "unknown-field"
 message = "`Job Card Scheduled Time` has no field `completed_qty`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/manufacturing/doctype/master_production_schedule/master_production_schedule.py"
 code = "unknown-field"
 message = "`Production Plan Sales Order` has no field `delivery_date`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/manufacturing/doctype/production_plan_sub_assembly_item/production_plan_sub_assembly_item.json"
@@ -473,13 +396,6 @@ code = "unresolvable-fetch-from"
 message = "`sub_assembly_item_code.item_name` reads `sub_assembly_item_code`, which is not a field here"
 count = 1
 reason = "the source field is absent from the linked DocType, so the fetch silently stays empty"
-
-[[allow]]
-file = "apps/erpnext/erpnext/patches.txt"
-code = "duplicate-patch"
-message = "`erpnext.patches.v10_0.item_barcode_childtable_migrate` is listed more than once"
-count = 1
-reason = "patches.txt names a module that is not in the checkout, or names one twice"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches.txt"
@@ -507,14 +423,14 @@ file = "apps/erpnext/erpnext/patches/v10_0/update_translatable_fields.py"
 code = "unknown-field"
 message = "`Property Setter` has no field `propery_type`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v11_0/add_expense_claim_default_account.py"
 code = "unknown-field"
 message = "`Company` has no field `default_expense_claim_payable_account`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v11_0/merge_land_unit_with_location.py"
@@ -535,7 +451,7 @@ file = "apps/erpnext/erpnext/patches/v11_1/make_job_card_time_logs.py"
 code = "unknown-field"
 message = "`Job Card` has no field `time_in_mins`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v11_1/woocommerce_set_creation_user.py"
@@ -549,7 +465,7 @@ file = "apps/erpnext/erpnext/patches/v12_0/rename_tolerance_fields.py"
 code = "unknown-field"
 message = "`Accounts Settings` has no field `over_delivery_receipt_allowance`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v12_0/set_cwip_and_delete_asset_settings.py"
@@ -570,105 +486,105 @@ file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
 code = "unknown-field"
 message = "`Service Level Agreement` has no field `priority`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
 code = "unknown-field"
 message = "`Service Level Agreement` has no field `resolution_time_period`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
 code = "unknown-field"
 message = "`Service Level Agreement` has no field `resolution_time`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
 code = "unknown-field"
 message = "`Service Level Agreement` has no field `response_time_period`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
 code = "unknown-field"
 message = "`Service Level Agreement` has no field `response_time`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
 code = "unknown-field"
 message = "`Service Level Priority` has no field `resolution_time_period`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v12_0/set_priority_for_support.py"
 code = "unknown-field"
 message = "`Service Level Priority` has no field `response_time_period`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/delete_old_purchase_reports.py"
 code = "unknown-field"
 message = "`Desktop Icon` has no field `_report`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/delete_old_sales_reports.py"
 code = "unknown-field"
 message = "`Desktop Icon` has no field `_report`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/fix_number_and_frequency_for_monthly_depreciation.py"
 code = "unknown-field"
 message = "`Asset` has no field `allow_monthly_depreciation`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/modify_invalid_gain_loss_gl_entries.py"
 code = "unknown-field"
 message = "`Accounts Settings` has no field `acc_frozen_upto`"
 count = 3
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/rename_issue_doctype_fields.py"
 code = "unknown-field"
 message = "`Issue` has no field `mins_to_first_response`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/rename_issue_doctype_fields.py"
 code = "unknown-field"
 message = "`Issue` has no field `resolution_by_variance`"
 count = 2
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/rename_issue_doctype_fields.py"
 code = "unknown-field"
 message = "`Issue` has no field `response_by_variance`"
 count = 2
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/rename_issue_doctype_fields.py"
 code = "unknown-field"
 message = "`Opportunity` has no field `mins_to_first_response`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/replace_supplier_item_group_with_party_specific_item.py"
@@ -682,14 +598,14 @@ file = "apps/erpnext/erpnext/patches/v13_0/trim_whitespace_from_serial_nos.py"
 code = "unknown-field"
 message = "`Serial No` has no field `purchase_document_type`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/update_dates_in_tax_withholding_category.py"
 code = "unknown-field"
 message = "`Tax Withholding Rate` has no field `fiscal_year`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/update_member_email_address.py"
@@ -703,21 +619,21 @@ file = "apps/erpnext/erpnext/patches/v13_0/update_recipient_email_digest.py"
 code = "unknown-field"
 message = "`Email Digest` has no field `recipient_list`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/update_response_by_variance.py"
 code = "unknown-field"
 message = "`Issue` has no field `resolution_by_variance`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/update_response_by_variance.py"
 code = "unknown-field"
 message = "`Issue` has no field `response_by_variance`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/update_sla_enhancements.py"
@@ -731,7 +647,7 @@ file = "apps/erpnext/erpnext/patches/v13_0/update_sla_enhancements.py"
 code = "unknown-field"
 message = "`Service Level Agreement` has no field `employee_group`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v14_0/add_default_for_repost_settings.py"
@@ -748,25 +664,11 @@ count = 1
 reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
 
 [[allow]]
-file = "apps/erpnext/erpnext/patches/v14_0/single_to_multi_dunning.py"
-code = "unknown-field"
-message = "`Accounts Settings` has no field `acc_frozen_upto`"
-count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
 file = "apps/erpnext/erpnext/patches/v15_0/migrate_to_utm_analytics.py"
 code = "unknown-doctype"
 message = "no DocType named `Lead Source`"
 count = 1
 reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
-
-[[allow]]
-file = "apps/erpnext/erpnext/patches/v15_0/recalculate_amount_difference_field.py"
-code = "unknown-field"
-message = "`Accounts Settings` has no field `acc_frozen_upto`"
-count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
 
 [[allow]]
 file = "apps/erpnext/erpnext/patches/v15_0/refactor_closing_stock_balance.py"
@@ -797,18 +699,25 @@ count = 1
 reason = "no DocType of that name in this bench: erpnext links into apps this checkout does not install, and a name that resolves nowhere is what Static confidence can see"
 
 [[allow]]
-file = "apps/erpnext/erpnext/projects/doctype/project_update/project_update.py"
-code = "translation-literal"
-message = "translations are extracted statically, so a concatenation is never translated"
+file = "apps/erpnext/erpnext/patches/v16_0/remove_frappe_crm_custom_fields.py"
+code = "unknown-field"
+message = "`Customer` has no field `crm_deal`"
 count = 1
-reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
+
+[[allow]]
+file = "apps/erpnext/erpnext/patches/v16_0/remove_frappe_crm_custom_fields.py"
+code = "unknown-field"
+message = "`Quotation` has no field `crm_deal`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/projects/doctype/timesheet/test_timesheet.py"
 code = "parent-field-on-child"
 message = "`company` is a field on `Timesheet`, not on its child `Timesheet Detail`"
 count = 7
-reason = "REVIEW: no class reason recorded — decide before committing"
+reason = "a row given a field only its parent declares: frappe drops it from the row, so the value never lands"
 
 [[allow]]
 file = "apps/erpnext/erpnext/public/js/address.js"
@@ -816,13 +725,6 @@ code = "unknown-form-event"
 message = "`is_your_company_address` is neither an event nor a field on `Address`; this handler never fires"
 count = 1
 reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
-
-[[allow]]
-file = "apps/erpnext/erpnext/public/js/bom_configurator/bom_configurator.bundle.js"
-code = "translation-literal"
-message = "translations are extracted statically, so a concatenation is never translated"
-count = 7
-reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
 
 [[allow]]
 file = "apps/erpnext/erpnext/public/js/newsletter.js"
@@ -843,28 +745,28 @@ file = "apps/erpnext/erpnext/regional/doctype/import_supplier_invoice/import_sup
 code = "unknown-field"
 message = "`Payment Schedule` has no field `bank_account_iban`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/regional/doctype/import_supplier_invoice/import_supplier_invoice.py"
 code = "unknown-field"
 message = "`Payment Schedule` has no field `mode_of_payment_code`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/regional/doctype/import_supplier_invoice/import_supplier_invoice.py"
 code = "unknown-field"
 message = "`Purchase Invoice` has no field `destination_code`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/regional/doctype/import_supplier_invoice/import_supplier_invoice.py"
 code = "unknown-field"
 message = "`Purchase Invoice` has no field `document_type`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/regional/doctype/lower_deduction_certificate/lower_deduction_certificate.json"
@@ -878,35 +780,35 @@ file = "apps/erpnext/erpnext/regional/italy/utils.py"
 code = "unknown-field"
 message = "`Company` has no field `fiscal_code`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/regional/italy/utils.py"
 code = "unknown-field"
 message = "`Company` has no field `fiscal_regime`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/regional/italy/utils.py"
 code = "unknown-field"
 message = "`Mode of Payment` has no field `mode_of_payment_code`"
 count = 2
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/regional/united_arab_emirates/utils.py"
 code = "unknown-field"
 message = "`Item` has no field `is_zero_rated`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/selling/doctype/customer/customer.py"
 code = "unknown-field"
 message = "`Customer` has no field `address_line1`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/selling/doctype/quotation/quotation.js"
@@ -962,28 +864,28 @@ file = "apps/erpnext/erpnext/setup/doctype/sales_person/sales_person.js"
 code = "unknown-field"
 message = "`Sales Person` has no field `sales_team`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/setup/setup_wizard/operations/install_fixtures.py"
 code = "unknown-field"
 message = "`Stock Settings` has no field `email_footer_address`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/stock/doctype/delivery_note/delivery_note.py"
 code = "unknown-field"
 message = "`Delivery Note Item` has no field `is_fixed_asset`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/stock/doctype/delivery_note/delivery_note.py"
 code = "unknown-field"
 message = "`Delivery Note Item` has no field `is_subcontracted`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/stock/doctype/inventory_dimension/inventory_dimension.py"
@@ -1004,7 +906,7 @@ file = "apps/erpnext/erpnext/stock/doctype/item_price/item_price.js"
 code = "unknown-field"
 message = "`Item Price` has no field `bulk_import_help`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/stock/doctype/item_variant_attribute/item_variant_attribute.json"
@@ -1021,11 +923,11 @@ count = 1
 reason = "names a field no schema declares: either a leftover, or a Customize Form field only the live site can see, which is what Static confidence means"
 
 [[allow]]
-file = "apps/erpnext/erpnext/stock/doctype/shipment/shipment.js"
-code = "parent-field-on-child"
-message = "`value_of_goods` is a field on `Shipment`, not on its child `Shipment Delivery Note`"
+file = "apps/erpnext/erpnext/stock/doctype/purchase_receipt/purchase_receipt.js"
+code = "unknown-field"
+message = "`Purchase Receipt Item` has no field `bom`"
 count = 1
-reason = "REVIEW: no class reason recorded — decide before committing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/stock/doctype/shipment/shipment.js"
@@ -1039,49 +941,28 @@ file = "apps/erpnext/erpnext/stock/doctype/stock_entry/services/manufacturing.py
 code = "unknown-field"
 message = "`BOM` has no field `use_multi_level_bom`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/stock/doctype/stock_entry/services/serial_batch.py"
 code = "unknown-field"
 message = "`Serial and Batch Bundle` has no field `posting_date`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/stock/doctype/stock_entry/services/serial_batch.py"
 code = "unknown-field"
 message = "`Serial and Batch Bundle` has no field `posting_time`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/stock/doctype/stock_ledger_entry/stock_ledger_entry.py"
 code = "unknown-field"
 message = "`Stock Ledger Entry` has no field `via_landed_cost_voucher`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/erpnext/erpnext/subcontracting/doctype/subcontracting_inward_order/subcontracting_inward_order.js"
-code = "parent-field-on-child"
-message = "`service_items` is a field on `Subcontracting Inward Order`, not on its child `Subcontracting Inward Order Item`"
-count = 3
-reason = "REVIEW: no class reason recorded — decide before committing"
-
-[[allow]]
-file = "apps/erpnext/erpnext/subcontracting/doctype/subcontracting_order/subcontracting_order.js"
-code = "parent-field-on-child"
-message = "`service_items` is a field on `Subcontracting Order`, not on its child `Subcontracting Order Item`"
-count = 3
-reason = "REVIEW: no class reason recorded — decide before committing"
-
-[[allow]]
-file = "apps/erpnext/erpnext/subcontracting/doctype/subcontracting_receipt/subcontracting_receipt.js"
-code = "parent-field-on-child"
-message = "`supplied_items` is a field on `Subcontracting Receipt`, not on its child `Subcontracting Receipt Item`"
-count = 1
-reason = "REVIEW: no class reason recorded — decide before committing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/subcontracting/doctype/subcontracting_receipt_item/subcontracting_receipt_item.json"
@@ -1102,14 +983,14 @@ file = "apps/erpnext/erpnext/support/doctype/issue/issue.py"
 code = "unknown-field"
 message = "`Issue` has no field `communication_medium`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/support/doctype/issue/issue.py"
 code = "unknown-field"
 message = "`Issue` has no field `raised_by_phone`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/erpnext/erpnext/support/doctype/service_level_agreement/service_level_agreement.json"
@@ -1151,7 +1032,7 @@ file = "apps/frappe/frappe/core/doctype/doctype/doctype.py"
 code = "unknown-field"
 message = "`DocType` has no field `can_change_name_type`"
 count = 2
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/core/doctype/package_import/package_import.py"
@@ -1159,6 +1040,13 @@ code = "translation-literal"
 message = "translations are extracted statically, so an f-string or template literal is never translated"
 count = 1
 reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
+
+[[allow]]
+file = "apps/frappe/frappe/core/doctype/report/report.py"
+code = "unknown-field"
+message = "`Report` has no field `custom_report`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/core/doctype/success_action/success_action.js"
@@ -1169,17 +1057,10 @@ reason = "a handler that is not a lifecycle event, not a fieldname, not a grid e
 
 [[allow]]
 file = "apps/frappe/frappe/core/doctype/user/user.js"
-code = "parent-field-on-child"
-message = "`user_emails` is a field on `User`, not on its child `User Email`"
-count = 1
-reason = "REVIEW: no class reason recorded — decide before committing"
-
-[[allow]]
-file = "apps/frappe/frappe/core/doctype/user/user.js"
 code = "unknown-field"
 message = "`User` has no field `modules_access`"
 count = 4
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/core/doctype/user/user.js"
@@ -1198,23 +1079,16 @@ reason = "a handler that is not a lifecycle event, not a fieldname, not a grid e
 [[allow]]
 file = "apps/frappe/frappe/core/doctype/user/user.py"
 code = "unknown-field"
-message = "`User` has no field `allow_in_mentions`"
-count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/frappe/frappe/core/doctype/user/user.py"
-code = "unknown-field"
 message = "`User` has no field `is_admin`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/core/doctype/user/user.py"
 code = "unknown-field"
 message = "`User` has no field `is_guest`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/core/report/database_storage_usage_by_tables/database_storage_usage_by_tables.js"
@@ -1228,35 +1102,21 @@ file = "apps/frappe/frappe/custom/doctype/customize_form/customize_form.py"
 code = "unknown-field"
 message = "`Translation` has no field `language_code`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/desk/doctype/route_history/route_history.py"
 code = "unknown-field"
 message = "`Route History` has no field `count`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/desk/doctype/tag/tag.py"
 code = "unknown-field"
 message = "`DocType` has no field `tag_fields`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/frappe/frappe/desk/doctype/workspace_sidebar/workspace_sidebar.js"
-code = "unknown-field"
-message = "`Workspace Sidebar` has no field `link_to`"
-count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/frappe/frappe/desk/doctype/workspace_sidebar/workspace_sidebar.js"
-code = "unknown-form-event"
-message = "`link_type` is neither an event nor a field on `Workspace Sidebar`; this handler never fires"
-count = 1
-reason = "a handler that is not a lifecycle event, not a fieldname, not a grid event, and that nothing triggers: it never fires"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/desk/doctype_settings/settings_map.py"
@@ -1270,14 +1130,7 @@ file = "apps/frappe/frappe/desk/page/setup_wizard/setup_wizard.js"
 code = "unknown-field"
 message = "`System Settings` has no field `timezone`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/frappe/frappe/desk/reportview.py"
-code = "translation-literal"
-message = "translations are extracted statically, so an f-string or template literal is never translated"
-count = 1
-reason = "an f-string, a concatenation or .format() inside _(): real, and the string genuinely never reaches the translation catalogue"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/email/doctype/notification/notification.json"
@@ -1329,18 +1182,11 @@ count = 1
 reason = "names a field no schema declares: either a leftover, or a Customize Form field only the live site can see, which is what Static confidence means"
 
 [[allow]]
-file = "apps/frappe/frappe/integrations/doctype/webhook/webhook.js"
-code = "parent-field-on-child"
-message = "`webhook_data` is a field on `Webhook`, not on its child `Webhook Data`"
-count = 1
-reason = "REVIEW: no class reason recorded — decide before committing"
-
-[[allow]]
 file = "apps/frappe/frappe/model/delete_doc.py"
 code = "unknown-field"
 message = "`Comment` has no field `full_name`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/model/document.py"
@@ -1403,7 +1249,7 @@ file = "apps/frappe/frappe/patches/v14_0/copy_mail_data.py"
 code = "unknown-field"
 message = "`IMAP Folder` has no field `uid_validity`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/patches/v14_0/setup_likes_from_feedback.py"
@@ -1417,21 +1263,28 @@ file = "apps/frappe/frappe/patches/v14_0/update_multistep_webforms.py"
 code = "unknown-field"
 message = "`Web Form` has no field `is_multi_step_form`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/permissions.py"
 code = "unknown-field"
 message = "`Custom DocPerm` has no field `parentfield`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/permissions.py"
 code = "unknown-field"
 message = "`Custom DocPerm` has no field `parenttype`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
+
+[[allow]]
+file = "apps/frappe/frappe/printing/doctype/print_format/print_format.py"
+code = "unknown-field"
+message = "`Print Format` has no field `print_designer`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/public/js/frappe/form/formatters.js"
@@ -1473,28 +1326,14 @@ file = "apps/frappe/frappe/utils/pdf_generator/browser.py"
 code = "unknown-field"
 message = "`Print Format` has no field `print_designer`"
 count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
-
-[[allow]]
-file = "apps/frappe/frappe/website/doctype/web_form/web_form.js"
-code = "parent-field-on-child"
-message = "`list_columns` is a field on `Web Form`, not on its child `Web Form List Column`"
-count = 1
-reason = "REVIEW: no class reason recorded — decide before committing"
-
-[[allow]]
-file = "apps/frappe/frappe/website/doctype/web_form/web_form.js"
-code = "parent-field-on-child"
-message = "`web_form_fields` is a field on `Web Form`, not on its child `Web Form Field`"
-count = 2
-reason = "REVIEW: no class reason recorded — decide before committing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/website/doctype/web_form/web_form.js"
 code = "unknown-field"
 message = "`Web Form` has no field `amount_field`"
 count = 2
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares — a dead reference that silently returns nothing"
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
 file = "apps/frappe/frappe/website/doctype/web_page/web_page.js"

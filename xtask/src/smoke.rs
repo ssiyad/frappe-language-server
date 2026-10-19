@@ -326,8 +326,14 @@ fn reason(code: &str) -> &'static str {
         }
         "unknown-field" => {
             "a fieldname written as a string, in a position frappe queries, \
-             that no schema declares — a dead reference that silently returns \
-             nothing"
+             that no schema declares: either a dead reference that silently \
+             returns nothing, or a Custom Field or runtime attribute that code \
+             creates and only a live site can show, which is what Static \
+             confidence means"
+        }
+        "parent-field-on-child" => {
+            "a row given a field only its parent declares: frappe drops it from \
+             the row, so the value never lands"
         }
         "unknown-form-event" => {
             "a handler that is not a lifecycle event, not a fieldname, not a \

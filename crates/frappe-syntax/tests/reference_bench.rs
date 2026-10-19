@@ -136,15 +136,16 @@ fn extraction_over_frappe_is_stable_and_finds_every_pattern() {
 
     // The oracle for any change to how sites are located: the shape tables did
     // not move, so neither may these. Measured over `apps/frappe/frappe` at
-    // 17.0.0-dev — a different corpus gives different totals, which is why the
-    // walk is committed here rather than run ad hoc.
-    assert_eq!(totals.matches, 16_291, "match count moved");
-    assert_eq!(totals.slots, 21_199, "slot count moved");
-    // Two slots moved from anchored to unknown when the legacy
-    // `frappe.ui.form.on(D, event, fn)` form stopped being read as a fieldname:
-    // an event name carries no anchor of its own (specs/11).
-    assert_eq!(totals.anchored, 12_509, "anchored slot count moved");
-    assert_eq!(totals.unknown, 8_690, "unknown slot count moved");
+    // 17.0.0-dev `c7a96ecc99` — a different corpus gives different totals, so
+    // a moved checkout fails here first. Re-measure at the commit before your
+    // change to tell the corpus from the change.
+    assert_eq!(totals.matches, 21_716, "match count moved");
+    assert_eq!(totals.slots, 29_214, "slot count moved");
+    // 1 325 slots moved from anchored to unknown when `frm` inside
+    // `frappe.ui.form.on(D, …)` became a binding the resolver settles: `D`
+    // may be a child, whose block runs on its parent's form (specs/11).
+    assert_eq!(totals.anchored, 16_607, "anchored slot count moved");
+    assert_eq!(totals.unknown, 12_607, "unknown slot count moved");
 
     // A pattern that never fires on the reference corpus is a pattern nothing
     // is testing at scale.

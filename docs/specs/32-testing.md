@@ -110,34 +110,38 @@ and are pruned when noticed.
 
 ### What is on it
 
-Measured with the shipping defaults over `frappe` `5a94ce8` and `erpnext`
-`02118e7`: 890 DocTypes, 14 635 fields, 7 079 files checked, **215 allowed
-findings** and nothing else. By code:
+Measured with the shipping defaults over `frappe` `c7a96ecc99` and `erpnext`
+`b23da5d57f`: 7 597 files checked, **192 allowed findings** and nothing else.
+By code:
 
 | Code | Entries | Why they are allowed |
 | --- | --- | --- |
-| `translation-literal` | 16 | f-strings, concatenation and `.format()` inside `_()`; the string never reaches the catalogue |
-| `unknown-hook` | 12 | erpnext hooks with no reader anywhere in the bench — `app_icon`, `bot_parsers`, `source_link`, `payment_gateway_enabled` and nine more |
-| `dangling-depends-on` | 10 | names a field no schema declares: a leftover, or a Customize Form field only the live site can see |
+| `translation-literal` | 14 | f-strings, concatenation and `.format()` inside `_()`; the string never reaches the catalogue |
+| `unknown-hook` | 10 | erpnext hooks with no reader anywhere in the bench — `app_icon`, `bot_parsers`, `source_link`, `payment_gateway_enabled` and six more |
+| `dangling-depends-on` | 9 | names a field no schema declares: a leftover, or a Customize Form field only the live site can see |
 | `unresolvable-path` | 4 | frappe's `override_whitelisted_methods` maps two paths that define no `download_file`, and a bare name that is not a path |
 | `unresolvable-fetch-from` | 4 | the source field is absent from the linked DocType, so the fetch silently stays empty |
 | `unresolvable-patch` | 3 | `patches.txt` names three modules that are not in the checkout |
 | `missing-asset` | 3 | absent from the app, or served from a DocType at runtime |
-| `duplicate-patch` | 1 | listed twice |
-| `unknown-link-target` | 1 | `Payment Gateway` lives in the `payments` app, which this bench does not install |
-| `unknown-field` | 95 | a fieldname written as a string, in a position frappe queries, that no schema declares |
+| `unknown-field` | 92 | a fieldname written as a string, in a position frappe queries, that no schema declares: a dead reference, or a Custom Field or runtime attribute that code creates |
 | `unknown-doctype` | 33 | erpnext links into apps this checkout does not install |
-| `unknown-form-event` | 19 | a handler nothing triggers, on no field and no event: it never fires |
-| `parent-field-on-child` | 15 | the field is real, on the DocType that holds this one as a `Table` |
+| `unknown-form-event` | 18 | a handler nothing triggers, on no field and no event: it never fires |
+| `parent-field-on-child` | 2 | a test's row dict sets a field only the parent declares, and frappe drops it |
 
 The last four arrived when the absence checks were turned on, and they are the
-reason the list is 215 entries rather than 54. That is a long list, and the
+reason the list is 192 entries rather than 47. That is a long list, and the
 entry format is what keeps it from becoming wallpaper: matching on file, code,
 message **and** count means a second `unknown-field` in an already-listed file
 still fails the job. Shortening it means installing the apps erpnext links into
 — most of the 33 — and fixing the dead references in erpnext, which are real.
 
 Every one of these was checked against the source before it was written down.
+The first list broke that rule once: 15 `parent-field-on-child` entries went in
+marked `REVIEW`, and 13 of them were the server resolving `frm` in a child's
+form script against the child ([11](11-surface-javascript.md)). The
+`duplicate-patch` entry was the server too — a re-run patch, not a repeated
+one ([07](07-dotted-paths.md)). `xtask` now writes a class reason for every
+code, so a `REVIEW` entry means a code was added without one.
 
 ### What it has already caught
 
