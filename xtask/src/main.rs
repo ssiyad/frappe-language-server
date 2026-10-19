@@ -9,7 +9,7 @@ cargo xtask <command>
 
 Commands:
   codegen    Regenerate vendored Frappe constants from a frappe checkout
-  smoke      Index a real bench (clones frappe + erpnext)
+  smoke      Index a real bench and check its findings against the allowlist
   help       Show this message
 ";
 
