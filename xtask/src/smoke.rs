@@ -139,7 +139,13 @@ pub fn run(
             .display()
             .to_string();
 
-        for diagnostic in diagnostics::for_buffer(&index, &config, &path, &source) {
+        for diagnostic in diagnostics::for_buffer(
+            &index,
+            &config,
+            &path,
+            &source,
+            frappe_syntax::PositionEncoding::Utf16,
+        ) {
             let Some(code) = code_of(&diagnostic) else {
                 continue;
             };
@@ -241,7 +247,7 @@ pub fn run(
 const CANONICAL: [&str; 2] = ["frappe", "erpnext"];
 
 /// Every file the checks read, across the canonical apps.
-fn corpus(index: &Index, all: bool) -> Vec<PathBuf> {
+pub(crate) fn corpus(index: &Index, all: bool) -> Vec<PathBuf> {
     let mut files = Vec::new();
     for app in index.apps() {
         if !all && !CANONICAL.contains(&app.name.as_str()) {

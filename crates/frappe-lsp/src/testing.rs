@@ -305,13 +305,14 @@ pub fn lenses(
     chosen: Option<&str>,
     path: &Path,
     source: &str,
+    encoding: frappe_syntax::PositionEncoding,
 ) -> Vec<CodeLens> {
     if !config.test.enabled {
         return Vec::new();
     }
 
     let choice = site(index, config, chosen);
-    let lines = LineIndex::new(source, frappe_syntax::PositionEncoding::Utf16);
+    let lines = LineIndex::new(source, encoding);
     let mut lenses = Vec::new();
 
     if let Some(doctype) = doctype_lens_target(index, path) {
@@ -576,7 +577,14 @@ class NotATest:
         let path = bench
             .join("apps/library/library/library/doctype/library_member/test_library_member.py");
         let source = std::fs::read_to_string(&path).expect("readable");
-        let lenses = lenses(&index, &config, None, &path, &source);
+        let lenses = lenses(
+            &index,
+            &config,
+            None,
+            &path,
+            &source,
+            frappe_syntax::PositionEncoding::Utf16,
+        );
 
         assert_eq!(lenses.len(), 3, "the lenses are discovery, not execution");
         for lens in &lenses {

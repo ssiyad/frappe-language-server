@@ -269,6 +269,41 @@ fn a_full_edit_session_stays_on_protocol() {
 }
 
 #[test]
+fn ranges_are_in_the_encoding_the_client_negotiated() {
+    // Neovim offers UTF-8 and gets it; diagnostics were still counted in
+    // UTF-16, so anything after `é🙂` on a line was underlined three columns
+    // early.
+    let line = "x = \"é🙂\"; frappe.get_doc(\"Libary Member\", name)";
+    let source = format!("import frappe\n{line}\n");
+    let (mut session, uri) =
+        session_on(&fixture_bench(), "apps/library/library/encoding_probe.py", &source);
+
+    let report = session.request(
+        20,
+        "textDocument/diagnostic",
+        json!({"textDocument": {"uri": uri}}),
+    );
+    let items = report["result"]["items"].as_array().expect("a full report");
+    let unknown = items
+        .iter()
+        .find(|item| item["code"] == "frappe-lsp/unknown-doctype")
+        .unwrap_or_else(|| panic!("no unknown-doctype in {items:?}"));
+
+    let quote = line.find("\"Libary").expect("in the line");
+    let start = unknown["range"]["start"]["character"]
+        .as_u64()
+        .expect("a column");
+    assert!(
+        start == quote as u64 || start == quote as u64 + 1,
+        "column {start}, the literal is at byte {quote}"
+    );
+
+    session.request(21, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
 fn a_config_file_carrying_a_credential_is_reported_and_ignored() {
     let root = std::env::temp_dir().join("frappe-lsp-credential-test");
     std::fs::create_dir_all(&root).expect("temp dir");
@@ -409,17 +444,20 @@ fn copy_tree(from: &std::path::Path, to: &std::path::Path) {
 /// `static` is the confidence of a built index with no bridge, which is what
 /// every test here runs at unless it configures one ([05](../../../docs/specs/05-live-bridge.md)).
 fn settled(session: &mut Session, first_id: i64) -> Value {
+    // Patient, because a debug build of a real bench beside a busy compiler
+    // takes far longer than the release budget, and a request sent before the
+    // index publishes answers from the partial one: null, not a slow answer.
     let mut status = Value::Null;
-    for attempt in 0..100 {
+    for attempt in 0..1200 {
         status =
             session.request(first_id + attempt, "frappe-lsp/indexStatus", json!(null))["result"]
                 .clone();
         if status["confidence"] == "static" {
-            break;
+            return status;
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
-    status
+    panic!("the index never published: {status}");
 }
 
 #[test]

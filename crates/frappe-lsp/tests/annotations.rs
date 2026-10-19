@@ -79,8 +79,20 @@ fn every_expectation_in_the_bench_holds() {
     let mut wrong = Vec::new();
     for path in files {
         let source = std::fs::read_to_string(&path).expect("readable");
-        let shipped = diagnostics::for_buffer(&index, &config, &path, &source);
-        let asked = diagnostics::for_buffer(&index, &requested, &path, &source);
+        let shipped = diagnostics::for_buffer(
+            &index,
+            &config,
+            &path,
+            &source,
+            frappe_syntax::PositionEncoding::Utf16,
+        );
+        let asked = diagnostics::for_buffer(
+            &index,
+            &requested,
+            &path,
+            &source,
+            frappe_syntax::PositionEncoding::Utf16,
+        );
         let relative = path.strip_prefix(&bench).unwrap_or(&path).display();
 
         for (line, expected) in annotations(&source) {

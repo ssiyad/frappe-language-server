@@ -48,7 +48,13 @@ pub struct Finding {
 /// `source` is the buffer's text rather than the file's: the user is editing,
 /// and a diagnostic on stale text points at the wrong line.
 #[must_use]
-pub fn for_buffer(index: &Index, config: &Config, path: &Path, source: &str) -> Vec<Diagnostic> {
+pub fn for_buffer(
+    index: &Index,
+    config: &Config,
+    path: &Path,
+    source: &str,
+    encoding: frappe_syntax::PositionEncoding,
+) -> Vec<Diagnostic> {
     if !config.diagnostics.enabled {
         return Vec::new();
     }
@@ -85,7 +91,7 @@ pub fn for_buffer(index: &Index, config: &Config, path: &Path, source: &str) -> 
     findings.extend(malformed(index, path));
     findings.extend(conflicts(index, path));
 
-    let lines = LineIndex::new(source, frappe_syntax::PositionEncoding::Utf16);
+    let lines = LineIndex::new(source, encoding);
     let knows_absence = absence_is_knowable(index);
     findings
         .into_iter()
@@ -1077,12 +1083,13 @@ pub fn fixes(
     uri: &Uri,
     source: &str,
     diagnostics: &[Diagnostic],
+    encoding: frappe_syntax::PositionEncoding,
 ) -> Vec<tower_lsp_server::ls_types::CodeActionOrCommand> {
     use tower_lsp_server::ls_types::{
         CodeAction, CodeActionKind, CodeActionOrCommand, TextEdit, WorkspaceEdit,
     };
 
-    let lines = LineIndex::new(source, frappe_syntax::PositionEncoding::Utf16);
+    let lines = LineIndex::new(source, encoding);
     let mut actions = Vec::new();
 
     for diagnostic in diagnostics {
@@ -1299,6 +1306,7 @@ mod tests {
             &Config::default(),
             Path::new("/bench/apps/x/x/api.py"),
             "import frappe\nfrappe.ui.form.on(\"Task\", { nosuchthing(frm) {} })\n",
+            frappe_syntax::PositionEncoding::Utf16,
         );
         assert!(found.is_empty(), "{found:?}");
     }

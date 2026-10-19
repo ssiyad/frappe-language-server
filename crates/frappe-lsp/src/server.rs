@@ -242,7 +242,13 @@ impl Backend {
             let Some(buffer) = state.buffers.get(&uri) else {
                 return;
             };
-            diagnostics::for_buffer(&index, &state.config, &path, &buffer.text())
+            diagnostics::for_buffer(
+                &index,
+                &state.config,
+                &path,
+                &buffer.text(),
+                state.support.position_encoding,
+            )
         };
 
         self.client.publish_diagnostics(uri, computed, None).await;
@@ -276,7 +282,13 @@ impl Backend {
                 if buffer.version() != version {
                     return;
                 }
-                diagnostics::for_buffer(&index, &state.config, &path, &buffer.text())
+                diagnostics::for_buffer(
+                    &index,
+                    &state.config,
+                    &path,
+                    &buffer.text(),
+                    state.support.position_encoding,
+                )
             };
             client.publish_diagnostics(uri, computed, None).await;
         });
@@ -382,9 +394,13 @@ async fn publish_conflicts(
     index: &Arc<RwLock<Index>>,
     state: &Arc<RwLock<State>>,
 ) {
-    let (config, open) = {
+    let (config, open, encoding) = {
         let guard = state.read_or_recover();
-        (guard.config.clone(), guard.buffers.uris())
+        (
+            guard.config.clone(),
+            guard.buffers.uris(),
+            guard.support.position_encoding,
+        )
     };
 
     // Everything is computed before the first await: the index guard is not
@@ -410,7 +426,10 @@ async fn publish_conflicts(
                 continue;
             };
             seen.push(uri.clone());
-            computed.push((uri, diagnostics::for_buffer(&index, &config, path, &source)));
+            computed.push((
+                uri,
+                diagnostics::for_buffer(&index, &config, path, &source, encoding),
+            ));
         }
         computed
     };
@@ -906,7 +925,12 @@ impl LanguageServer for Backend {
         let include = params.context.include_declaration;
         Ok(
             self.with_position(&position.text_document.uri, position.position, |ctx| {
-                symbols::references(ctx.index, &ctx.found, include)
+                symbols::references(
+                    ctx.index,
+                    &ctx.found,
+                    include,
+                    ctx.support.position_encoding,
+                )
             }),
         )
     }
@@ -935,8 +959,9 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
+        let encoding = self.write(|state| state.support.position_encoding);
         let index = self.index.read_or_recover();
-        let found = symbols::document_symbols(&index, &path, &source);
+        let found = symbols::document_symbols(&index, &path, &source, encoding);
         Ok((!found.is_empty()).then_some(DocumentSymbolResponse::Nested(found)))
     }
 
@@ -972,8 +997,9 @@ impl LanguageServer for Backend {
 
         let config = self.write(|state| state.config.clone());
         let chosen = self.write(|state| state.chosen_site.clone());
+        let encoding = self.write(|state| state.support.position_encoding);
         let index = self.index.read_or_recover();
-        let lenses = testing::lenses(&index, &config, chosen.as_deref(), &path, &source);
+        let lenses = testing::lenses(&index, &config, chosen.as_deref(), &path, &source, encoding);
         Ok((!lenses.is_empty()).then_some(lenses))
     }
 
@@ -1078,7 +1104,13 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        let actions = diagnostics::fixes(&index, &uri, &buffer.text(), &params.context.diagnostics);
+        let actions = diagnostics::fixes(
+            &index,
+            &uri,
+            &buffer.text(),
+            &params.context.diagnostics,
+            state.support.position_encoding,
+        );
         Ok((!actions.is_empty()).then_some(actions))
     }
 
@@ -1099,7 +1131,13 @@ impl LanguageServer for Backend {
                     .buffers
                     .get(&params.text_document.uri)
                     .map(|buffer| {
-                        diagnostics::for_buffer(&index, &state.config, &path, &buffer.text())
+                        diagnostics::for_buffer(
+                            &index,
+                            &state.config,
+                            &path,
+                            &buffer.text(),
+                            state.support.position_encoding,
+                        )
                     })
                     .unwrap_or_default()
             })

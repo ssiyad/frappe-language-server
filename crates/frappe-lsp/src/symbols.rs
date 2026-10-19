@@ -23,6 +23,7 @@ pub fn references(
     index: &Index,
     found: &Found,
     include_declaration: bool,
+    encoding: frappe_syntax::PositionEncoding,
 ) -> Option<Vec<Location>> {
     let key = match &found.target {
         Target::DocType { name } => Key::DocType(name.clone()),
@@ -54,7 +55,7 @@ pub fn references(
             continue;
         };
 
-        let lines = LineIndex::new(&source, frappe_syntax::PositionEncoding::Utf16);
+        let lines = LineIndex::new(&source, encoding);
         locations.extend(group.iter().map(|site| Location {
             uri: uri.clone(),
             range: Range {
@@ -78,8 +79,9 @@ pub fn document_symbols(
     index: &Index,
     path: &std::path::Path,
     source: &str,
+    encoding: frappe_syntax::PositionEncoding,
 ) -> Vec<DocumentSymbol> {
-    let lines = LineIndex::new(source, frappe_syntax::PositionEncoding::Utf16);
+    let lines = LineIndex::new(source, encoding);
     let range = |start: u32, end: u32| Range {
         start: lines.position(start as usize),
         end: lines.position(end as usize),
