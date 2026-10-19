@@ -49,6 +49,7 @@ pub fn run(options: &Options) -> std::io::Result<bool> {
     let mut drive = Drive {
         rng: Rng::new(options.seed),
         latencies: BTreeMap::new(),
+        slowest: BTreeMap::new(),
         errors: BTreeMap::new(),
     };
     let started = Instant::now();
@@ -84,6 +85,8 @@ pub fn run(options: &Options) -> std::io::Result<bool> {
 struct Drive {
     rng: Rng,
     latencies: BTreeMap<String, Vec<Duration>>,
+    /// The slowest request of each method, and where it was.
+    slowest: BTreeMap<String, (Duration, String)>,
     /// `method: message` → how often.
     errors: BTreeMap<String, usize>,
 }
@@ -275,6 +278,13 @@ impl Drive {
             .entry(method.to_string())
             .or_default()
             .push(elapsed);
+        let slowest = self
+            .slowest
+            .entry(method.to_string())
+            .or_insert((Duration::ZERO, String::new()));
+        if elapsed > slowest.0 {
+            *slowest = (elapsed, context.to_string());
+        }
         if let Some(error) = response.get("error") {
             let message = error["message"].as_str().unwrap_or("?");
             *self
@@ -323,6 +333,12 @@ impl Drive {
                 at(0.99),
                 at(1.0)
             );
+        }
+        println!("\nslowest, where over 100 ms:");
+        for (method, (elapsed, context)) in &self.slowest {
+            if *elapsed > Duration::from_millis(100) {
+                println!("  {method:32} {elapsed:>10.1?}  {context}");
+            }
         }
         if !self.errors.is_empty() {
             println!("\nerror responses:");
