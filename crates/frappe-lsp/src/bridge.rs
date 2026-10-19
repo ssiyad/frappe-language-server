@@ -80,8 +80,7 @@ pub async fn sync_once(index: &Arc<RwLock<Index>>, config: &Config) -> Outcome {
         .map(ToString::to_string)
         .collect();
     let bench = {
-        let mut guard = index.write_or_recover();
-        guard.apply_site(&site, &custom_fields, &property_setters, &doctypes);
+        let guard = index.read_or_recover();
         let detection = &guard.workspace().detection;
         detection
             .bench_root()
@@ -89,8 +88,8 @@ pub async fn sync_once(index: &Arc<RwLock<Index>>, config: &Config) -> Outcome {
             .to_path_buf()
     };
 
-    // Written outside the lock: the files are the slow part, and nothing in
-    // the index waits on them.
+    // The files first, outside the lock, then the whole sync in one write:
+    // anyone who sees confidence turn `full` sees the scripts with it.
     let directory = crate::scripts::directory(&bench, &config.index.cache_dir);
     let scripts = crate::scripts::write(
         &directory,
@@ -98,7 +97,11 @@ pub async fn sync_once(index: &Arc<RwLock<Index>>, config: &Config) -> Outcome {
         &read.client_scripts,
         &read.server_scripts,
     );
-    index.write_or_recover().set_site_scripts(scripts);
+    {
+        let mut guard = index.write_or_recover();
+        guard.apply_site(&site, &custom_fields, &property_setters, &doctypes);
+        guard.set_site_scripts(scripts);
+    }
 
     Outcome::Synced { site, records }
 }
