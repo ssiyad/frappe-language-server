@@ -9,6 +9,7 @@ bench and turns those strings into links.
 
 ## Contents
 
+- [Editor setup](editors.md) — Neovim, Helix, any other client
 - [Roadmap](roadmap.md) — phases and milestones
 - [Development](development.md) — toolchain, workflow, conventions
 - [Guidelines](guidelines.md) — how these docs are written
@@ -21,15 +22,19 @@ Phases 1 and 2 complete. Go-to-definition, hover and completion answer on the
 Python and JavaScript surfaces and inside `hooks.py`; the index caches, follows
 the filesystem, and is measured against a real bench and driven from Neovim.
 
-Phase 3 is under way. Diagnostics publish: the checks decided by a vendored
+Phase 3 is complete. Diagnostics publish: the checks decided by a vendored
 table or a parse failure are on, and so are the absence checks — `doc.x` alone
 stays off, because a Frappe document is an open Python object. `cargo xtask
 smoke` measures this over `frappe` and `erpnext` on every run: 7 597 files, 192
 findings, each one checked against the source and allowlisted with a reason.
-References and symbols answer from a reverse occurrence table of 89 523 sites,
-built after the index publishes and cached with it. Test lenses run a scope
-from the file it lives in, through the client's terminal. Phase 3 is complete;
-the live bridge is next.
+References and symbols answer from a reverse occurrence table, built after the
+index publishes and cached with it. Test lenses run a scope from the file it
+lives in, through the client's terminal.
+
+Phase 4 has started: the live bridge reads Custom Fields and Property Setters
+from a site. `cargo xtask stress` drives the release binary over every file of
+`frappe` and `erpnext` — 634 268 requests with no crash, hang or error — and
+`tests/editors/neovim.lua` checks every feature from stock Neovim.
 
 ## Decisions
 

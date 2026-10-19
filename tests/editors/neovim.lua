@@ -27,6 +27,20 @@ vim.lsp.config('frappe_lsp', {
   end,
 })
 vim.lsp.enable('frappe_lsp')
+
+-- Test lenses. The server answers with the command to run, and the editor runs
+-- it in a terminal so the tests get a TTY.
+vim.lsp.commands['frappe-lsp.runTest'] = function(command, ctx)
+  local client = assert(vim.lsp.get_client_by_id(ctx.client_id))
+  client:request('workspace/executeCommand', command, function(err, result)
+    if err or not result or not result.argv then
+      vim.notify('frappe-lsp: ' .. (err and err.message or 'nothing to run'), vim.log.levels.WARN)
+      return
+    end
+    vim.cmd('botright new')
+    vim.fn.jobstart(result.argv, { cwd = result.cwd, term = true })
+  end, ctx.bufnr)
+end
 -- <<< setup
 
 local failed = 0
@@ -147,6 +161,27 @@ buf, client = open('apps/erpnext/erpnext/selling/doctype/sales_order/test_sales_
 local lenses = client:request_sync('textDocument/codeLens', { textDocument = vim.lsp.util.make_text_document_params(buf) }, 10000, buf)
 local lens_count = lenses and lenses.result and #lenses.result or 0
 check('test lenses', lens_count > 0, lens_count .. ' lenses')
+
+-- What a click sends. Not run: it would execute erpnext's tests against a site.
+-- A bench with several sites asks which one; headless, nobody can answer.
+vim.lsp.handlers['window/showMessageRequest'] = function(_, params)
+  return params.actions and params.actions[1] or vim.NIL
+end
+local function first_lens()
+  local response = client:request_sync('textDocument/codeLens', { textDocument = vim.lsp.util.make_text_document_params(buf) }, 10000, buf)
+  return response and response.result and response.result[1]
+end
+local lens = first_lens()
+-- On a bench with several sites the first click picks one; the lenses that
+-- come back after it carry the command that runs.
+if lens and lens.command and lens.command.command == 'frappe-lsp.selectSite' then
+  client:request_sync('workspace/executeCommand', lens.command, 10000, buf)
+  lens = first_lens()
+end
+local run = lens and lens.command and client:request_sync('workspace/executeCommand', lens.command, 10000, buf)
+local argv = run and run.result and run.result.argv or {}
+check('a lens resolves to a bench command', vim.tbl_contains(argv, 'run-tests'), table.concat(argv, ' '))
+check('the runTest handler is registered', type(vim.lsp.commands['frappe-lsp.runTest']) == 'function')
 
 check('the server is still running', not client:is_stopped())
 print(failed == 0 and 'neovim: all checks passed' or ('neovim: ' .. failed .. ' failed'))
