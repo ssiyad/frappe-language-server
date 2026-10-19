@@ -16,27 +16,27 @@ surface (`010`) and test running (`018`) are all done and their files deleted.
 
 | # | Task | Depends on |
 | --- | --- | --- |
-| 014 | [Live bridge](014-live-bridge.md) | — |
-| 015 | [Jinja surface](015-jinja-surface.md) | 014 |
+| 015 | [Jinja surface](015-jinja-surface.md) | — |
 | 017 | [Type checker integration](017-type-integration.md) | — · experimental |
 
 ## Phase 5 — Distribution and upstream
 
 | # | Task | Depends on |
 | --- | --- | --- |
-| 016 | [Distribution](016-distribution.md) | 014 |
+| 016 | [Distribution](016-distribution.md) | — |
 | 019 | [Upstream into Frappe](019-upstream.md) | 016 |
 
 ## Critical path
 
-Phase 4 is next, and `014` is its only entry point: `015` depends on it and
-`016` on both. `017` is independent and experimental.
+The live bridge (`014`) is done and its file deleted: Custom Field, Property
+Setter, UI-created DocTypes and the site's scripts all reach the index. `015`
+is next in phase 4, `016` can start any time, and `017` is independent and
+experimental.
 
 What phase 3 left behind:
 
-- `012`'s one open item — `Degraded` confidence — moved to
-  [014](014-live-bridge.md), which is the task that gives that state a way to
-  occur.
+- `012`'s one open item — `Degraded` confidence — landed with `014`, the task
+  that gives that state a way to occur.
 - `018` shipped the client-run path; the Neovim glue for
   `frappe-lsp.runTest` is documented by [016](016-distribution.md).
 

@@ -2828,9 +2828,13 @@ impl FakeSite {
         Self::with_doctype(custom_fields, None)
     }
 
-    /// Also serve one DocType created through the UI: a row in the custom
-    /// DocType list, and its meta.
     fn with_doctype(custom_fields: &str, meta: Option<&str>) -> Self {
+        Self::serving(custom_fields, meta, "[]")
+    }
+
+    /// Also serve one DocType created through the UI — a row in the custom
+    /// DocType list, and its meta — and `Client Script` rows.
+    fn serving(custom_fields: &str, meta: Option<&str>, client_scripts: &str) -> Self {
         use std::io::{BufRead, Write};
         use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -2840,6 +2844,7 @@ impl FakeSite {
 
         let fields = custom_fields.to_string();
         let meta = meta.map(str::to_string);
+        let client_scripts = client_scripts.to_string();
         let flag = std::sync::Arc::clone(&stop);
         std::thread::spawn(move || {
             for stream in listener.incoming() {
@@ -2865,6 +2870,9 @@ impl FakeSite {
                 let first = request.lines().next().unwrap_or_default();
                 let body = match &meta {
                     _ if first.contains("Custom%20Field") => format!(r#"{{"data":{fields}}}"#),
+                    _ if first.contains("Client%20Script") => {
+                        format!(r#"{{"data":{client_scripts}}}"#)
+                    }
                     Some(meta) if first.contains("/meta") => format!(r#"{{"data":{meta}}}"#),
                     Some(meta) if first.contains("/document/DocType") => {
                         let name =
@@ -3020,6 +3028,80 @@ fn a_doctype_created_in_the_ui_resolves_completes_and_hovers() {
     session.request(500, "shutdown", json!(null));
     session.notify("exit", json!(null));
     session.finish();
+}
+
+#[test]
+fn a_client_script_on_the_site_is_a_definition_target() {
+    let site = FakeSite::serving(
+        "[]",
+        None,
+        r#"[{"name":"Member banner","dt":"Library Member","view":"Form","enabled":1,
+             "script":"frappe.ui.form.on(\"Library Member\", { refresh(frm) {} });"}]"#,
+    );
+    let bench = fixture_bench();
+    let mut session = Session::start_with(&[("FRAPPE_LSP_TOKEN", "key:secret")]);
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    params.as_object_mut().expect("object").insert(
+        "initializationOptions".to_string(),
+        json!({"index": {"cache": false}, "bridge": {"enabled": true, "site": site.address}}),
+    );
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    let status = bridged(&mut session, 10, "full");
+    assert_eq!(status["confidence"], "full", "{status}");
+
+    let path = bench.join("apps/library/library/probe.py");
+    let uri = format!("file://{}", path.display());
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {"uri": uri, "languageId": "python", "version": 1,
+               "text": "import frappe\nfrappe.get_doc(\"Library Member\", x)\n"}}),
+    );
+    let at = json!({"textDocument": {"uri": uri}, "position": {"line": 1, "character": 18}});
+
+    let definition = session.request(300, "textDocument/definition", at.clone());
+    let targets: Vec<String> = definition["result"]
+        .as_array()
+        .map(|links| {
+            links
+                .iter()
+                .filter_map(|link| link["targetUri"].as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    let script = targets
+        .iter()
+        .find(|target| target.ends_with("/client/Member_banner.js"))
+        .unwrap_or_else(|| panic!("no script in {targets:?}"));
+
+    // A real file, read-only, holding the site's source.
+    let file = std::path::PathBuf::from(script.trim_start_matches("file://"));
+    let written = std::fs::read_to_string(&file).expect("written");
+    assert!(written.contains("refresh(frm)"), "{written}");
+    assert!(
+        std::fs::metadata(&file)
+            .expect("exists")
+            .permissions()
+            .readonly()
+    );
+
+    let hover = session.request(301, "textDocument/hover", at);
+    let rendered = hover["result"]["contents"]["value"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(rendered.contains("1 Client/Server Script"), "{rendered}");
+
+    session.request(500, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+    if let Some(site_directory) = file.parent().and_then(std::path::Path::parent) {
+        let mut permissions = std::fs::metadata(&file).expect("exists").permissions();
+        #[allow(clippy::permissions_set_readonly_false)]
+        permissions.set_readonly(false);
+        let _ = std::fs::set_permissions(&file, permissions);
+        let _ = std::fs::remove_dir_all(site_directory);
+    }
 }
 
 #[test]

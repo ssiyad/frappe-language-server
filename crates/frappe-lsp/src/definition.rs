@@ -56,14 +56,21 @@ pub fn targets(index: &Index, found: &Found) -> Vec<Target> {
 
 /// Controller class, DocType JSON, form script — spec 21's order.
 fn doctype_targets(index: &Index, name: &str) -> Vec<Target> {
-    // A DocType created through the UI has no file, and pointing at a path
-    // that does not exist opens an empty buffer.
-    let Some(doctype) = index
-        .doctype(name)
-        .filter(|doctype| !doctype.is_site_only())
-    else {
+    let Some(doctype) = index.doctype(name) else {
         return Vec::new();
     };
+    // The site's Client and Server Scripts for it, written to read-only files
+    // ([05](../../../docs/specs/05-live-bridge.md)). They come last: the
+    // controller is still where the logic usually is.
+    let scripts: Vec<Target> = index
+        .site_scripts_for(name)
+        .map(|script| Target::file(script.path.clone()))
+        .collect();
+    // A DocType created through the UI has no file, and pointing at a path
+    // that does not exist opens an empty buffer. Its scripts are all there is.
+    if doctype.is_site_only() {
+        return scripts;
+    }
     let mut targets = Vec::new();
 
     // The DocType's own controller, not whatever `override_doctype_class`
@@ -91,6 +98,7 @@ fn doctype_targets(index: &Index, name: &str) -> Vec<Target> {
             targets.push(Target::file(bound));
         }
     }
+    targets.extend(scripts);
 
     targets
 }

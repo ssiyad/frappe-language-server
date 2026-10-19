@@ -185,6 +185,8 @@ struct LayerThree {
     /// DocTypes created through the UI, from the site's meta. They exist in no
     /// file, and an installed app's DocType of the same name wins over them.
     doctypes: Vec<Raw>,
+    /// Client and Server Scripts, by the file each was written to.
+    scripts: Vec<crate::scripts::SiteScript>,
 }
 
 impl LayerThree {
@@ -1516,6 +1518,7 @@ impl Index {
                 .iter()
                 .filter_map(|meta| doctype::parse(meta).ok())
                 .collect(),
+            scripts: Vec::new(),
         };
 
         // Whatever the previous sync touched has to be rebuilt too, or a field
@@ -1557,6 +1560,33 @@ impl Index {
         };
         self.reassemble(&affected);
         affected
+    }
+
+    /// Record where a sync wrote the site's scripts. Without a site layer
+    /// there is nothing for them to belong to, and they are dropped.
+    pub fn set_site_scripts(&mut self, scripts: Vec<crate::scripts::SiteScript>) {
+        if let Some(live) = &mut self.site {
+            live.scripts = scripts;
+            self.revision = next_revision();
+        }
+    }
+
+    /// Every script the live site holds.
+    #[must_use]
+    pub fn site_scripts(&self) -> &[crate::scripts::SiteScript] {
+        self.site
+            .as_ref()
+            .map_or(&[], |live| live.scripts.as_slice())
+    }
+
+    /// The scripts that run for one DocType.
+    pub fn site_scripts_for<'a>(
+        &'a self,
+        doctype: &'a str,
+    ) -> impl Iterator<Item = &'a crate::scripts::SiteScript> {
+        self.site_scripts()
+            .iter()
+            .filter(move |script| script.doctype.as_deref() == Some(doctype))
     }
 
     /// The site Layer 3 came from, for hover and the status report.

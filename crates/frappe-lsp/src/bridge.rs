@@ -74,25 +74,31 @@ pub async fn sync_once(index: &Arc<RwLock<Index>>, config: &Config) -> Outcome {
     let custom_fields = sync::as_fixture_body(&read.custom_fields, "Custom Field");
     let property_setters = sync::as_fixture_body(&read.property_setters, "Property Setter");
 
-    {
+    let doctypes: Vec<String> = read
+        .custom_doctypes
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    let bench = {
         let mut guard = index.write_or_recover();
-        let doctypes: Vec<String> = read
-            .custom_doctypes
-            .iter()
-            .map(ToString::to_string)
-            .collect();
         guard.apply_site(&site, &custom_fields, &property_setters, &doctypes);
-    }
+        let detection = &guard.workspace().detection;
+        detection
+            .bench_root()
+            .unwrap_or(&detection.root)
+            .to_path_buf()
+    };
 
-    if !read.custom_doctypes.is_empty() {
-        // Not merged yet: a UI-created DocType has no fields until `DocField`
-        // is read for it, and a DocType with no fields is worse than none —
-        // every field on it would resolve to nothing.
-        tracing::info!(
-            count = read.custom_doctypes.len(),
-            "custom DocTypes seen but not merged; their fields need a second read"
-        );
-    }
+    // Written outside the lock: the files are the slow part, and nothing in
+    // the index waits on them.
+    let directory = crate::scripts::directory(&bench, &config.index.cache_dir);
+    let scripts = crate::scripts::write(
+        &directory,
+        &site,
+        &read.client_scripts,
+        &read.server_scripts,
+    );
+    index.write_or_recover().set_site_scripts(scripts);
 
     Outcome::Synced { site, records }
 }

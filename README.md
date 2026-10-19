@@ -72,8 +72,9 @@ answer and the server log to a bug report.
 ## Status
 
 The index, navigation, completion, references, diagnostics and test lenses are
-done. Reading Custom Fields from a live site works and is off by default
-([05](docs/specs/05-live-bridge.md)). Jinja templates are not covered yet. The
+done. A live site can be read too, and the bridge is off by default: its Custom
+Fields, Property Setters, DocTypes created through the UI, and Client and
+Server Scripts ([05](docs/specs/05-live-bridge.md)). Jinja templates are not covered yet. The
 [roadmap](docs/roadmap.md) has the rest.
 
 ## Development

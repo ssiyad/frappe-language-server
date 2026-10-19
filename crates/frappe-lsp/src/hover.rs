@@ -109,6 +109,15 @@ fn doctype(index: &Index, doctype: &DocType) -> Option<String> {
         out.push_str(&format!("Title field: `{title}`\n"));
     }
 
+    let scripts = index.site_scripts_for(&doctype.name).count();
+    if scripts > 0 {
+        let site = index.site().unwrap_or("the site");
+        out.push_str(&format!(
+            "\n{scripts} Client/Server Script{} on `{site}`\n",
+            if scripts == 1 { "" } else { "s" }
+        ));
+    }
+
     if doctype.is_site_only() {
         out.push_str(&format!("\nCreated through the UI on `{}`", doctype.app));
     } else {

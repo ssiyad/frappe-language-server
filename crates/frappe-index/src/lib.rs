@@ -20,6 +20,7 @@ pub mod intern;
 pub mod occurrences;
 pub mod paths;
 pub mod resolve;
+pub mod scripts;
 pub mod site;
 pub mod span;
 pub mod walk;

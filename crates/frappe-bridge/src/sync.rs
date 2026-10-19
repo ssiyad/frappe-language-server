@@ -18,13 +18,21 @@ pub struct Sync {
     pub property_setters: Vec<Value>,
     /// The meta of each DocType created through the UI, which are on no disk.
     pub custom_doctypes: Vec<Value>,
+    /// `Client Script` rows, source included.
+    pub client_scripts: Vec<Value>,
+    /// `Server Script` rows, source included.
+    pub server_scripts: Vec<Value>,
 }
 
 impl Sync {
     /// How many records were read, for the log line and the status report.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.custom_fields.len() + self.property_setters.len() + self.custom_doctypes.len()
+        self.custom_fields.len()
+            + self.property_setters.len()
+            + self.custom_doctypes.len()
+            + self.client_scripts.len()
+            + self.server_scripts.len()
     }
 
     /// Whether the site had no customizations at all.
@@ -59,6 +67,19 @@ const PROPERTY_SETTER: [&str; 6] = [
     "property",
     "value",
     "property_type",
+];
+
+const CLIENT_SCRIPT: [&str; 5] = ["name", "dt", "view", "script", "enabled"];
+
+const SERVER_SCRIPT: [&str; 8] = [
+    "name",
+    "script_type",
+    "reference_doctype",
+    "doctype_event",
+    "api_method",
+    "event_frequency",
+    "script",
+    "disabled",
 ];
 
 const CUSTOM_DOCTYPE: [&str; 6] = [
@@ -100,7 +121,24 @@ pub async fn read(client: &Client) -> Result<Sync, Error> {
         custom_fields: rows(custom_fields),
         property_setters: rows(property_setters),
         custom_doctypes: rows(metas),
+        client_scripts: optional(client.list("Client Script", &CLIENT_SCRIPT, None).await)?,
+        server_scripts: optional(client.list("Server Script", &SERVER_SCRIPT, None).await)?,
     })
+}
+
+/// Scripts are something to navigate to, not part of the schema, and many
+/// API keys may not read `Server Script` at all. A refusal there leaves the
+/// scripts out rather than the whole site: the fields are still the whole
+/// picture, which is what `Degraded` is about.
+fn optional(read: Result<Vec<Value>, Error>) -> Result<Vec<Value>, Error> {
+    match read {
+        Ok(found) => Ok(rows(found)),
+        Err(Error::Rejected { status, message }) => {
+            tracing::info!(status, %message, "scripts not readable with this key; skipped");
+            Ok(Vec::new())
+        }
+        Err(error) => Err(error),
+    }
 }
 
 /// Keep only object rows. A list call cannot return anything else, but the

@@ -17,6 +17,7 @@ pub mod hooks;
 pub mod hover;
 pub mod locations;
 pub mod logging;
+pub mod scripts;
 pub mod server;
 pub mod symbols;
 pub mod testing;

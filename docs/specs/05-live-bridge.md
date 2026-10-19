@@ -105,10 +105,28 @@ resolves to.
 
 ## In-DB scripts
 
-Client and Server Scripts have no file on disk. Phase 2+ exposes them as
-read-only virtual documents under a `frappe-lsp://script/<doctype>/<name>` URI so
-that navigation from a `doc_events`-equivalent lands somewhere. Editing them
-through the LSP is out of scope — that would mean writing to the site.
+Client and Server Scripts have no file on disk. Each sync writes them to
+read-only files under the bench's cache directory,
+`<cache_dir>/scripts/<site>/client/<name>.js` and `…/server/<name>.py`, and
+removes the previous sync's. Definition on a DocType lists the scripts that
+run for it after its controller and form scripts, and hover counts them. A
+Client Script opened from there gets completion and hover like any form script,
+because its `frappe.ui.form.on` binds `frm` the usual way. Editing them through
+the LSP is out of scope — that would mean writing to the site — and the files
+are read-only so an edit fails where it is made rather than vanishing at the
+next sync.
+
+A refusal to read either script DocType leaves the scripts out, not the site:
+many API keys cannot read `Server Script`, and the fields are still the whole
+picture.
+
+### Rejected: virtual documents
+
+The first design served them as `frappe-lsp://script/<doctype>/<name>`
+documents. No stock client opens a custom URI scheme: Neovim needs a
+`BufReadCmd` handler, VS Code a content provider in an extension, and
+[00](00-overview.md) rules extensions out. A file under the bench opens
+everywhere.
 
 ## Merge and eviction
 

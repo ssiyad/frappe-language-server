@@ -96,8 +96,8 @@ async fn a_sync_reads_the_record_types_and_each_ui_doctypes_meta() {
     let requests = log.lock().expect("lock").requests.clone();
     assert_eq!(
         requests.len(),
-        4,
-        "one list call each, then the UI DocType's meta"
+        6,
+        "one list call each, the UI DocType's meta, then the two script lists"
     );
 
     // Read-only, and authenticated, and asking for the right things. Header
@@ -125,6 +125,8 @@ async fn a_sync_reads_the_record_types_and_each_ui_doctypes_meta() {
         read.custom_doctypes[0]["fields"][0]["fieldname"],
         "tier_name"
     );
+    assert!(requests[4].contains("Client%20Script"), "{}", requests[4]);
+    assert!(requests[5].contains("Server%20Script"), "{}", requests[5]);
 }
 
 /// A site that pages the way `/api/v2/document/<doctype>` does: `start` and
@@ -243,4 +245,51 @@ async fn a_refusal_is_an_error_and_not_an_empty_sync() {
         matches!(error, frappe_bridge::Error::Rejected { status: 403, .. }),
         "{error:?}"
     );
+}
+
+#[tokio::test]
+async fn a_key_that_cannot_read_scripts_still_syncs_the_schema() {
+    // Many API keys may not read `Server Script`. The scripts are something to
+    // navigate to; the fields are the picture, and they must still arrive.
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let address = listener.local_addr().expect("addr");
+    tokio::spawn(async move {
+        while let Ok((stream, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let mut reader = BufReader::new(stream);
+                let mut first = String::new();
+                let mut line = String::new();
+                while reader.read_line(&mut line).await.unwrap_or(0) > 0 {
+                    if line == "\r\n" {
+                        break;
+                    }
+                    if first.is_empty() {
+                        first = line.clone();
+                    }
+                    line.clear();
+                }
+                let (status, body) = if first.contains("Script") {
+                    ("403 Forbidden", r#"{"exception":"frappe.PermissionError"}"#)
+                } else if first.contains("Custom%20Field") {
+                    (
+                        "200 OK",
+                        r#"{"data":[{"name":"Item-x","dt":"Item","fieldname":"x"}]}"#,
+                    )
+                } else {
+                    ("200 OK", r#"{"data":[]}"#)
+                };
+                let response = format!(
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                let _ = reader.into_inner().write_all(response.as_bytes()).await;
+            });
+        }
+    });
+
+    let client = Client::new(credentials(&format!("http://{address}"))).expect("client");
+    let read = sync::read(&client).await.expect("the schema arrives");
+    assert_eq!(read.custom_fields.len(), 1);
+    assert!(read.client_scripts.is_empty());
+    assert!(read.server_scripts.is_empty());
 }
