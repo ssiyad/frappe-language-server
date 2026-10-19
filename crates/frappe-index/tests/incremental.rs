@@ -474,3 +474,19 @@ fn a_re_index_touches_only_the_doctypes_the_file_names() {
         ["Library Membership", "Library Membership 3"]
     );
 }
+
+#[test]
+fn the_revision_moves_only_when_the_index_can_have_changed() {
+    // A long computation on a snapshot installs its result only if the
+    // revision held. A path in no app must not move it, or a watcher event
+    // for some other directory throws away seconds of work.
+    let sandbox = Sandbox::new("revision");
+    let mut index = Index::build(&sandbox.root);
+    let before = index.revision();
+
+    index.reindex(Path::new("/nonexistent/app/hooks.py"));
+    assert_eq!(index.revision(), before, "a path outside the bench");
+
+    index.reindex(&sandbox.path("apps/library/library/api.py"));
+    assert_ne!(index.revision(), before, "a file in an app");
+}

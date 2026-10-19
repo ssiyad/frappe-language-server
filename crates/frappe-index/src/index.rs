@@ -1931,10 +1931,10 @@ impl Index {
     /// ([32](../../../docs/specs/32-testing.md) asserts it). A file that no
     /// longer exists is removed from every layer it contributed to.
     pub fn reindex(&mut self, path: &Path) -> Reindexed {
-        self.revision = next_revision();
         let mut affected: BTreeSet<String> = BTreeSet::new();
         let mut known = false;
 
+        let problems = self.problems.len();
         self.problems.retain(|problem| problem.path != path);
 
         let package = self
@@ -1950,12 +1950,18 @@ impl Index {
                 )
             });
 
+        // A path in no app changes nothing, and moving the revision for it would
+        // throw away an occurrence scan in flight for no reason.
         let Some((package, order, app)) = package else {
+            if self.problems.len() != problems {
+                self.revision = next_revision();
+            }
             return Reindexed {
                 doctypes: Vec::new(),
                 known: false,
             };
         };
+        self.revision = next_revision();
 
         if path.extension().is_some_and(|extension| extension == "py") {
             known = true;
