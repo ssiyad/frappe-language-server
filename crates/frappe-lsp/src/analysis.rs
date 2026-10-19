@@ -67,6 +67,129 @@ pub fn at(index: &Index, buffer: &Buffer, offset: usize, context: Context<'_>) -
     })
 }
 
+/// Like [`at`], for a line the user is still typing.
+///
+/// `frappe.get_doc("Sales Inv` has no closing quote or paren yet, so the tree
+/// holds an `ERROR` where the call should be and nothing matches — and that is
+/// exactly when completion is asked. This retries on copies of the buffer closed
+/// at the cursor, and only when the line before the cursor shows an unclosed
+/// string or a trailing `.name`, so an ordinary position costs nothing extra.
+///
+/// The slot is clipped to the cursor: what was inserted to close the line is
+/// not text the user typed, and must reach neither the filter nor the edit.
+#[must_use]
+pub fn at_while_typing(
+    index: &Index,
+    buffer: &Buffer,
+    offset: usize,
+    context: Context<'_>,
+) -> Option<Found> {
+    let text = buffer.text();
+    let offset = offset.min(text.len());
+    let line = &text[text[..offset].rfind('\n').map_or(0, |newline| newline + 1)..offset];
+
+    // The line's own closers first: in the middle of a file, what follows the
+    // cursor closes the enclosing blocks. At the end of one, nothing does, and
+    // every bracket still open before the cursor is closed too.
+    let enclosing = still_open(&text[..offset], buffer.language());
+    let attempts = closers(line)
+        .into_iter()
+        .flat_map(|closer| [closer.to_string(), format!("{closer}{enclosing}")])
+        .filter(|attempt| !attempt.is_empty());
+    for closer in attempts {
+        let mut repaired = text.clone();
+        repaired.insert_str(offset, &closer);
+        let Ok(copy) = Buffer::open(buffer.language(), &repaired, 0, buffer.encoding()) else {
+            return None;
+        };
+        let Some(mut found) = at(index, &copy, offset, context) else {
+            continue;
+        };
+        if !completable(found.slot.role) || found.slot.span.start > offset {
+            continue;
+        }
+        let start = interior(found.slot.span, &copy).start.min(offset);
+        found.slot.span = Span::new(found.slot.span.start, offset);
+        found.slot.text = Some(text[start..offset].to_string());
+        return Some(found);
+    }
+    None
+}
+
+/// What might close the line, most likely first. Empty when nothing on the line
+/// suggests the user is mid-token.
+fn closers(line: &str) -> Vec<&'static str> {
+    let unclosed = |quote: char| {
+        let mut open = false;
+        let mut escaped = false;
+        for c in line.chars() {
+            if escaped {
+                escaped = false;
+            } else if c == '\\' {
+                escaped = true;
+            } else if c == quote {
+                open = !open;
+            }
+        }
+        open
+    };
+    if unclosed('"') {
+        return vec!["\"", "\")", "\"])", "\"})", "\": 1})", "\"]", "\"}"];
+    }
+    if unclosed('\'') {
+        return vec!["'", "')", "'])", "'})", "': 1})", "']", "'}"];
+    }
+    // `frm.doc.` and `doc.sta`: an attribute with nothing, or half a name,
+    // after the dot. The placeholder is clipped away again by the caller.
+    let tail = line.trim_end_matches(|c: char| c.is_alphanumeric() || c == '_');
+    if tail.ends_with('.') {
+        return vec!["x", "x)", "x;"];
+    }
+    Vec::new()
+}
+
+/// The closers for every bracket open before `prefix` ends, innermost first.
+///
+/// Strings and comments are skipped so a `(` inside one opens nothing. The
+/// string the cursor sits in, if any, is the caller's to close.
+fn still_open(prefix: &str, language: Language) -> String {
+    let mut stack = Vec::new();
+    let mut quote: Option<char> = None;
+    let mut escaped = false;
+    let mut chars = prefix.chars().peekable();
+    while let Some(c) = chars.next() {
+        if let Some(open) = quote {
+            if escaped {
+                escaped = false;
+            } else if c == '\\' {
+                escaped = true;
+            } else if c == open || (c == '\n' && open != '`') {
+                quote = None;
+            }
+            continue;
+        }
+        let comment = match language {
+            Language::Python => c == '#',
+            _ => c == '/' && chars.peek() == Some(&'/'),
+        };
+        if comment {
+            while chars.next_if(|next| *next != '\n').is_some() {}
+            continue;
+        }
+        match c {
+            '"' | '\'' | '`' => quote = Some(c),
+            '(' => stack.push(')'),
+            '[' => stack.push(']'),
+            '{' => stack.push('}'),
+            ')' | ']' | '}' => {
+                stack.pop();
+            }
+            _ => {}
+        }
+    }
+    stack.into_iter().rev().collect()
+}
+
 /// The context a buffer needs to bind `self` — the DocType whose controller
 /// this file is ([06](../../../docs/specs/06-analysis-pipeline.md)).
 #[must_use]

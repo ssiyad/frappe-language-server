@@ -113,6 +113,12 @@ impl Buffer {
         })
     }
 
+    /// The position encoding the client negotiated for this buffer.
+    #[must_use]
+    pub fn encoding(&self) -> PositionEncoding {
+        self.encoding
+    }
+
     /// The grammar this buffer was opened with.
     #[must_use]
     pub fn language(&self) -> Language {

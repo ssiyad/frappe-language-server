@@ -275,8 +275,11 @@ fn ranges_are_in_the_encoding_the_client_negotiated() {
     // early.
     let line = "x = \"é🙂\"; frappe.get_doc(\"Libary Member\", name)";
     let source = format!("import frappe\n{line}\n");
-    let (mut session, uri) =
-        session_on(&fixture_bench(), "apps/library/library/encoding_probe.py", &source);
+    let (mut session, uri) = session_on(
+        &fixture_bench(),
+        "apps/library/library/encoding_probe.py",
+        &source,
+    );
 
     let report = session.request(
         20,
@@ -798,6 +801,84 @@ fn completion_offers_doctypes_and_replaces_only_the_string_interior() {
     assert_eq!(edit["newText"], labels[0]);
 
     session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn completion_works_on_a_line_still_being_typed() {
+    // The states an editor asks about on every keystroke: nothing is closed
+    // yet, so the tree holds an ERROR where the call should be.
+    let cases = [
+        (
+            "python",
+            "apps/library/library/typing_probe.py",
+            "import frappe\nx = frappe.get_doc(\"Library Mem|",
+            "Library Member",
+        ),
+        (
+            "python",
+            "apps/library/library/typing_probe.py",
+            "import frappe\nx = frappe.db.get_value(\"Library Member\", name, \"memb|",
+            "member_name",
+        ),
+        (
+            "python",
+            "apps/library/library/typing_probe.py",
+            "import frappe\nx = frappe.get_all(\"Library Member\", filters={'memb|",
+            "member_name",
+        ),
+        (
+            "javascript",
+            "apps/library/library/public/js/typing_probe.js",
+            "frappe.ui.form.on(\"Library Member\", {\n\trefresh(frm) {\n\t\tfrm.set_value(\"memb|",
+            "member_name",
+        ),
+        (
+            "javascript",
+            "apps/library/library/public/js/typing_probe.js",
+            "frappe.ui.form.on(\"Library Member\", {\n\trefresh(frm) {\n\t\tfrm.doc.|",
+            "member_name",
+        ),
+    ];
+
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    for (number, (language, relative, source, expected)) in cases.into_iter().enumerate() {
+        let (text, position) = cursor(source);
+        let uri = format!("file://{}", bench.join(relative).display());
+        session.notify(
+            "textDocument/didOpen",
+            json!({"textDocument": {"uri": uri, "languageId": language, "version": 1, "text": text}}),
+        );
+        let id = 3000 + i64::try_from(number).expect("few cases");
+        let response = session.request(
+            id,
+            "textDocument/completion",
+            json!({"textDocument": {"uri": uri}, "position": position}),
+        );
+        let items = response["result"]["items"]
+            .as_array()
+            .unwrap_or_else(|| panic!("nothing for {source:?}: {response}"));
+        let offered = items.iter().find(|item| item["label"] == expected);
+        let offered = offered.unwrap_or_else(|| panic!("no {expected} for {source:?}"));
+
+        // The edit ends at the cursor: what closes the line was never typed.
+        let edit = &offered["textEdit"]["range"];
+        assert_eq!(edit["end"], position, "{source:?}");
+        session.notify(
+            "textDocument/didClose",
+            json!({"textDocument": {"uri": uri}}),
+        );
+    }
+
+    session.request(4000, "shutdown", json!(null));
     session.notify("exit", json!(null));
     session.finish();
 }

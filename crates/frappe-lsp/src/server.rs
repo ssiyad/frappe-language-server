@@ -126,6 +126,32 @@ impl Backend {
         position: Position,
         f: impl FnOnce(&PositionContext<'_>) -> Option<T>,
     ) -> Option<T> {
+        self.locate(uri, position, analysis::at, f)
+    }
+
+    /// [`Self::with_position`] for a line still being typed, where the call
+    /// around the cursor is not closed yet ([`analysis::at_while_typing`]).
+    fn with_typing_position<T>(
+        &self,
+        uri: &Uri,
+        position: Position,
+        f: impl FnOnce(&PositionContext<'_>) -> Option<T>,
+    ) -> Option<T> {
+        self.locate(uri, position, analysis::at_while_typing, f)
+    }
+
+    fn locate<T>(
+        &self,
+        uri: &Uri,
+        position: Position,
+        find: impl FnOnce(
+            &Index,
+            &frappe_syntax::Buffer,
+            usize,
+            frappe_syntax::Context<'_>,
+        ) -> Option<Found>,
+        f: impl FnOnce(&PositionContext<'_>) -> Option<T>,
+    ) -> Option<T> {
         let index = self.index.read_or_recover();
         let state = self.state.read_or_recover();
 
@@ -140,7 +166,7 @@ impl Backend {
         ));
         let path = uri.to_file_path().map(|path| path.into_owned());
         let context = analysis::context_for(&index, path.as_deref());
-        let found = analysis::at(&index, buffer, offset, context)?;
+        let found = find(&index, buffer, offset, context)?;
 
         f(&PositionContext {
             index: &index,
@@ -775,11 +801,13 @@ impl LanguageServer for Backend {
             return Ok(Some(response));
         }
 
-        Ok(
-            self.with_position(&position.text_document.uri, position.position, |ctx| {
-                completion::complete(ctx.index, ctx.buffer, &ctx.found, ctx.support, max_items)
-            }),
-        )
+        let complete = |ctx: &PositionContext<'_>| {
+            completion::complete(ctx.index, ctx.buffer, &ctx.found, ctx.support, max_items)
+        };
+        let uri = &position.text_document.uri;
+        Ok(self
+            .with_position(uri, position.position, complete)
+            .or_else(|| self.with_typing_position(uri, position.position, complete)))
     }
 
     async fn completion_resolve(&self, item: CompletionItem) -> Result<CompletionItem> {
@@ -923,16 +951,37 @@ impl LanguageServer for Backend {
     async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
         let position = params.text_document_position;
         let include = params.context.include_declaration;
-        Ok(
-            self.with_position(&position.text_document.uri, position.position, |ctx| {
-                symbols::references(
-                    ctx.index,
-                    &ctx.found,
-                    include,
-                    ctx.support.position_encoding,
-                )
-            }),
-        )
+
+        // The table lands seconds after the index publishes. An answer from
+        // the empty one says "nothing uses this", which is wrong rather than
+        // slow, so a request that names something waits for it.
+        let deadline = std::time::Instant::now() + Duration::from_secs(30);
+        loop {
+            let answer =
+                self.with_position(&position.text_document.uri, position.position, |ctx| {
+                    let found = symbols::references(
+                        ctx.index,
+                        &ctx.found,
+                        include,
+                        ctx.support.position_encoding,
+                    );
+                    Some((found, ctx.index.occurrences().scanned))
+                });
+            match answer {
+                None | Some((None, _)) => return Ok(None),
+                Some((found, true)) => return Ok(found),
+                Some((_, false)) if std::time::Instant::now() >= deadline => {
+                    return Err(Error {
+                        code: ErrorCode::ServerError(-32803),
+                        message:
+                            "frappe-lsp: references are still being indexed; try again shortly"
+                                .into(),
+                        data: None,
+                    });
+                }
+                Some((_, false)) => tokio::time::sleep(Duration::from_millis(200)).await,
+            }
+        }
     }
 
     /// `textDocument/documentSymbol` — the outline of a DocType JSON,
