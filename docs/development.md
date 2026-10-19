@@ -37,6 +37,7 @@ next person trusts them.
 | Purpose | Crate |
 | --- | --- |
 | LSP transport | `tower-lsp-server` |
+| Panic boundary | `tower`, `futures` — already in the tree through `tower-lsp-server` |
 | Async runtime | `tokio` |
 | Parsing | `tree-sitter` + language grammars |
 | Buffers | `ropey` |
@@ -112,8 +113,13 @@ Levels and what belongs in each: [32](specs/32-testing.md).
 - Comments explain why, never what. Spec references over restated prose:
   `// Layer 3 evicts without a rebuild — see specs/04`.
 - `unwrap`/`expect` only where a panic is genuinely unreachable, with the reason
-  in the message. A panic in an LSP kills the session and the user loses the
-  server without knowing why.
+  in the message. A panic in a request is caught at the service boundary and
+  answered with an error ([02](specs/02-architecture.md)), but the user still
+  loses that answer, and a panic on a background task loses the work.
+- `cargo xtask stress` drives the release binary like an editor over a real
+  bench: every file opened, asked about and typed into. It fails on a crash, a
+  hang, an error response or a panic in the log. Run it after touching request
+  handling.
 - Errors carry the file path that caused them.
 - Public items in `frappe-index` and `frappe-syntax` carry doc comments; the
   binary crate does not need them.
