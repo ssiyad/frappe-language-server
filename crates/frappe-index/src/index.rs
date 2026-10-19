@@ -173,6 +173,17 @@ struct LayerTwo {
     fixture: Fixture,
 }
 
+/// What the live site contributed — Layer 3 of
+/// [04](../../../docs/specs/04-metadata-index.md).
+///
+/// One value rather than a map keyed by path, because it has no paths: it is
+/// the whole of one site's customizations, and it is dropped whole.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct LayerThree {
+    site: Arc<str>,
+    fixture: Fixture,
+}
+
 /// One Layer-1 file contributing a DocType name.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
 struct Source {
@@ -190,6 +201,7 @@ pub struct Index {
     doctypes: BTreeMap<String, DocType>,
     sources: BTreeMap<String, Vec<Source>>,
     fixtures: BTreeMap<PathBuf, LayerTwo>,
+    site: Option<LayerThree>,
     modules: BTreeMap<PathBuf, python::Module>,
     hook_reads: BTreeSet<String>,
     handlers: BTreeSet<String>,
@@ -241,6 +253,7 @@ impl Index {
             doctypes: BTreeMap::new(),
             sources: BTreeMap::new(),
             fixtures: BTreeMap::new(),
+            site: None,
             modules: BTreeMap::new(),
             packages: Vec::new(),
             whitelisted: BTreeMap::new(),
@@ -292,6 +305,7 @@ impl Index {
             doctypes: BTreeMap::new(),
             sources: BTreeMap::new(),
             fixtures: BTreeMap::new(),
+            site: None,
             modules: BTreeMap::new(),
             packages,
             whitelisted: BTreeMap::new(),
@@ -715,6 +729,47 @@ impl Index {
             }
 
             for record in &fixture.property_setters {
+                if record.doctype != doctype.name {
+                    continue;
+                }
+                apply_property(&mut self.interner, doctype, record);
+            }
+        }
+
+        // Layer 3 last, so the live site wins: a Custom Field added through
+        // Customize Form is the current truth, and a fixtures file holding an
+        // older copy of it is a snapshot
+        // ([04](../../../docs/specs/04-metadata-index.md)).
+        if let Some(live) = &self.site {
+            let app = Arc::clone(&live.site);
+            for record in &live.fixture.custom_fields {
+                if record.doctype != doctype.name {
+                    continue;
+                }
+                let fieldname = self.interner.intern(&record.field.fieldname);
+                if doctype.field(fieldname).is_some() {
+                    // Already present from a fixtures file that exported the
+                    // same customization. Not a collision — the same field.
+                    continue;
+                }
+                let field = record.field.clone().into_field(
+                    &mut self.interner,
+                    Provenance {
+                        layer: Layer::Site,
+                        app: Arc::clone(&app),
+                        // No file. This is what eviction keys on.
+                        source: None,
+                    },
+                );
+                let after = record
+                    .insert_after
+                    .as_deref()
+                    .and_then(|name| self.interner.get(name));
+                insert_after(&mut doctype.fields, field, after);
+                insert_order(&mut doctype.field_order, fieldname, after);
+            }
+
+            for record in &live.fixture.property_setters {
                 if record.doctype != doctype.name {
                     continue;
                 }
@@ -1340,6 +1395,100 @@ impl Index {
     #[must_use]
     pub fn hooks(&self, app: &str) -> Option<&crate::hooks::Hooks> {
         self.hooks.get(app)
+    }
+
+    /// Take a live site's customizations as Layer 3.
+    ///
+    /// The records arrive in the shape a fixtures file holds them, so they go
+    /// through Layer 2's reader rather than a second one that would eventually
+    /// disagree with it about what a `depends_on` is
+    /// ([05](../../../docs/specs/05-live-bridge.md)).
+    ///
+    /// Returns the DocTypes the site touched.
+    pub fn apply_site(
+        &mut self,
+        site: &str,
+        custom_fields: &str,
+        property_setters: &str,
+    ) -> Vec<String> {
+        let mut fixture = crate::fixtures::read(custom_fields).unwrap_or_default();
+        let setters = crate::fixtures::read(property_setters).unwrap_or_default();
+        fixture.property_setters.extend(setters.property_setters);
+        fixture.custom_fields.extend(setters.custom_fields);
+
+        let touched: BTreeSet<String> = fixture
+            .doctypes()
+            .map(std::string::ToString::to_string)
+            .collect();
+
+        // Whatever the previous sync touched has to be rebuilt too, or a field
+        // deleted through Customize Form stays in the graph forever.
+        let previous: BTreeSet<String> = self
+            .site
+            .as_ref()
+            .map(|live| {
+                live.fixture
+                    .doctypes()
+                    .map(std::string::ToString::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        self.site = Some(LayerThree {
+            site: Arc::from(site),
+            fixture,
+        });
+        self.confidence = Confidence::Full;
+
+        let affected: Vec<String> = touched.union(&previous).cloned().collect();
+        self.reassemble(&affected);
+        affected
+    }
+
+    /// Drop Layer 3 without a rebuild.
+    ///
+    /// `reachable` says which of spec 05's two off states this is: a bridge
+    /// that was never configured leaves the user's own picture intact
+    /// (`Static`), and one that was configured and failed means the server
+    /// knows its picture is incomplete (`Degraded`), which suppresses the
+    /// absence checks of [23](../../../docs/specs/23-diagnostics.md).
+    pub fn evict_site(&mut self, reachable: bool) -> Vec<String> {
+        let affected: Vec<String> = self
+            .site
+            .take()
+            .map(|live| {
+                live.fixture
+                    .doctypes()
+                    .map(std::string::ToString::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        self.confidence = if reachable {
+            Confidence::Static
+        } else {
+            Confidence::Degraded
+        };
+        self.reassemble(&affected);
+        affected
+    }
+
+    /// The site Layer 3 came from, for hover and the status report.
+    #[must_use]
+    pub fn site(&self) -> Option<&str> {
+        self.site.as_ref().map(|live| live.site.as_ref())
+    }
+
+    /// Rebuild exactly these DocTypes from every layer.
+    fn reassemble(&mut self, names: &[String]) {
+        if names.is_empty() {
+            return;
+        }
+        let mut raws = BTreeMap::new();
+        for name in names {
+            self.assemble(name, &mut raws);
+        }
+        self.sort_reports();
     }
 
     /// The reverse occurrence table — [21](../../../docs/specs/21-navigation.md).

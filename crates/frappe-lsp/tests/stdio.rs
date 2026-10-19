@@ -19,14 +19,23 @@ struct Session {
 
 impl Session {
     fn start() -> Self {
-        let mut process = Command::new(env!("CARGO_BIN_EXE_frappe-lsp"))
+        Self::start_with(&[])
+    }
+
+    /// Start with extra environment, for the bridge's credentials — spec 05
+    /// takes them from the environment and nowhere else.
+    fn start_with(env: &[(&str, &str)]) -> Self {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_frappe-lsp"));
+        command
             .arg("--log-level")
             .arg("debug")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("server binary starts");
+            .stderr(Stdio::piped());
+        for (name, value) in env {
+            command.env(name, value);
+        }
+        let mut process = command.spawn().expect("server binary starts");
 
         let stdin = process.stdin.take().expect("piped stdin");
         let stdout = BufReader::new(process.stdout.take().expect("piped stdout"));
@@ -382,28 +391,6 @@ fn a_forced_reindex_starts_over() {
     session.finish();
 }
 
-#[test]
-fn the_bridge_says_it_is_off_rather_than_missing() {
-    let mut session = Session::start();
-    session.request(1, "initialize", initialize_params());
-    session.notify("initialized", json!({}));
-
-    let response = session.request(2, "frappe-lsp/refreshBridge", json!(null));
-    let error = response.get("error").expect("an error, not a result");
-    // -32601 is method_not_found, which would read as "this server is broken".
-    assert_ne!(error["code"], -32601, "{error}");
-    assert!(
-        error["message"]
-            .as_str()
-            .is_some_and(|message| message.contains("bridge")),
-        "{error}"
-    );
-
-    session.request(3, "shutdown", json!(null));
-    session.notify("exit", json!(null));
-    session.finish();
-}
-
 fn copy_tree(from: &std::path::Path, to: &std::path::Path) {
     std::fs::create_dir_all(to).expect("destination");
     for entry in std::fs::read_dir(from).expect("readable source").flatten() {
@@ -418,6 +405,9 @@ fn copy_tree(from: &std::path::Path, to: &std::path::Path) {
 }
 
 /// Poll `indexStatus` until the background build settles.
+///
+/// `static` is the confidence of a built index with no bridge, which is what
+/// every test here runs at unless it configures one ([05](../../../docs/specs/05-live-bridge.md)).
 fn settled(session: &mut Session, first_id: i64) -> Value {
     let mut status = Value::Null;
     for attempt in 0..100 {
@@ -430,6 +420,36 @@ fn settled(session: &mut Session, first_id: i64) -> Value {
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
     status
+}
+
+#[test]
+fn refreshing_a_bridge_that_is_off_says_why() {
+    // Spec 05: the bridge is off by default and that is not an error state.
+    // The method answers with what it is, so a client can say "not configured"
+    // rather than "the server is broken".
+    let mut session = Session::start();
+    session.request(1, "initialize", initialize_params());
+    session.notify("initialized", json!({}));
+
+    let response = session.request(2, "frappe-lsp/refreshBridge", json!(null));
+    assert!(response.get("error").is_none(), "{response}");
+    assert_eq!(response["result"]["state"], "disabled");
+    assert!(
+        response["result"]["why"]
+            .as_str()
+            .is_some_and(|why| why.contains("bridge.enabled")),
+        "{response}"
+    );
+
+    // And the confidence is the one that keeps absence checks on: nobody
+    // asked for a bridge, so nothing is missing.
+    let status = session.request(3, "frappe-lsp/indexStatus", json!(null));
+    assert_eq!(status["result"]["confidence"], "static");
+    assert!(status["result"]["site"].is_null(), "{status}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
 }
 
 #[test]
@@ -2598,4 +2618,252 @@ fn a_chosen_site_is_remembered_for_the_session() {
     session.notify("exit", json!(null));
     session.finish();
     std::fs::remove_dir_all(&root).expect("cleanup");
+}
+
+/// Poll `indexStatus` until the bridge has settled on `confidence`.
+///
+/// A deadline rather than an attempt count: these run alongside whatever else
+/// the machine is compiling, and a fixed number of 50 ms sleeps is a timeout
+/// that shortens under load — which is exactly when it should not.
+fn bridged(session: &mut Session, first_id: i64, confidence: &str) -> Value {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    let mut status = Value::Null;
+    let mut id = first_id;
+    while std::time::Instant::now() < deadline {
+        status = session.request(id, "frappe-lsp/indexStatus", json!(null))["result"].clone();
+        id += 1;
+        if status["confidence"] == confidence {
+            return status;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    status
+}
+
+/// A socket that answers the three list calls the bridge makes, then stops
+/// answering on demand — spec 05's `Degraded` needs a site that goes away.
+struct FakeSite {
+    address: String,
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl FakeSite {
+    fn start(custom_fields: &str) -> Self {
+        use std::io::{BufRead, Write};
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let address = format!("http://{}", listener.local_addr().expect("addr"));
+        let stop = std::sync::Arc::new(AtomicBool::new(false));
+
+        let fields = custom_fields.to_string();
+        let flag = std::sync::Arc::clone(&stop);
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                if flag.load(Ordering::SeqCst) {
+                    // Accept and drop: a site that is down refuses to talk,
+                    // which is not the same as one that answers "nothing".
+                    drop(stream);
+                    continue;
+                }
+                let mut reader = std::io::BufReader::new(stream.try_clone().expect("clone"));
+                let mut line = String::new();
+                let mut request = String::new();
+                while reader.read_line(&mut line).unwrap_or(0) > 0 {
+                    if line == "\r\n" {
+                        break;
+                    }
+                    request.push_str(&line);
+                    line.clear();
+                }
+                // Only the Custom Field call returns rows; the other two are
+                // empty, which is what a site with one customization looks like.
+                let body = if request.contains("Custom%20Field") {
+                    format!(r#"{{"data":{fields}}}"#)
+                } else {
+                    r#"{"data":[]}"#.to_string()
+                };
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+            }
+        });
+
+        Self { address, stop }
+    }
+
+    fn stop(&self) {
+        self.stop.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+#[test]
+fn a_customize_form_field_arrives_without_a_restart() {
+    // Spec 05's "done when", end to end: a field that exists only in the site
+    // database resolves, hover names the site it came from, and taking the
+    // site away suppresses the absence checks rather than flooding them.
+    let site = FakeSite::start(
+        r#"[{"name":"Library Member-shelf_preference","dt":"Library Member",
+             "fieldname":"shelf_preference","fieldtype":"Select",
+             "label":"Shelf Preference","options":"Quiet\nBusy"}]"#,
+    );
+    let bench = fixture_bench();
+
+    let mut session = Session::start_with(&[("FRAPPE_LSP_TOKEN", "key:secret")]);
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    params.as_object_mut().expect("object").insert(
+        "initializationOptions".to_string(),
+        json!({
+            "index": {"cache": false},
+            "bridge": {"enabled": true, "site": site.address},
+            "diagnostics": {"unknown-field": "warning"},
+        }),
+    );
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+
+    // Wait for the bridge, which runs after the index and the occurrence scan.
+    let status = bridged(&mut session, 10, "full");
+    assert_eq!(status["confidence"], "full", "{status}");
+    assert_eq!(status["site"], json!(site.address));
+
+    // The field is in the graph, and hover says where it came from.
+    let path = bench.join("apps/library/library/probe.py");
+    let uri = format!("file://{}", path.display());
+    let text = "import frappe\nfrappe.db.get_value(\"Library Member\", x, \"shelf_preference\")\n";
+    let found = diagnostics_for(&mut session, &uri, text);
+    let codes: Vec<&str> = found.iter().filter_map(|d| d["code"].as_str()).collect();
+    assert!(!codes.contains(&"frappe-lsp/unknown-field"), "{codes:?}");
+
+    let hover = session.request(
+        300,
+        "textDocument/hover",
+        json!({"textDocument": {"uri": uri}, "position": {"line": 1, "character": 47}}),
+    );
+    let rendered = hover["result"]["contents"]["value"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(rendered.contains("Custom Field"), "{rendered}");
+    assert!(rendered.contains(&site.address), "{rendered}");
+
+    // Now the site goes away. The field it supplied leaves with it, and the
+    // check that would have accused this line is suppressed instead.
+    site.stop();
+    let refreshed = session.request(400, "frappe-lsp/refreshBridge", json!(null));
+    assert_eq!(refreshed["result"]["state"], "degraded", "{refreshed}");
+
+    let status = session.request(401, "frappe-lsp/indexStatus", json!(null));
+    assert_eq!(status["result"]["confidence"], "degraded");
+
+    let found = diagnostics_for(&mut session, &uri, text);
+    let codes: Vec<&str> = found.iter().filter_map(|d| d["code"].as_str()).collect();
+    assert!(
+        !codes.contains(&"frappe-lsp/unknown-field"),
+        "a down bridge accused valid code: {codes:?}"
+    );
+
+    session.request(500, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_token_command_supplies_the_credentials() {
+    // Spec 05's second source, and the reason it is a command rather than a
+    // named tool: anything that prints `key:secret` satisfies it.
+    let site = FakeSite::start(
+        r#"[{"name":"Library Member-shelf_preference","dt":"Library Member",
+             "fieldname":"shelf_preference","fieldtype":"Data"}]"#,
+    );
+    let bench = fixture_bench();
+
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    params.as_object_mut().expect("object").insert(
+        "initializationOptions".to_string(),
+        json!({
+            "index": {"cache": false},
+            "bridge": {
+                "enabled": true,
+                "site": site.address,
+                "token_command": "printf 'key:secret'",
+            },
+        }),
+    );
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+
+    let status = bridged(&mut session, 10, "full");
+    assert_eq!(status["confidence"], "full", "{status}");
+    assert_eq!(status["site"], json!(site.address));
+
+    session.request(500, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_token_command_that_fails_degrades_rather_than_disabling() {
+    // A configured bridge that cannot produce credentials is not an unasked
+    // bridge: the server knows its picture is incomplete (specs/05).
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params.as_object_mut().expect("object").insert(
+        "initializationOptions".to_string(),
+        json!({
+            "bridge": {"enabled": true, "site": "x.localhost",
+                       "token_command": "exit 3"},
+        }),
+    );
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+
+    let response = session.request(2, "frappe-lsp/refreshBridge", json!(null));
+    assert_eq!(response["result"]["state"], "degraded", "{response}");
+    assert!(
+        response["result"]["why"]
+            .as_str()
+            .is_some_and(|why| why.contains("exited 3")),
+        "{response}"
+    );
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn without_a_bridge_the_same_field_is_unknown() {
+    // The control for the test above: if this line were clean anyway, that one
+    // would be asserting nothing.
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    params.as_object_mut().expect("object").insert(
+        "initializationOptions".to_string(),
+        json!({"index": {"cache": false}, "diagnostics": {"unknown-field": "warning"}}),
+    );
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let path = bench.join("apps/library/library/probe.py");
+    let uri = format!("file://{}", path.display());
+    let found = diagnostics_for(
+        &mut session,
+        &uri,
+        "import frappe\nfrappe.db.get_value(\"Library Member\", x, \"shelf_preference\")\n",
+    );
+    let codes: Vec<&str> = found.iter().filter_map(|d| d["code"].as_str()).collect();
+    assert!(codes.contains(&"frappe-lsp/unknown-field"), "{codes:?}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
 }

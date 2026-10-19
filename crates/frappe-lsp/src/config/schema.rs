@@ -104,7 +104,11 @@ config_schema! {
     bridge: Bridge / BridgePatch {
         enabled: bool = false,
         site: String = String::new(),
-        profile: String = String::new(),
+        // Printed by some other program: `pass show …`, a client's CLI, a
+        // script. Reusing a credential store must not mean depending on one.
+        // Refused from `.frappe-lsp.toml`, like every other executable a
+        // config can name — see [25] and [30].
+        token_command: String = String::new(),
         refresh_interval: u64 = 0,
     }
 

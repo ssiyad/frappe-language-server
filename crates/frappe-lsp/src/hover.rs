@@ -177,7 +177,10 @@ fn field(index: &Index, doctype: &str, fieldname: &str, implicit: bool) -> Optio
             "Custom Field · {} · fixture",
             field.provenance.app
         )),
-        Layer::Site => out.push_str("Custom Field · live site"),
+        // The site name, not "live site": a bench has several, and which one
+        // a field came from is the whole question when it is missing from the
+        // other ([05](../../../docs/specs/05-live-bridge.md)).
+        Layer::Site => out.push_str(&format!("Custom Field · {}", field.provenance.app)),
     }
 
     Some(out)

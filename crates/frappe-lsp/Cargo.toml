@@ -12,6 +12,7 @@ name = "frappe-lsp"
 path = "src/main.rs"
 
 [dependencies]
+frappe-bridge.workspace = true
 frappe-index.workspace = true
 frappe-syntax.workspace = true
 # The fallback watcher, for clients that register none of their own — spec 30.

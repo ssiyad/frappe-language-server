@@ -4,6 +4,7 @@
 //! protocol layer can be exercised from tests.
 
 pub mod analysis;
+pub mod bridge;
 pub mod buffers;
 pub mod capabilities;
 pub mod cli;

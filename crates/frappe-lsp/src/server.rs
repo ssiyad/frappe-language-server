@@ -363,6 +363,18 @@ impl Backend {
                 return;
             }
 
+            // Layer 3 last. It is optional and it is the only step that talks
+            // to anything outside this machine, so nothing else waits on it
+            // ([05](../../../docs/specs/05-live-bridge.md)).
+            let config = state
+                .read()
+                .expect("state lock poisoned by a panic")
+                .config
+                .clone();
+            let outcome = crate::bridge::sync_once(&index, &config).await;
+            crate::bridge::settle(&index, &outcome);
+            crate::bridge::log(&outcome);
+
             // Written after the scan so the cache carries the table; a warm
             // start then answers `references` immediately.
             if let Some(directory) = cache.as_deref() {
@@ -1176,9 +1188,40 @@ impl Backend {
             // Absent until the scan has run, so a client can tell "no
             // references" from "not yet" (specs/21).
             "occurrences": status.occurrences,
+            // Which site Layer 3 came from, or null when the bridge is off.
+            "site": self.index.read().expect("index lock poisoned by a panic").site(),
             "frappeVersion": status.frappe_version,
             "buildTimeMs": status.build_time.as_millis() as u64,
         }))
+    }
+
+    /// `frappe-lsp/refreshBridge` — re-read the live site now.
+    ///
+    /// Spec 05 makes refresh manual by default: the server must not poll, and
+    /// a customization is added by a person who knows they added it.
+    pub async fn refresh_bridge(&self, _: Option<Value>) -> Result<Value> {
+        let config = self.write(|state| state.config.clone());
+        let outcome = crate::bridge::sync_once(&self.index, &config).await;
+        crate::bridge::settle(&self.index, &outcome);
+        crate::bridge::log(&outcome);
+
+        let answer = match &outcome {
+            crate::bridge::Outcome::Synced { site, records } => {
+                json!({"state": "synced", "site": site, "records": records})
+            }
+            crate::bridge::Outcome::Disabled(why) => json!({"state": "disabled", "why": why}),
+            crate::bridge::Outcome::Degraded(why) => json!({"state": "degraded", "why": why}),
+        };
+        // Layer 3 changes what every open buffer resolves to.
+        self.republish().await;
+        Ok(answer)
+    }
+
+    /// Recompute diagnostics for every open buffer.
+    async fn republish(&self) {
+        for uri in self.write(|state| state.buffers.uris()) {
+            self.publish(uri).await;
+        }
     }
 
     /// `frappe-lsp/reindex` — force a full rebuild.
@@ -1198,19 +1241,6 @@ impl Backend {
         *self.index.write().expect("index lock poisoned by a panic") = Index::partial();
         self.build_in_background(root.clone());
         Ok(json!({ "started": true, "root": root.display().to_string() }))
-    }
-
-    /// `frappe-lsp/refreshBridge` — re-sync Layer 3.
-    ///
-    /// The bridge does not exist yet. An explicit error beats
-    /// `method_not_found`: one says the feature is off, the other says the
-    /// server is broken.
-    pub async fn refresh_bridge(&self, _: Option<Value>) -> Result<Value> {
-        Err(Error {
-            code: ErrorCode::InvalidRequest,
-            message: "the live bridge is not enabled in this build".into(),
-            data: None,
-        })
     }
 }
 

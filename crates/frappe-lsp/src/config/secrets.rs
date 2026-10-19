@@ -8,7 +8,8 @@
 use serde_json::Value;
 
 /// Key name fragments, matched after stripping separators and lowercasing.
-/// `bridge.profile` names a profile, never a secret, so `profile` is absent.
+/// `bridge.token_command` holds a command, never a secret; keys ending in
+/// `_command` are exempt below.
 const SECRET_FRAGMENTS: &[&str] = &[
     "password",
     "passwd",
@@ -61,6 +62,14 @@ fn walk(value: &Value, path: &mut Vec<String>) -> Option<String> {
 }
 
 fn is_secret_key(key: &str) -> bool {
+    // A key that says how to *fetch* a secret is not one. `token_command` is a
+    // shell command, and rejecting the file it appears in would make the one
+    // safe way to supply credentials unusable
+    // ([05](../../../../docs/specs/05-live-bridge.md)).
+    if key.ends_with("_command") || key.ends_with("-command") {
+        return false;
+    }
+
     let normalized: String = key
         .chars()
         .filter(|c| c.is_ascii_alphanumeric())
@@ -106,6 +115,15 @@ mod tests {
         ] {
             assert!(find(&toml_value(source)).is_some(), "missed: {source}");
         }
+    }
+
+    #[test]
+    fn a_command_that_fetches_a_secret_is_not_one() {
+        assert!(!is_secret_key("token_command"));
+        assert!(!is_secret_key("token-command"));
+        // The thing itself still is.
+        assert!(is_secret_key("token"));
+        assert!(is_secret_key("api_secret"));
     }
 
     #[test]
