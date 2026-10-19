@@ -102,10 +102,21 @@ pub fn at(index: &Index, source: &str, offset: usize, path: &Path) -> Option<Loc
         });
     }
 
-    let schema = generated::hook_schema(&assignment.key)?;
+    let Some(schema) = generated::hook_schema(&assignment.key) else {
+        return resolvable_path(index, &assignment.value, offset);
+    };
     let package = package_of(index, path);
     let app = app_of(index, path);
-    within(&assignment.value, offset, schema, Depth::Top, None, None).map(|mut located| {
+    let located = within(&assignment.value, offset, schema, Depth::Top, None, None);
+    let located = match located {
+        Some(Located {
+            target: HookTarget::Text(_),
+            ..
+        })
+        | None => resolvable_path(index, &assignment.value, offset).or(located),
+        some => some,
+    };
+    located.map(|mut located| {
         // The asset case needs the package, which only the index knows.
         if let HookTarget::Asset { written, .. } = &located.target
             && let (Some(package), Some(app)) = (package.as_deref(), app.as_deref())
@@ -117,6 +128,39 @@ pub fn at(index: &Index, source: &str, offset: usize, path: &Path) -> Option<Loc
         }
         located
     })
+}
+
+/// A string that names a real module or symbol, under a hook the vendored
+/// registry does not know or does not type.
+///
+/// The registry is written by hand and frappe keeps adding hooks:
+/// `boot_session`, `setup_wizard_stages` and `never_skip_patches` are read as
+/// dotted paths and were not in it. Navigation may follow such a string when it
+/// resolves; it is never reported when it does not, because the hook may not
+/// be a path at all.
+fn resolvable_path(index: &Index, value: &Value, offset: usize) -> Option<Located> {
+    let (text, span) = text_at(value, offset)?;
+    if !text.contains('.') || text.contains(char::is_whitespace) {
+        return None;
+    }
+    index.resolve(text, Kind::Callable).best()?;
+    Some(Located {
+        span: interior(span),
+        target: HookTarget::Path {
+            dotted: text.to_string(),
+            kind: Kind::Callable,
+        },
+    })
+}
+
+/// The string literal under `offset`, at any depth.
+fn text_at(value: &Value, offset: usize) -> Option<(&str, Span)> {
+    match value {
+        Value::Text { text, span } if span.contains(offset) => Some((text, *span)),
+        Value::List(items) => items.iter().find_map(|item| text_at(item, offset)),
+        Value::Map(entries) => entries.iter().find_map(|(_, value)| text_at(value, offset)),
+        _ => None,
+    }
 }
 
 /// Every position in a `hooks.py`, for checks that read the whole file rather

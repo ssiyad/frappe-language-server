@@ -16,6 +16,14 @@ known to be set, but no value validation runs.
 The hook registry is vendored (name → value schema), pinned per
 [31](31-performance.md), with `frappe/hooks.py` as the canonical example.
 
+A hand-vendored table lags frappe. `boot_session`, `setup_wizard_stages` and
+`never_skip_patches` take dotted paths and were missing from it, and
+`welcome_email` was typed `Unknown`, so a path under any of them went nowhere.
+Navigation therefore also follows any string under a hook the table does not
+type, **if it resolves** to a module or symbol in the workspace. It is never
+reported when it does not: the hook may not take a path at all. Diagnostics
+read the table alone.
+
 ### Hooks an app invents
 
 The vendored table covers the hooks *frappe* reads. An app may invent its own:

@@ -2434,6 +2434,51 @@ fn a_script_bound_by_doctype_js_is_a_definition_target() {
 }
 
 #[test]
+fn a_path_under_a_hook_the_registry_lacks_still_navigates() {
+    // The registry is vendored by hand and frappe keeps adding hooks that take
+    // dotted paths; erpnext's `never_skip_patches` and `boot_session` went
+    // nowhere. A string that resolves is followed. One that does not is left
+    // alone: the hook may not be a path at all.
+    let (mut session, bench) = scanned_session();
+    let path = bench.join("apps/library/library/hooks.py");
+    let uri = format!("file://{}", path.display());
+    let mut text = std::fs::read_to_string(&path).expect("readable");
+    let first = text.lines().count();
+    text.push_str("never_skip_patches = [\"library.patches.v1_0.rename_member_field\"]\n");
+    text.push_str("welcome_email = \"library.api.get_member_summary\"\n");
+    text.push_str("welcome_email = \"library.api.no_such_function\"\n");
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {"uri": uri, "languageId": "python", "version": 1, "text": text}}),
+    );
+
+    let target = |session: &mut Session, id: i64, line: usize, character: usize| {
+        let response = session.request(
+            id,
+            "textDocument/definition",
+            json!({"textDocument": {"uri": uri},
+                   "position": {"line": line, "character": character}}),
+        );
+        response["result"][0]["targetUri"]
+            .as_str()
+            .map(str::to_string)
+    };
+
+    let patch = target(&mut session, 50, first, 30).expect("a patch module");
+    assert!(
+        patch.ends_with("patches/v1_0/rename_member_field.py"),
+        "{patch}"
+    );
+    let function = target(&mut session, 51, first + 1, 30).expect("a function");
+    assert!(function.ends_with("library/api.py"), "{function}");
+    assert_eq!(target(&mut session, 52, first + 2, 30), None);
+
+    session.request(99, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
 fn hooks_py_completes_keys_events_and_frequencies() {
     let (mut session, bench) = scanned_session();
 
