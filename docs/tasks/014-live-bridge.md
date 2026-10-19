@@ -14,6 +14,9 @@ re-sync drops what the last one added; `Static` / `Full` / `Degraded`
 transitions, with `Degraded` suppressing the absence checks;
 `frappe-lsp/refreshBridge`; `indexStatus` reporting the site.
 
+DocTypes created through the UI, each read again from its meta for its fields,
+and merged only where no installed app defines the same name.
+
 Credentials from the environment or from `bridge.token_command`, which is any
 command printing `<key>:<secret>`. `bridge.refresh_interval` runs a timer that
 re-reads its own configuration, so setting it to `0` stops it.
@@ -28,8 +31,6 @@ reported when no bridge is configured.
 
 ## Scope
 
-- **UI-created DocTypes.** Read but not merged: they need a second read of
-  `DocField` for their fields, and a DocType with no fields is worse than none.
 - **Client Script and Server Script**, and the read-only
   `frappe-lsp://script/…` virtual documents they would be reached through.
 

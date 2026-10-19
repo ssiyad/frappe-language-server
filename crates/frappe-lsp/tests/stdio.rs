@@ -2825,6 +2825,12 @@ struct FakeSite {
 
 impl FakeSite {
     fn start(custom_fields: &str) -> Self {
+        Self::with_doctype(custom_fields, None)
+    }
+
+    /// Also serve one DocType created through the UI: a row in the custom
+    /// DocType list, and its meta.
+    fn with_doctype(custom_fields: &str, meta: Option<&str>) -> Self {
         use std::io::{BufRead, Write};
         use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -2833,6 +2839,7 @@ impl FakeSite {
         let stop = std::sync::Arc::new(AtomicBool::new(false));
 
         let fields = custom_fields.to_string();
+        let meta = meta.map(str::to_string);
         let flag = std::sync::Arc::clone(&stop);
         std::thread::spawn(move || {
             for stream in listener.incoming() {
@@ -2855,10 +2862,16 @@ impl FakeSite {
                 }
                 // Only the Custom Field call returns rows; the other two are
                 // empty, which is what a site with one customization looks like.
-                let body = if request.contains("Custom%20Field") {
-                    format!(r#"{{"data":{fields}}}"#)
-                } else {
-                    r#"{"data":[]}"#.to_string()
+                let first = request.lines().next().unwrap_or_default();
+                let body = match &meta {
+                    _ if first.contains("Custom%20Field") => format!(r#"{{"data":{fields}}}"#),
+                    Some(meta) if first.contains("/meta") => format!(r#"{{"data":{meta}}}"#),
+                    Some(meta) if first.contains("/document/DocType") => {
+                        let name =
+                            serde_json::from_str::<Value>(meta).expect("meta")["name"].clone();
+                        format!(r#"{{"data":[{{"name":{name},"custom":1}}]}}"#)
+                    }
+                    _ => r#"{"data":[]}"#.to_string(),
                 };
                 let _ = write!(
                     stream,
@@ -2941,6 +2954,68 @@ fn a_customize_form_field_arrives_without_a_restart() {
         !codes.contains(&"frappe-lsp/unknown-field"),
         "a down bridge accused valid code: {codes:?}"
     );
+
+    session.request(500, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
+fn a_doctype_created_in_the_ui_resolves_completes_and_hovers() {
+    let site = FakeSite::with_doctype(
+        "[]",
+        Some(
+            r#"{"name":"Loyalty Tier","module":"Library","custom":1,
+                "fields":[{"fieldname":"tier_name","fieldtype":"Data","label":"Tier"}]}"#,
+        ),
+    );
+    let bench = fixture_bench();
+    let mut session = Session::start_with(&[("FRAPPE_LSP_TOKEN", "key:secret")]);
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    params.as_object_mut().expect("object").insert(
+        "initializationOptions".to_string(),
+        json!({"index": {"cache": false}, "bridge": {"enabled": true, "site": site.address}}),
+    );
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    let status = bridged(&mut session, 10, "full");
+    assert_eq!(status["confidence"], "full", "{status}");
+
+    let path = bench.join("apps/library/library/probe.py");
+    let uri = format!("file://{}", path.display());
+    let text = "import frappe\nfrappe.db.get_value(\"Loyalty Tier\", x, \"tier_name\")\n";
+    let found = diagnostics_for(&mut session, &uri, text);
+    let codes: Vec<&str> = found.iter().filter_map(|d| d["code"].as_str()).collect();
+    assert!(!codes.contains(&"frappe-lsp/unknown-doctype"), "{codes:?}");
+    assert!(!codes.contains(&"frappe-lsp/unknown-field"), "{codes:?}");
+
+    let at = json!({"textDocument": {"uri": uri}, "position": {"line": 1, "character": 24}});
+    let hover = session.request(300, "textDocument/hover", at.clone());
+    let rendered = hover["result"]["contents"]["value"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(rendered.contains("Created through the UI"), "{rendered}");
+
+    // No file exists to open, so there is nowhere to go.
+    let definition = session.request(301, "textDocument/definition", at);
+    assert!(definition["result"].is_null(), "{definition}");
+
+    let completion = session.request(
+        302,
+        "textDocument/completion",
+        json!({"textDocument": {"uri": uri}, "position": {"line": 1, "character": 27}}),
+    );
+    let labels: Vec<&str> = completion["result"]["items"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item["label"].as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(labels.contains(&"Loyalty Tier"), "{labels:?}");
 
     session.request(500, "shutdown", json!(null));
     session.notify("exit", json!(null));

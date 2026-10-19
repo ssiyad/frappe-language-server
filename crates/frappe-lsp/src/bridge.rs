@@ -76,7 +76,12 @@ pub async fn sync_once(index: &Arc<RwLock<Index>>, config: &Config) -> Outcome {
 
     {
         let mut guard = index.write_or_recover();
-        guard.apply_site(&site, &custom_fields, &property_setters);
+        let doctypes: Vec<String> = read
+            .custom_doctypes
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        guard.apply_site(&site, &custom_fields, &property_setters, &doctypes);
     }
 
     if !read.custom_doctypes.is_empty() {

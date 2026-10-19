@@ -72,13 +72,14 @@ fn credentials(site: &str) -> Credentials {
 }
 
 #[tokio::test]
-async fn a_sync_reads_the_three_record_types_with_a_token() {
+async fn a_sync_reads_the_record_types_and_each_ui_doctypes_meta() {
     let log = Arc::new(Mutex::new(Log::default()));
     let site = serve(
         vec![
             r#"{"data":[{"name":"Item-custom_note","dt":"Item","fieldname":"custom_note","fieldtype":"Small Text"}]}"#.to_string(),
             r#"{"data":[{"name":"Item-main-search_fields","doc_type":"Item","field_name":"","property":"search_fields","value":"item_name"}]}"#.to_string(),
             r#"{"data":[{"name":"Loyalty Tier","module":"Custom","custom":1}]}"#.to_string(),
+            r#"{"data":{"name":"Loyalty Tier","module":"Custom","custom":1,"fields":[{"fieldname":"tier_name","fieldtype":"Data"}]}}"#.to_string(),
         ],
         Arc::clone(&log),
     )
@@ -93,7 +94,11 @@ async fn a_sync_reads_the_three_record_types_with_a_token() {
     assert_eq!(read.len(), 3);
 
     let requests = log.lock().expect("lock").requests.clone();
-    assert_eq!(requests.len(), 3, "one list call each");
+    assert_eq!(
+        requests.len(),
+        4,
+        "one list call each, then the UI DocType's meta"
+    );
 
     // Read-only, and authenticated, and asking for the right things. Header
     // names are case-insensitive and the transport lowercases them.
@@ -110,6 +115,16 @@ async fn a_sync_reads_the_three_record_types_with_a_token() {
     assert!(requests[1].contains("Property%20Setter"), "{}", requests[1]);
     // The custom-DocType call is filtered rather than reading every DocType.
     assert!(requests[2].contains("custom"), "{}", requests[2]);
+    // A list row carries no fields; the meta does.
+    assert!(
+        requests[3].contains("/api/v2/doctype/Loyalty%20Tier/meta"),
+        "{}",
+        requests[3]
+    );
+    assert_eq!(
+        read.custom_doctypes[0]["fields"][0]["fieldname"],
+        "tier_name"
+    );
 }
 
 /// A site that pages the way `/api/v2/document/<doctype>` does: `start` and
@@ -186,7 +201,11 @@ async fn paging_reads_every_row_in_pages_of_500() {
     let requests = log.lock().expect("lock").requests.clone();
     assert_eq!(requests.len(), 3, "500 + 500 + 234");
     assert!(requests[0].contains("start=0&limit=500"), "{}", requests[0]);
-    assert!(requests[2].contains("start=1000&limit=500"), "{}", requests[2]);
+    assert!(
+        requests[2].contains("start=1000&limit=500"),
+        "{}",
+        requests[2]
+    );
     // Unstable paging silently drops rows, so the order is pinned.
     assert!(requests[0].contains("order_by=name"), "{}", requests[0]);
 }

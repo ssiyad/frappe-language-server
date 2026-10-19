@@ -227,6 +227,13 @@ pub struct DocType {
 }
 
 impl DocType {
+    /// Whether only the live site defines it: created through the UI, with no
+    /// file to navigate to ([05](../../../docs/specs/05-live-bridge.md)).
+    #[must_use]
+    pub fn is_site_only(&self) -> bool {
+        self.provenance.layer == Layer::Site
+    }
+
     /// The field with this symbol, if declared. Implicit fields are not here —
     /// see [`DocType::has_field`].
     #[must_use]

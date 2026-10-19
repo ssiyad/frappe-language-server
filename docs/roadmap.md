@@ -87,8 +87,8 @@ Layer 3 and evict without a rebuild, confidence moves `Static` → `Full` →
 `Degraded`, and a down site suppresses the absence checks instead of flooding
 them ([05](specs/05-live-bridge.md)). Credentials come from the environment or
 from any command that prints them, so no particular credential tool is a
-dependency. UI-created DocTypes and in-DB scripts are still open in
-[014](tasks/014-live-bridge.md).
+dependency. DocTypes created through the UI join the graph from their meta.
+In-DB scripts are still open in [014](tasks/014-live-bridge.md).
 
 Live site layer, Custom Field and Property Setter resolution, in-DB scripts as
 virtual documents, Jinja surface. Type checker integration

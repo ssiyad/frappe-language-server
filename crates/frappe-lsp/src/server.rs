@@ -919,7 +919,10 @@ impl LanguageServer for Backend {
         Ok(
             self.with_position(&position.text_document.uri, position.position, |ctx| {
                 let name = ctx.found.target.doctype()?;
-                let doctype = ctx.index.doctype(name)?;
+                let doctype = ctx
+                    .index
+                    .doctype(name)
+                    .filter(|doctype| !doctype.is_site_only())?;
                 locations::links(
                     &[locations::Target::whole(
                         doctype.path.to_path_buf(),

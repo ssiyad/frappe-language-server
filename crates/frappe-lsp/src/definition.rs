@@ -56,7 +56,12 @@ pub fn targets(index: &Index, found: &Found) -> Vec<Target> {
 
 /// Controller class, DocType JSON, form script — spec 21's order.
 fn doctype_targets(index: &Index, name: &str) -> Vec<Target> {
-    let Some(doctype) = index.doctype(name) else {
+    // A DocType created through the UI has no file, and pointing at a path
+    // that does not exist opens an empty buffer.
+    let Some(doctype) = index
+        .doctype(name)
+        .filter(|doctype| !doctype.is_site_only())
+    else {
         return Vec::new();
     };
     let mut targets = Vec::new();

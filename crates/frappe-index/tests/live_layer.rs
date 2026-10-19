@@ -36,6 +36,7 @@ fn a_field_added_through_customize_form_joins_the_doctype() {
                  "fieldtype":"Select","options":"Quiet\nBusy","label":"Shelf Preference"}]"#,
         ),
         "[]",
+        &[],
     );
 
     assert_eq!(touched, ["Library Member"]);
@@ -63,6 +64,7 @@ fn eviction_leaves_the_graph_as_it_was() {
         r#"[{"doctype":"Custom Field","name":"x","dt":"Library Member",
              "fieldname":"shelf_preference","fieldtype":"Data"}]"#,
         "[]",
+        &[],
     );
     assert_ne!(index.fingerprint(), before, "the field never landed");
 
@@ -86,6 +88,7 @@ fn a_second_sync_drops_what_the_first_added() {
         r#"[{"doctype":"Custom Field","name":"x","dt":"Library Member",
              "fieldname":"first","fieldtype":"Data"}]"#,
         "[]",
+        &[],
     );
     assert!(index.has_field("Library Member", "first"));
 
@@ -94,6 +97,7 @@ fn a_second_sync_drops_what_the_first_added() {
         r#"[{"doctype":"Custom Field","name":"y","dt":"Library Member",
              "fieldname":"second","fieldtype":"Data"}]"#,
         "[]",
+        &[],
     );
     assert!(index.has_field("Library Member", "second"));
     assert!(
@@ -108,13 +112,13 @@ fn the_two_off_states_are_not_the_same_state() {
     // customizations are invisible, so warnings are still useful. With one
     // configured and down, the server knows its picture is incomplete.
     let mut index = Index::build(&bench());
-    index.apply_site("library.localhost", "[]", "[]");
+    index.apply_site("library.localhost", "[]", "[]", &[]);
     assert_eq!(index.confidence(), Confidence::Full);
 
     index.evict_site(true);
     assert_eq!(index.confidence(), Confidence::Static);
 
-    index.apply_site("library.localhost", "[]", "[]");
+    index.apply_site("library.localhost", "[]", "[]", &[]);
     index.evict_site(false);
     assert_eq!(index.confidence(), Confidence::Degraded);
 }
@@ -133,6 +137,7 @@ fn a_property_setter_from_the_site_overrides_the_schema() {
         r#"[{"doctype":"Property Setter","name":"p","doc_type":"Library Member",
              "field_name":"member_name","property":"reqd","value":"1",
              "property_type":"Check"}]"#,
+        &[],
     );
 
     let after = index
@@ -143,4 +148,59 @@ fn a_property_setter_from_the_site_overrides_the_schema() {
         after,
         "the site's Property Setter did not apply (was {before})"
     );
+}
+
+/// A DocType's meta as `/api/v2/doctype/<name>/meta` returns it: the DocType
+/// JSON shape, with nothing on disk behind it.
+const LOYALTY_TIER: &str = r#"{"name":"Loyalty Tier","module":"Library","custom":1,
+    "fields":[{"fieldname":"tier_name","fieldtype":"Data","label":"Tier"},
+              {"fieldname":"member","fieldtype":"Link","options":"Library Member"}]}"#;
+
+#[test]
+fn a_doctype_created_through_the_ui_joins_the_index() {
+    let mut index = Index::build(&bench());
+    assert!(index.doctype("Loyalty Tier").is_none());
+
+    let touched = index.apply_site(
+        "library.localhost",
+        r#"[{"doctype":"Custom Field","name":"Loyalty Tier-points","dt":"Loyalty Tier",
+             "fieldname":"points","fieldtype":"Int"}]"#,
+        "[]",
+        &[LOYALTY_TIER.to_string()],
+    );
+
+    assert!(touched.contains(&"Loyalty Tier".to_string()), "{touched:?}");
+    let tier = index.doctype("Loyalty Tier").expect("from the site");
+    assert!(tier.is_site_only());
+    assert_eq!(&*tier.app, "library.localhost");
+    assert!(index.has_field("Loyalty Tier", "tier_name"));
+    // A site's Custom Field on a site's DocType merges like any other.
+    assert!(index.has_field("Loyalty Tier", "points"));
+}
+
+#[test]
+fn an_installed_doctype_wins_over_the_sites_copy() {
+    let mut index = Index::build(&bench());
+    let installed = r#"{"name":"Library Member","module":"Library","custom":1,
+        "fields":[{"fieldname":"only_on_the_site","fieldtype":"Data"}]}"#;
+    index.apply_site("library.localhost", "[]", "[]", &[installed.to_string()]);
+
+    let member = index.doctype("Library Member").expect("installed");
+    assert!(!member.is_site_only());
+    assert!(!index.has_field("Library Member", "only_on_the_site"));
+}
+
+#[test]
+fn a_ui_doctype_leaves_with_the_sync_that_brought_it() {
+    let mut index = Index::build(&bench());
+    index.apply_site("library.localhost", "[]", "[]", &[LOYALTY_TIER.to_string()]);
+    assert!(index.doctype("Loyalty Tier").is_some());
+
+    // Deleted on the site: the next sync does not carry it.
+    index.apply_site("library.localhost", "[]", "[]", &[]);
+    assert!(index.doctype("Loyalty Tier").is_none());
+
+    index.apply_site("library.localhost", "[]", "[]", &[LOYALTY_TIER.to_string()]);
+    index.evict_site(false);
+    assert!(index.doctype("Loyalty Tier").is_none());
 }

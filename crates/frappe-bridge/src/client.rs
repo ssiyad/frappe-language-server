@@ -135,6 +135,28 @@ impl Client {
         Ok(rows)
     }
 
+    /// One DocType's meta: its schema with every field, as
+    /// `/api/v2/doctype/<doctype>/meta` returns it. The only way to see a
+    /// DocType created through the UI, which exists in no file.
+    ///
+    /// # Errors
+    ///
+    /// Any transport failure, refusal, or unreadable body.
+    pub async fn meta(&self, doctype: &str) -> Result<serde_json::Value, Error> {
+        let url = format!(
+            "{}/api/v2/doctype/{}/meta",
+            self.credentials.site,
+            urlencode(doctype)
+        );
+
+        #[derive(serde::Deserialize)]
+        struct Envelope {
+            data: serde_json::Value,
+        }
+        let envelope: Envelope = self.fetch(&url, &[]).await?;
+        Ok(envelope.data)
+    }
+
     /// One `GET` against `/api/v2/document/<doctype>`.
     async fn get<T: DeserializeOwned>(
         &self,
@@ -147,9 +169,25 @@ impl Client {
             urlencode(doctype)
         );
 
+        #[derive(serde::Deserialize)]
+        struct Envelope<T> {
+            data: Vec<T>,
+            has_next_page: Option<bool>,
+        }
+
+        let envelope: Envelope<T> = self.fetch(&url, query).await?;
+        Ok((envelope.data, envelope.has_next_page))
+    }
+
+    /// The one place a request is made, and it is a `GET`.
+    async fn fetch<T: DeserializeOwned>(
+        &self,
+        url: &str,
+        query: &[(&str, &str)],
+    ) -> Result<T, Error> {
         let response = self
             .http
-            .get(&url)
+            .get(url)
             .header("Authorization", self.credentials.header())
             .header("Accept", "application/json")
             .query(query)
@@ -174,17 +212,10 @@ impl Client {
             });
         }
 
-        #[derive(serde::Deserialize)]
-        struct Envelope<T> {
-            data: Vec<T>,
-            has_next_page: Option<bool>,
-        }
-
-        let envelope: Envelope<T> = response
+        response
             .json()
             .await
-            .map_err(|error| Error::Malformed(error.to_string()))?;
-        Ok((envelope.data, envelope.has_next_page))
+            .map_err(|error| Error::Malformed(error.to_string()))
     }
 }
 

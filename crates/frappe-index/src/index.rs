@@ -182,6 +182,20 @@ struct LayerTwo {
 struct LayerThree {
     site: Arc<str>,
     fixture: Fixture,
+    /// DocTypes created through the UI, from the site's meta. They exist in no
+    /// file, and an installed app's DocType of the same name wins over them.
+    doctypes: Vec<Raw>,
+}
+
+impl LayerThree {
+    /// Every DocType this layer changes or defines.
+    fn names(&self) -> BTreeSet<String> {
+        self.fixture
+            .doctypes()
+            .map(std::string::ToString::to_string)
+            .chain(self.doctypes.iter().map(|raw| raw.name.clone()))
+            .collect()
+    }
 }
 
 /// One Layer-1 file contributing a DocType name.
@@ -614,6 +628,7 @@ impl Index {
 
         let Some(sources) = self.sources.get(name).filter(|s| !s.is_empty()) else {
             self.sources.remove(name);
+            self.assemble_from_site(name);
             return;
         };
 
@@ -682,6 +697,62 @@ impl Index {
 
         self.merge_layer_two(&mut doctype);
         doctype.controller = self.controller_for(&doctype, &winner);
+        self.doctypes.insert(doctype.name.clone(), doctype);
+    }
+
+    /// A DocType created through the UI, which only the live site defines.
+    fn assemble_from_site(&mut self, name: &str) {
+        let Some(live) = &self.site else {
+            return;
+        };
+        let Some(raw) = live.doctypes.iter().find(|raw| raw.name == name).cloned() else {
+            return;
+        };
+        let app = Arc::clone(&live.site);
+        let provenance = Provenance {
+            layer: Layer::Site,
+            app: Arc::clone(&app),
+            // No file: what eviction keys on, and what tells navigation there
+            // is nowhere to go.
+            source: None,
+        };
+
+        let mut doctype = DocType {
+            name: raw.name,
+            module: raw.module,
+            app,
+            path: Arc::from(Path::new("")),
+            is_child: raw.is_child,
+            is_single: raw.is_single,
+            is_submittable: raw.is_submittable,
+            is_virtual: raw.is_virtual,
+            is_tree: raw.is_tree,
+            autoname: raw.autoname,
+            naming_rule: raw.naming_rule,
+            title_field: raw.title_field,
+            sort_field: raw.sort_field,
+            image_field: raw.image_field,
+            search_fields: raw.search_fields,
+            fields: raw
+                .fields
+                .into_iter()
+                .map(|field| field.into_field(&mut self.interner, provenance.clone()))
+                .collect(),
+            field_order: raw
+                .field_order
+                .iter()
+                .map(|fieldname| self.interner.intern(fieldname))
+                .collect(),
+            permissions: raw.permissions,
+            links: raw.links,
+            states: raw.states,
+            controller: None,
+            // Positions in the meta the site sent, which no editor has open.
+            range: raw.range,
+            meta_ranges: raw.meta_ranges,
+            provenance,
+        };
+        self.merge_layer_two(&mut doctype);
         self.doctypes.insert(doctype.name.clone(), doctype);
     }
 
@@ -1421,41 +1492,42 @@ impl Index {
     /// disagree with it about what a `depends_on` is
     /// ([05](../../../docs/specs/05-live-bridge.md)).
     ///
+    /// `doctypes` holds the meta of each DocType created through the UI, which
+    /// is the same shape as a DocType JSON and goes through the same reader.
+    /// One that does not parse is left out, never guessed at.
+    ///
     /// Returns the DocTypes the site touched.
     pub fn apply_site(
         &mut self,
         site: &str,
         custom_fields: &str,
         property_setters: &str,
+        doctypes: &[String],
     ) -> Vec<String> {
         self.revision = next_revision();
         let mut fixture = crate::fixtures::read(custom_fields).unwrap_or_default();
         let setters = crate::fixtures::read(property_setters).unwrap_or_default();
         fixture.property_setters.extend(setters.property_setters);
         fixture.custom_fields.extend(setters.custom_fields);
-
-        let touched: BTreeSet<String> = fixture
-            .doctypes()
-            .map(std::string::ToString::to_string)
-            .collect();
+        let live = LayerThree {
+            site: Arc::from(site),
+            fixture,
+            doctypes: doctypes
+                .iter()
+                .filter_map(|meta| doctype::parse(meta).ok())
+                .collect(),
+        };
 
         // Whatever the previous sync touched has to be rebuilt too, or a field
         // deleted through Customize Form stays in the graph forever.
-        let previous: BTreeSet<String> = self
+        let previous = self
             .site
             .as_ref()
-            .map(|live| {
-                live.fixture
-                    .doctypes()
-                    .map(std::string::ToString::to_string)
-                    .collect()
-            })
+            .map(LayerThree::names)
             .unwrap_or_default();
+        let touched = live.names();
 
-        self.site = Some(LayerThree {
-            site: Arc::from(site),
-            fixture,
-        });
+        self.site = Some(live);
         self.confidence = Confidence::Full;
 
         let affected: Vec<String> = touched.union(&previous).cloned().collect();
@@ -1475,12 +1547,7 @@ impl Index {
         let affected: Vec<String> = self
             .site
             .take()
-            .map(|live| {
-                live.fixture
-                    .doctypes()
-                    .map(std::string::ToString::to_string)
-                    .collect()
-            })
+            .map(|live| live.names().into_iter().collect())
             .unwrap_or_default();
 
         self.confidence = if reachable {

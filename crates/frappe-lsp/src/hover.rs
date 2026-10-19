@@ -87,10 +87,12 @@ fn doctype(index: &Index, doctype: &DocType) -> Option<String> {
         facts.push("Tree".to_string());
     }
 
+    // On a DocType created through the UI every field is the site's, and
+    // calling all of them custom says nothing.
     let custom = doctype
         .fields
         .iter()
-        .filter(|field| field.provenance.layer != Layer::Schema)
+        .filter(|field| field.provenance.layer != doctype.provenance.layer)
         .count();
     facts.push(if custom > 0 {
         format!("{} fields (+{custom} custom)", doctype.fields.len())
@@ -107,7 +109,11 @@ fn doctype(index: &Index, doctype: &DocType) -> Option<String> {
         out.push_str(&format!("Title field: `{title}`\n"));
     }
 
-    out.push_str(&format!("\n`{}`", workspace_relative(index, &doctype.path)));
+    if doctype.is_site_only() {
+        out.push_str(&format!("\nCreated through the UI on `{}`", doctype.app));
+    } else {
+        out.push_str(&format!("\n`{}`", workspace_relative(index, &doctype.path)));
+    }
     Some(out)
 }
 

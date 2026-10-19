@@ -84,11 +84,15 @@ without bound.
 A partial read is **not** merged. Half a picture merged as if it were whole
 looks like absence, which is the one thing `Degraded` exists to prevent.
 
-**Custom Field and Property Setter are implemented.** UI-created DocTypes are
-read but not merged: a DocType with no fields is worse than none, because every
-field on it would resolve to nothing, and the fields need a second read of
-`DocField`. Client and Server Scripts are not read at all — the virtual
-document surface below is untouched.
+**Custom Field, Property Setter and UI-created DocTypes are implemented.** The
+list row of a UI-created DocType has no fields, and a DocType with none is worse
+than no DocType, because every field on it would resolve to nothing. So each one
+is read a second time, from `/api/v2/doctype/<name>/meta`, which is the DocType
+JSON shape with every field and goes through the same reader. It joins the
+graph only when no installed app defines the same name: a file in the bench is
+what the code runs against. It has no file, so definition goes nowhere and
+hover names the site. Client and Server Scripts are not read at all — the
+virtual document surface below is untouched.
 
 Paged, and bounded per DocType. Results are cached with the index but always
 tagged Layer 3 so they can be evicted without a rebuild.

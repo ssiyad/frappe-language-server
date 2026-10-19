@@ -16,7 +16,7 @@ pub struct Sync {
     pub custom_fields: Vec<Value>,
     /// `Property Setter` rows.
     pub property_setters: Vec<Value>,
-    /// DocTypes created through the UI, which are on no disk.
+    /// The meta of each DocType created through the UI, which are on no disk.
     pub custom_doctypes: Vec<Value>,
 }
 
@@ -86,10 +86,20 @@ pub async fn read(client: &Client) -> Result<Sync, Error> {
         .list("DocType", &CUSTOM_DOCTYPE, Some(r#"[["custom","=",1]]"#))
         .await?;
 
+    // The list row has no fields, and a DocType with none would resolve every
+    // field on it to nothing. Its meta has them all.
+    let mut metas = Vec::new();
+    for row in rows(custom_doctypes) {
+        let Some(name) = row.get("name").and_then(Value::as_str) else {
+            continue;
+        };
+        metas.push(client.meta(name).await?);
+    }
+
     Ok(Sync {
         custom_fields: rows(custom_fields),
         property_setters: rows(property_setters),
-        custom_doctypes: rows(custom_doctypes),
+        custom_doctypes: rows(metas),
     })
 }
 
