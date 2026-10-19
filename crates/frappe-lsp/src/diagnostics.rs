@@ -359,7 +359,7 @@ fn is_private_name(name: &str) -> bool {
 
 /// The hook `name` was probably a typo of, if any.
 ///
-/// Edit distance 2 over a 130-name table, which is small enough to scan and
+/// Edit distance 2 over a table of about 150 names, small enough to scan and
 /// tight enough that unrelated identifiers never match.
 fn near_miss(name: &str) -> Option<&'static str> {
     generated::HOOKS

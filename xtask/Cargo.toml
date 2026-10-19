@@ -18,6 +18,8 @@ toml.workspace = true
 tower-lsp-server.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# Already built for tracing-subscriber; the drift check scrapes frappe with it.
+regex = "1"
 
 [lints]
 workspace = true

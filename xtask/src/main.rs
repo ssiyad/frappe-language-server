@@ -1,5 +1,6 @@
 //! Repository automation. Run as `cargo xtask <command>`.
 
+mod drift;
 mod smoke;
 mod stress;
 
@@ -9,7 +10,8 @@ const HELP: &str = "\
 cargo xtask <command>
 
 Commands:
-  codegen    Regenerate vendored Frappe constants from a frappe checkout
+  codegen    --check [FRAPPE]: compare the vendored tables with what a frappe
+             checkout reads, and fail on a name they lack
   smoke      Index a real bench and check its findings against the allowlist
   stress     Drive the release binary like an editor over a real bench
              [--positions N] [--edits N] [--limit FILES] [--seed N] [--all]
@@ -19,6 +21,7 @@ Commands:
 fn main() -> ExitCode {
     let command = std::env::args().nth(1);
     match command.as_deref() {
+        Some("codegen") if std::env::args().any(|argument| argument == "--check") => drift(),
         Some("codegen") => unimplemented("codegen", "docs/development.md#vendored-constants"),
         Some("stress") => stress(),
         Some("smoke") => {
@@ -44,6 +47,22 @@ fn main() -> ExitCode {
         Some(other) => {
             eprintln!("xtask: unknown command `{other}`\n\n{HELP}");
             ExitCode::from(2)
+        }
+    }
+}
+
+fn drift() -> ExitCode {
+    // A checkout named on the command line, else the reference bench's.
+    let frappe = std::env::args()
+        .skip(2)
+        .find(|argument| !argument.starts_with("--"))
+        .map_or_else(|| bench().join("apps/frappe"), std::path::PathBuf::from);
+    match drift::run(&frappe) {
+        Ok(0) => ExitCode::SUCCESS,
+        Ok(_) => ExitCode::FAILURE,
+        Err(error) => {
+            eprintln!("xtask: codegen --check failed: {error}");
+            ExitCode::FAILURE
         }
     }
 }

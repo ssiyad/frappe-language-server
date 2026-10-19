@@ -2056,6 +2056,7 @@ dependencies = [
  "frappe-index",
  "frappe-lsp",
  "frappe-syntax",
+ "regex",
  "serde",
  "serde_json",
  "toml",

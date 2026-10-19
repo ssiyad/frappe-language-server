@@ -8,6 +8,9 @@
 //! ```text
 //! source   frappe 17.0.0-dev @ 5a94ce857600ef1fef23774601a0cfd442837735
 //! scraped  frappe/public/js/frappe/form/**
+//! checked  frappe 17.0.0-dev @ c7a96ecc99ef47adb2f6283089644fe6c26b8287
+//!          by `cargo xtask codegen --check`, which fails on a name frappe
+//!          reads that a table lacks
 //! ```
 
 /// The `frappe` checkout the tables below were taken from.
@@ -47,6 +50,7 @@ pub const FORM_LIFECYCLE_EVENTS: &[&str] = &[
     "dashboard_update",
     "dirty",
     "form_render",
+    "on_hide",
     "on_submit",
     "on_tab_change",
     "onload",
@@ -159,16 +163,22 @@ pub enum Schema {
 /// `unknown-hook` on correct code: the second source alone accounts for
 /// `app_color`, the third for `doctype_list_js`. Sorted, so lookup is a binary
 /// search.
-pub const HOOKS: [(&str, Schema); 130] = [
+pub const HOOKS: [(&str, Schema); 153] = [
     ("add_to_apps_screen", Schema::Unknown),
+    ("additional_timeline_content", Schema::Unknown),
+    ("after_app_build", Schema::Callable),
     ("after_app_install", Schema::Callable),
     ("after_app_uninstall", Schema::Callable),
     ("after_build", Schema::Callable),
+    ("after_disable", Schema::Callable),
+    ("after_enable", Schema::Callable),
     ("after_file_upload", Schema::Callable),
     ("after_install", Schema::Callable),
     ("after_job", Schema::Callable),
     ("after_migrate", Schema::Callable),
     ("after_request", Schema::Callable),
+    ("after_sync", Schema::Callable),
+    ("after_uninstall", Schema::Callable),
     ("allowed_roles", Schema::Unknown),
     ("app_color", Schema::Unknown),
     ("app_description", Schema::Unknown),
@@ -184,31 +194,44 @@ pub const HOOKS: [(&str, Schema); 130] = [
     ("app_title", Schema::Unknown),
     ("auth_hooks", Schema::Unknown),
     ("auto_cancel_exempted_doctypes", Schema::Unknown),
+    ("automation_actions", Schema::Unknown),
+    ("automation_events", Schema::Unknown),
+    ("automation_relationship_ignore", Schema::Unknown),
+    ("automation_relationships", Schema::Unknown),
+    ("awesomebar_search", Schema::Callable),
     ("base_template", Schema::File),
     ("base_template_map", Schema::Unknown),
     ("before_app_install", Schema::Callable),
     ("before_app_uninstall", Schema::Callable),
+    ("before_disable", Schema::Callable),
+    ("before_enable", Schema::Callable),
     ("before_install", Schema::Callable),
     ("before_job", Schema::Callable),
     ("before_migrate", Schema::Callable),
     ("before_request", Schema::Callable),
     ("before_tests", Schema::Callable),
+    ("before_uninstall", Schema::Callable),
+    ("boot_session", Schema::Callable),
     ("calendars", Schema::Unknown),
     ("clear_cache", Schema::Callable),
+    ("code_only_modules", Schema::Unknown),
     ("comment_rate_limit", Schema::Unknown),
     ("communication_doctypes", Schema::Unknown),
+    ("data_import_providers", Schema::Unknown),
     ("default_log_clearing_doctypes", Schema::Unknown),
     ("default_mail_footer", Schema::Unknown),
     ("develop_version", Schema::Unknown),
     ("doc_events", Schema::DocEvents),
     ("doctype_calendar_js", Schema::MapToFile),
     ("doctype_js", Schema::MapToFile),
+    ("doctype_kanban_js", Schema::MapToFile),
     ("doctype_list_js", Schema::MapToFile),
     ("doctype_tree_js", Schema::MapToFile),
     ("domains", Schema::Unknown),
     ("email_append_to", Schema::Unknown),
     ("email_css", Schema::File),
     ("export_python_type_annotations", Schema::Unknown),
+    ("expose_discovery_source", Schema::Unknown),
     ("extend_bootinfo", Schema::Callable),
     ("extend_doctype_class", Schema::MapToClasses),
     ("filters_config", Schema::Unknown),
@@ -223,6 +246,7 @@ pub const HOOKS: [(&str, Schema); 130] = [
     ("has_permission", Schema::MapToCallable),
     ("has_website_permission", Schema::MapToCallable),
     ("home_page", Schema::Unknown),
+    ("ignore_file_permissions", Schema::Unknown),
     ("ignore_links_on_delete", Schema::Unknown),
     ("ignore_translatable_strings_from", Schema::Unknown),
     ("importable_doctypes", Schema::Unknown),
@@ -231,6 +255,7 @@ pub const HOOKS: [(&str, Schema); 130] = [
     ("look_for_sidebar_json", Schema::Unknown),
     ("make_email_body_message", Schema::Unknown),
     ("naming_series_variables", Schema::Unknown),
+    ("never_skip_patches", Schema::Unknown),
     ("notification_config", Schema::Callable),
     ("notification_self_notify_types", Schema::Unknown),
     ("notification_skip_email_types", Schema::Unknown),
@@ -260,7 +285,9 @@ pub const HOOKS: [(&str, Schema); 130] = [
     ("setup_wizard_complete", Schema::Callable),
     ("setup_wizard_exception", Schema::Unknown),
     ("setup_wizard_requires", Schema::Callable),
+    ("setup_wizard_stages", Schema::Callable),
     ("setup_wizard_success", Schema::Unknown),
+    ("setup_wizard_url", Schema::Unknown),
     ("signup_form_template", Schema::Unknown),
     ("sounds", Schema::Unknown),
     ("sqlite_search", Schema::Unknown),
@@ -308,12 +335,14 @@ pub fn hook_schema(name: &str) -> Option<Schema> {
 }
 
 /// Controller lifecycle methods a `doc_events` map may name — spec 12.
-pub const DOC_EVENTS: [&str; 21] = [
+pub const DOC_EVENTS: [&str; 24] = [
     "after_delete",
     "after_insert",
     "after_rename",
     "autoname",
     "before_cancel",
+    "before_change",
+    "before_discard",
     "before_insert",
     "before_naming",
     "before_print",
@@ -325,6 +354,7 @@ pub const DOC_EVENTS: [&str; 21] = [
     "before_validate",
     "on_cancel",
     "on_change",
+    "on_discard",
     "on_submit",
     "on_trash",
     "on_update",
@@ -498,7 +528,9 @@ mod tests {
         // `stauts` is the typo the `unknown-form-event` check exists for.
         assert!(!is_form_lifecycle_event("stauts"));
         assert!(!is_form_lifecycle_event("status"));
-        assert!(!is_form_lifecycle_event("on_hide"));
+        // `form.js` fires it through `script_manager`, and spec 11 lists it;
+        // the hand-made table missed it until `codegen --check` looked.
+        assert!(is_form_lifecycle_event("on_hide"));
     }
 
     #[test]
