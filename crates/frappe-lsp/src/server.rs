@@ -173,6 +173,7 @@ impl Backend {
             buffer,
             found,
             support: state.support,
+            offset,
         })
     }
 
@@ -802,7 +803,14 @@ impl LanguageServer for Backend {
         }
 
         let complete = |ctx: &PositionContext<'_>| {
-            completion::complete(ctx.index, ctx.buffer, &ctx.found, ctx.support, max_items)
+            completion::complete(
+                ctx.index,
+                ctx.buffer,
+                &ctx.found,
+                ctx.offset,
+                ctx.support,
+                max_items,
+            )
         };
         let uri = &position.text_document.uri;
         Ok(self
@@ -1351,6 +1359,8 @@ struct PositionContext<'a> {
     buffer: &'a frappe_syntax::Buffer,
     found: Found,
     support: ClientSupport,
+    /// The cursor, as a byte offset into the buffer.
+    offset: usize,
 }
 
 impl PositionContext<'_> {

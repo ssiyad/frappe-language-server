@@ -26,10 +26,18 @@ pub fn complete(
     index: &Index,
     buffer: &Buffer,
     found: &Found,
+    offset: usize,
     support: ClientSupport,
     max_items: usize,
 ) -> Option<CompletionResponse> {
-    let typed = found.slot.text.clone().unwrap_or_default();
+    // What is before the cursor, as an editor filters: with the cursor inside
+    // an existing name, the whole literal would match only itself.
+    let interior = found.origin(buffer);
+    let typed = if (interior.start..=interior.end).contains(&offset) {
+        buffer.slice(interior.start..offset).into_owned()
+    } else {
+        found.slot.text.clone().unwrap_or_default()
+    };
     let edit_range = interior_range(buffer, found, support);
 
     let mut items = match found.slot.role {
