@@ -27,6 +27,8 @@ toml.workspace = true
 futures.workspace = true
 tower.workspace = true
 tower-lsp-server.workspace = true
+# Already built for frappe-syntax; named so the cast action can read the tree.
+tree-sitter.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 

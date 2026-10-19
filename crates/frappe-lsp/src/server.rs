@@ -1228,19 +1228,35 @@ impl LanguageServer for Backend {
     /// Quick fixes for the diagnostics the client is showing — spec 23.
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
         let uri = params.text_document.uri;
-        let index = self.index.read_or_recover();
-        let state = self.state.read_or_recover();
-        let Some(buffer) = state.buffers.get(&uri) else {
-            return Ok(None);
+        let (mut actions, cast) = {
+            let index = self.index.read_or_recover();
+            let state = self.state.read_or_recover();
+            let Some(buffer) = state.buffers.get(&uri) else {
+                return Ok(None);
+            };
+            let fixes = diagnostics::fixes(
+                &index,
+                &uri,
+                &buffer.text(),
+                &params.context.diagnostics,
+                state.support.position_encoding,
+            );
+            (fixes, state.config.types.cast_action)
         };
 
-        let actions = diagnostics::fixes(
-            &index,
-            &uri,
-            &buffer.text(),
-            &params.context.diagnostics,
-            state.support.position_encoding,
-        );
+        // Asked with the guards above released: `with_position` takes them
+        // again, and a second read behind a waiting writer never returns.
+        if cast {
+            actions.extend(self.with_position(&uri, params.range.start, |ctx| {
+                crate::cast::action(
+                    ctx.index,
+                    &uri,
+                    ctx.buffer,
+                    &ctx.found,
+                    ctx.support.position_encoding,
+                )
+            }));
+        }
         Ok((!actions.is_empty()).then_some(actions))
     }
 

@@ -7,6 +7,7 @@ pub mod analysis;
 pub mod bridge;
 pub mod buffers;
 pub mod capabilities;
+pub mod cast;
 pub mod cli;
 pub mod completion;
 pub mod config;

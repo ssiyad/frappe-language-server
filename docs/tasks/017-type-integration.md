@@ -7,15 +7,12 @@ other task.
 
 ## Scope
 
-### Mechanism B first
+### Mechanism B — done
 
-The cast code action ([24](../specs/24-type-integration.md)) — cheap, no
-performance cost, useful with the stub disabled. Ship it before the generator.
-
-- Code action on `get_doc`-family calls with a literal DocType.
-- Insert controller import + `typing.cast`; respect existing imports.
-- `cast` only — a bare annotation is a type error, `isinstance` breaks under
-  `override_doctype_class`.
+The cast code action ([24](../specs/24-type-integration.md)) ships, behind
+`types.cast_action` (on by default): `get_doc`-family calls with a literal
+DocType get `cast("Class", …)`, the import under `if TYPE_CHECKING:`, existing
+imports reused. Pyright accepts the result with no unused import.
 
 ### Mechanism A
 

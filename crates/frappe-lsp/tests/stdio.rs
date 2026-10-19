@@ -963,6 +963,34 @@ fn a_jinja_template_navigates_hovers_and_completes() {
 }
 
 #[test]
+fn a_get_doc_call_offers_a_cast_to_its_controller() {
+    // Spec 24, mechanism B, through the protocol.
+    let source = "import frappe\nx = frappe.get_doc(\"Library Member\", n)\n";
+    let (mut session, uri) = session_on(&fixture_bench(), "apps/library/library/probe.py", source);
+    let response = session.request(
+        3100,
+        "textDocument/codeAction",
+        json!({"textDocument": {"uri": uri},
+               "range": {"start": {"line": 1, "character": 22}, "end": {"line": 1, "character": 22}},
+               "context": {"diagnostics": []}}),
+    );
+    let titles: Vec<&str> = response["result"]
+        .as_array()
+        .map(|actions| {
+            actions
+                .iter()
+                .filter_map(|action| action["title"].as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(titles.contains(&"Cast to LibraryMember"), "{response}");
+
+    session.request(3200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
 fn completion_offers_the_fields_of_the_resolved_doctype() {
     let source = "import frappe\nfrappe.get_all(\"Library Member\", fields=[\"|\"])\n";
     let (text, position) = cursor(source);
