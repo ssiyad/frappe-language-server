@@ -99,10 +99,14 @@ pub fn at_while_typing(
         .into_iter()
         .flat_map(|closer| [closer.to_string(), format!("{closer}{enclosing}")])
         .filter(|attempt| !attempt.is_empty());
+    // Each attempt re-extracts the whole buffer, which on a large file is the
+    // expensive part; a request that has not found it by now will not.
+    let started = std::time::Instant::now();
     for closer in attempts {
-        let mut repaired = text.clone();
-        repaired.insert_str(offset, &closer);
-        let Ok(copy) = Buffer::open(buffer.language(), &repaired, 0, buffer.encoding()) else {
+        if started.elapsed() > std::time::Duration::from_millis(150) {
+            return None;
+        }
+        let Ok(copy) = buffer.with_insert(offset, &closer) else {
             return None;
         };
         let Some(mut found) = at(index, &copy, offset, context) else {

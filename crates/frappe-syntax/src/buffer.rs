@@ -189,6 +189,29 @@ impl Buffer {
         }
     }
 
+    /// A copy with `text` inserted at `offset`, parsed incrementally against
+    /// this buffer's tree. The rope and the tree are shared until the edit, so
+    /// trying several insertions per request costs little.
+    pub fn with_insert(&self, offset: usize, text: &str) -> Result<Self, GrammarError> {
+        let mut copy = Self {
+            language: self.language,
+            encoding: self.encoding,
+            parser: self.language.parser()?,
+            text: self.text.clone(),
+            tree: self.tree.clone(),
+            version: self.version,
+        };
+        let at = copy.position(offset);
+        copy.apply(
+            &[Change {
+                range: Some(Range::new(at, at)),
+                text: text.to_string(),
+            }],
+            self.version,
+        );
+        Ok(copy)
+    }
+
     /// Byte offset of a position. Out-of-range positions clamp: a panic here
     /// would take the session down over a stale client range.
     #[must_use]
