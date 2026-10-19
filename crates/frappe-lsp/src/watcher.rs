@@ -69,9 +69,21 @@ pub fn start(
         watcher.watch(root, mode)?;
     }
 
+    // macOS reports events under the resolved path: a bench in `/var/folders`
+    // is watched there but heard from at `/private/var/folders`, and no app
+    // package starts with that, so every change was dropped. A bench under any
+    // symlinked directory does the same.
+    let aliases: Vec<(PathBuf, PathBuf)> = roots
+        .iter()
+        .filter_map(|root| {
+            let resolved = root.canonicalize().ok()?;
+            (resolved != *root).then(|| (resolved, root.clone()))
+        })
+        .collect();
+
     std::thread::Builder::new()
         .name("frappe-lsp-watcher".to_string())
-        .spawn(move || drain(&receiver, &index, bench.as_deref()))
+        .spawn(move || drain(&receiver, &index, bench.as_deref(), &aliases))
         .map_err(notify::Error::io)?;
 
     Ok(FileWatcher { _watcher: watcher })
@@ -82,7 +94,12 @@ pub fn start(
 /// A single save can produce several events — write, chmod, rename-into-place —
 /// and a `git checkout` produces thousands. Re-indexing per event would spend
 /// more time in the index than the editor spends waiting for it.
-fn drain(receiver: &Receiver<Event>, index: &Arc<RwLock<Index>>, bench: Option<&Path>) {
+fn drain(
+    receiver: &Receiver<Event>,
+    index: &Arc<RwLock<Index>>,
+    bench: Option<&Path>,
+    aliases: &[(PathBuf, PathBuf)],
+) {
     let mut pending: HashMap<PathBuf, Instant> = HashMap::new();
 
     loop {
@@ -92,6 +109,7 @@ fn drain(receiver: &Receiver<Event>, index: &Arc<RwLock<Index>>, bench: Option<&
                     continue;
                 }
                 for path in event.paths {
+                    let path = as_watched(path, aliases);
                     // A new DocType arrives as a new directory, and the watch
                     // on it is added after the file inside is already written:
                     // the only event that ever names the file is this one.
@@ -160,6 +178,17 @@ fn apply(index: &Arc<RwLock<Index>>, paths: &[PathBuf], bench: Option<&Path>) {
     }
 }
 
+/// The path as the index knows it: under the root that was watched rather than
+/// the resolved one the platform reported.
+fn as_watched(path: PathBuf, aliases: &[(PathBuf, PathBuf)]) -> PathBuf {
+    for (resolved, watched) in aliases {
+        if let Ok(rest) = path.strip_prefix(resolved) {
+            return watched.join(rest);
+        }
+    }
+    path
+}
+
 /// `sites/apps.txt` and `sites/apps.json` decide which apps exist at all.
 fn decides_the_app_set(path: &Path) -> bool {
     path.file_name().is_some_and(|name| {
@@ -215,6 +244,26 @@ pub fn interesting(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_event_under_the_resolved_path_maps_back_to_the_watched_one() {
+        let aliases = [(
+            PathBuf::from("/private/var/folders/x/bench/apps/library/library"),
+            PathBuf::from("/var/folders/x/bench/apps/library/library"),
+        )];
+        assert_eq!(
+            as_watched(
+                PathBuf::from("/private/var/folders/x/bench/apps/library/library/doctype/a/a.json"),
+                &aliases
+            ),
+            PathBuf::from("/var/folders/x/bench/apps/library/library/doctype/a/a.json")
+        );
+        // Anything else is left as reported.
+        assert_eq!(
+            as_watched(PathBuf::from("/elsewhere/a.py"), &aliases),
+            PathBuf::from("/elsewhere/a.py")
+        );
+    }
 
     #[test]
     fn only_files_the_index_reads_are_interesting() {
