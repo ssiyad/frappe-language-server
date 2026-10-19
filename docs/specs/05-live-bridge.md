@@ -26,12 +26,39 @@ only `GET`, and MUST NOT call any method endpoint that mutates. Requests carry
 
 Never from editor config in plaintext, never from `site_config.json`. In order:
 
-1. `FRAPPE_LSP_TOKEN`, or `FRAPPE_API_KEY` + `FRAPPE_API_SECRET`.
-2. A named [`frappe-cli`](https://pypi.org/project/frappe-cli/) profile — reuse
-   its credential store rather than inventing a second one.
+1. `FRAPPE_LSP_TOKEN`, or `FRAPPE_API_KEY` + `FRAPPE_API_SECRET`. The site may
+   come from `bridge.site`, or from `FRAPPE_SITE` when that is unset.
+2. `bridge.token_command` — any command that prints `<key>:<secret>` on stdout.
 3. Nothing → bridge stays disabled, logged once at `info`.
 
 Rationale: an LSP config file is commonly committed. Credentials in it leak.
+
+### Why a command and not a credential store
+
+Reusing a credential store should not mean depending on a particular one. This
+spec previously named [`frappe-cli`](https://pypi.org/project/frappe-cli/) and
+read its keyring; that made a Python tool a soft dependency of the server, cost
+an OS-keyring dependency on every platform, and still served only the people
+who used that one tool. A command satisfies every store at once — `pass show
+frappe/local`, a password manager's CLI, a Frappe client, a three-line script —
+and the server never learns which.
+
+It runs through a shell, so pipelines work, and off the async worker, because
+it is somebody's script and may prompt.
+
+`bridge.site` always wins over whatever a source names: a bridge pointed at one
+site by configuration and another by a stray variable is the shape of an
+accident. A token command answers "what is the secret", never "which database
+should this read".
+
+A command that fails is `Degraded`, not disabled — a configured bridge that
+cannot produce credentials is not an unasked one, and the difference decides
+whether the absence checks fire.
+
+Like every other executable a configuration can name, `token_command` is
+**refused from `.frappe-lsp.toml`** ([30](30-configuration.md)): that file
+arrives with a `git clone`, and a repository that could name it would run a
+program *and* be handed what it prints.
 
 ## Sync
 
@@ -45,11 +72,28 @@ On enable, and on explicit `frappe-lsp/refreshBridge`:
 | `Client Script` — `dt`, `view`, `script`, `enabled` | Virtual documents |
 | `Server Script` — `script_type`, `reference_doctype`, `script` | Virtual documents |
 
+Paging is `limit_page_length=500` with `order_by=name asc`: without a stable
+order the page boundaries move between calls and a sync silently drops rows. A
+per-DocType ceiling stops a pathological site from making the server allocate
+without bound.
+
+A partial read is **not** merged. Half a picture merged as if it were whole
+looks like absence, which is the one thing `Degraded` exists to prevent.
+
+**Custom Field and Property Setter are implemented.** UI-created DocTypes are
+read but not merged: a DocType with no fields is worse than none, because every
+field on it would resolve to nothing, and the fields need a second read of
+`DocField`. Client and Server Scripts are not read at all — the virtual
+document surface below is untouched.
+
 Paged, `limit_page_length` bounded. Results are cached with the index but always
 tagged Layer 3 so they can be evicted without a rebuild.
 
-Refresh is manual or on an interval (default: never). The server MUST NOT poll on
-keystroke.
+Refresh is manual or on an interval (default: never). The server MUST NOT poll
+on keystroke: `bridge.refresh_interval` is a timer and nothing else, it is read
+again on each tick so setting it to `0` stops it, and each refresh asks the
+client to re-pull diagnostics because Layer 3 changes what every open buffer
+resolves to.
 
 ## In-DB scripts
 
@@ -57,6 +101,23 @@ Client and Server Scripts have no file on disk. Phase 2+ exposes them as
 read-only virtual documents under a `frappe-lsp://script/<doctype>/<name>` URI so
 that navigation from a `doc_events`-equivalent lands somewhere. Editing them
 through the LSP is out of scope — that would mean writing to the site.
+
+## Merge and eviction
+
+Layer 3 goes into the graph through Layer 2's reader: `Custom Field` and
+`Property Setter` are ordinary DocTypes, and a fixtures file is a dump of their
+rows, so the two shapes are identical. Reusing the reader is what keeps Layer 3
+from drifting from Layer 2 in how it reads a `depends_on`.
+
+It merges *after* Layer 2, so the live site wins — a customization present in
+both is current in the database and a snapshot in the file. A Custom Field the
+site reports that a fixture already supplied is the same field, not a
+collision.
+
+Eviction needs no rebuild and no file list: Layer 3 entities are exactly the
+ones whose provenance has no `source` path. A re-sync evicts the previous one
+first, or a field deleted through Customize Form would stay in the graph
+forever.
 
 ## Degradation
 

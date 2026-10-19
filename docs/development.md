@@ -46,10 +46,20 @@ next person trusts them.
 | Parallelism | `rayon` |
 | Snapshots | `insta` |
 | Benchmarks | `criterion` |
-| HTTP (bridge) | `reqwest`, `rustls` |
+| HTTP (bridge) | `reqwest` + `rustls`, no default features |
 
 Adding a dependency needs a line in the PR on what it replaces. Compile time and
 binary size are features here — the server is expected to start in milliseconds.
+
+`reqwest` is the largest thing in the tree and it costs **3.0 MiB** of release
+binary — 8.8 to 11.8 — for a feature that is off by default. There is no
+keyring dependency: credentials come from the environment or from a command the
+user names ([05](specs/05-live-bridge.md)), which is one fewer platform
+integration and one fewer soft dependency on somebody else's tool. It is the price of
+the bridge ([05](specs/05-live-bridge.md)) being a supported configuration
+rather than a separate build, and `rustls` over the system OpenSSL is what
+keeps the result one artifact. Default features are off: the default pulls a
+cookie store, gzip and a blocking client the bridge never uses.
 
 `tower-lsp-server` is the maintained fork of `tower-lsp`, which has not shipped
 since August 2023 and is pinned to `lsp-types` 0.94. The API is the same shape;

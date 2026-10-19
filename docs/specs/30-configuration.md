@@ -28,7 +28,7 @@ cache_dir = ".frappe-lsp"
 [bridge]
 enabled = false
 site = ""              # site name under sites/, or a full URL
-profile = ""           # frappe-cli profile supplying credentials
+token_command = ""     # prints "<key>:<secret>"; ignored from .frappe-lsp.toml — see 05
 refresh_interval = 0   # seconds; 0 = manual only
 
 [diagnostics]
@@ -77,17 +77,22 @@ every code in [23](23-diagnostics.md) is settable the same way.
 ## Credentials
 
 Never in any of these files. Resolution order in [05](05-live-bridge.md):
-environment, then a named `frappe-cli` profile. `bridge.profile` names a profile;
-it never contains a secret. A config file containing something that looks like a
+environment, then whatever `bridge.token_command` prints. That key holds a
+command, never a secret. A config file containing something that looks like a
 key MUST be rejected with a logged error, not silently used — committed
 credentials are the failure mode worth designing against.
+
+A key naming a *command* is exempt from that scan: `token_command` holds a
+shell command, not a secret, and rejecting the file it appears in would make
+the one safe way to supply credentials unusable.
 
 ## What a committed file may not decide
 
 `.frappe-lsp.toml` is source 1 and arrives with a `git clone`, so it is trusted
-with settings and not with actions. `test.bench` — the program the test runner
-spawns — is dropped from it and taken only from the user's own configuration
-([25](25-test-runner.md)). Cloning a repository must not be enough to have the
+with settings and not with actions. Two keys are dropped from it and taken only
+from the user's own configuration: `test.bench`, the program the test runner
+spawns ([25](25-test-runner.md)), and `bridge.token_command`, which would both
+run a program and receive credentials ([05](05-live-bridge.md)). Cloning a repository must not be enough to have the
 editor offer to run a program its author chose, under a lens labelled "Run
 test".
 
