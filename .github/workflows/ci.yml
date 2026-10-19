@@ -33,3 +33,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      # The release binary, driven like an editor over the fixture bench: every
+      # file opened, asked about and typed into. Fails on a crash, a hang, an
+      # error response or a panic in the log.
+      - run: cargo xtask stress tests/fixtures/bench --all --positions 200 --edits 30

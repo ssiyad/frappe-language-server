@@ -12,7 +12,7 @@ Commands:
   codegen    Regenerate vendored Frappe constants from a frappe checkout
   smoke      Index a real bench and check its findings against the allowlist
   stress     Drive the release binary like an editor over a real bench
-             [--positions N] [--edits N] [--limit FILES] [--seed N]
+             [--positions N] [--edits N] [--limit FILES] [--seed N] [--all]
   help       Show this message
 ";
 
@@ -106,6 +106,7 @@ fn stress() -> ExitCode {
         edits: usize::try_from(number("--edits", 4)).unwrap_or(4),
         limit: usize::try_from(number("--limit", 0)).unwrap_or(0),
         seed: number("--seed", 1),
+        all: std::env::args().any(|argument| argument == "--all"),
     };
     println!(
         "stress: seed {}, log in {}",

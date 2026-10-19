@@ -7,6 +7,7 @@
 //! keystroke are the ones a corpus of finished code never shows a server.
 
 mod client;
+mod hostile;
 mod text;
 
 use std::collections::BTreeMap;
@@ -30,12 +31,14 @@ pub struct Options {
     /// Files driven, spread evenly over the corpus; 0 for all of them.
     pub limit: usize,
     pub seed: u64,
+    /// Every installed app rather than `frappe` and `erpnext` alone, as smoke.
+    pub all: bool,
 }
 
 /// Run the drive. Returns whether it was clean.
 pub fn run(options: &Options) -> std::io::Result<bool> {
     let index = Index::build(&options.bench);
-    let mut files = crate::smoke::corpus(&index, false);
+    let mut files = crate::smoke::corpus(&index, options.all);
     if options.limit > 0 && files.len() > options.limit {
         let stride = files.len() / options.limit;
         files = files.into_iter().step_by(stride).collect();
@@ -98,6 +101,9 @@ impl Drive {
         self.call(client, "initialize", initialize(&root), "initialize")?;
         notify(client, "initialized", json!({}), "initialized")?;
         self.settle(client)?;
+        if let Some(package) = files.first().and_then(|file| package_of(file)) {
+            self.hostile(client, &package)?;
+        }
 
         for (number, path) in files.iter().enumerate() {
             if number % 250 == 0 {
@@ -338,6 +344,13 @@ fn notify(client: &mut Client, method: &str, params: Value, context: &str) -> Re
     client
         .notify(method, params)
         .map_err(|failure| (failure, format!("{method} — {context}")))
+}
+
+/// The app package a file sits in: the directory holding its `hooks.py`.
+fn package_of(file: &Path) -> Option<PathBuf> {
+    file.ancestors()
+        .find(|directory| directory.join("hooks.py").is_file())
+        .map(Path::to_path_buf)
 }
 
 fn language(path: &Path) -> &'static str {
