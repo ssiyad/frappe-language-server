@@ -44,6 +44,15 @@ on correct code.
   ([23](23-diagnostics.md)).
 - Re-index is incremental per file. A `didSave` or watcher event on a DocType
   JSON re-parses that file only and patches the graph.
+- The reverse occurrence table ([21](21-navigation.md)) is the one long
+  computation over a built index. It runs on a clone, holding no lock, and is
+  installed only if the index's `revision` has not moved meanwhile. Holding a
+  read guard is not enough: the lock prefers writers, so a save queued behind a
+  multi-second scan would hold every reader back too.
+- A panic in a request answers that request with an internal error and logs
+  it; the session continues. tower-lsp polls every handler inside its serve
+  loop, so an unguarded panic ends the process. Locks recover from poisoning
+  for the same reason: a lock a panic poisoned would fail every later request.
 - Buffer edits use tree-sitter incremental parsing; the old tree is reused via
   `Tree::edit`.
 

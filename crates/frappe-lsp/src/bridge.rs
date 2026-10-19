@@ -5,6 +5,7 @@
 //! A site that is absent, unreachable or refused changes how much the server
 //! is willing to claim; it never changes whether the server answers.
 
+use crate::guard::Recover;
 use std::sync::{Arc, RwLock};
 
 use frappe_bridge::{Client, credentials, sync};
@@ -74,7 +75,7 @@ pub async fn sync_once(index: &Arc<RwLock<Index>>, config: &Config) -> Outcome {
     let property_setters = sync::as_fixture_body(&read.property_setters, "Property Setter");
 
     {
-        let mut guard = index.write().expect("index lock poisoned by a panic");
+        let mut guard = index.write_or_recover();
         guard.apply_site(&site, &custom_fields, &property_setters);
     }
 
@@ -142,7 +143,7 @@ async fn resolve(config: &Config) -> Result<Option<frappe_bridge::Credentials>, 
 
 /// Put the index into the state a failed or disabled bridge implies.
 pub fn settle(index: &Arc<RwLock<Index>>, outcome: &Outcome) {
-    let mut guard = index.write().expect("index lock poisoned by a panic");
+    let mut guard = index.write_or_recover();
     match outcome {
         Outcome::Synced { .. } => {}
         Outcome::Disabled(_) => {

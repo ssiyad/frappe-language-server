@@ -12,6 +12,7 @@ pub mod completion;
 pub mod config;
 pub mod definition;
 pub mod diagnostics;
+pub mod guard;
 pub mod hooks;
 pub mod hover;
 pub mod locations;

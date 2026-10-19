@@ -6,6 +6,7 @@
 //! session. The feature tasks replace the empty bodies; the empty bodies are
 //! what keeps the log clean until then.
 
+use crate::guard::Recover;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
@@ -92,8 +93,8 @@ impl Backend {
             return None;
         }
 
-        let index = self.index.read().expect("index lock poisoned by a panic");
-        let state = self.state.read().expect("state lock poisoned by a panic");
+        let index = self.index.read_or_recover();
+        let state = self.state.read_or_recover();
         let buffer = state.buffers.get(uri)?;
 
         let source = buffer.text();
@@ -125,8 +126,8 @@ impl Backend {
         position: Position,
         f: impl FnOnce(&PositionContext<'_>) -> Option<T>,
     ) -> Option<T> {
-        let index = self.index.read().expect("index lock poisoned by a panic");
-        let state = self.state.read().expect("state lock poisoned by a panic");
+        let index = self.index.read_or_recover();
+        let state = self.state.read_or_recover();
 
         let buffer = state.buffers.get(uri)?;
         if !analysis::supported(buffer.language()) {
@@ -191,8 +192,7 @@ impl Backend {
         let fallback = root.to_path_buf();
         let started = tokio::task::spawn_blocking(move || {
             let packages: Vec<PathBuf> = index
-                .read()
-                .expect("index lock poisoned by a panic")
+                .read_or_recover()
                 .apps()
                 .iter()
                 .map(|app| app.package.clone())
@@ -237,8 +237,8 @@ impl Backend {
         };
 
         let computed = {
-            let index = self.index.read().expect("index lock poisoned by a panic");
-            let state = self.state.read().expect("state lock poisoned by a panic");
+            let index = self.index.read_or_recover();
+            let state = self.state.read_or_recover();
             let Some(buffer) = state.buffers.get(&uri) else {
                 return;
             };
@@ -266,8 +266,8 @@ impl Backend {
                 return;
             };
             let computed = {
-                let index = index.read().expect("index lock poisoned by a panic");
-                let state = state.read().expect("state lock poisoned by a panic");
+                let index = index.read_or_recover();
+                let state = state.read_or_recover();
                 let Some(buffer) = state.buffers.get(&uri) else {
                     return;
                 };
@@ -294,10 +294,7 @@ impl Backend {
     /// user resolves does not sit in their problem list forever.
     /// The status of the index as it stands — spec 30's `indexStatus`.
     fn status(&self) -> IndexStatus {
-        self.index
-            .read()
-            .expect("index lock poisoned by a panic")
-            .status()
+        self.index.read_or_recover().status()
     }
 
     /// Build the index off the request path.
@@ -339,24 +336,7 @@ impl Backend {
             // it in the cache and skips this.
             let scanning = {
                 let index = Arc::clone(&index);
-                tokio::task::spawn_blocking(move || {
-                    let scanned = index
-                        .read()
-                        .expect("index lock poisoned by a panic")
-                        .occurrences()
-                        .scanned;
-                    if scanned {
-                        return;
-                    }
-                    let started = std::time::Instant::now();
-                    let mut guard = index.write().expect("index lock poisoned by a panic");
-                    guard.scan_occurrences();
-                    tracing::info!(
-                        sites = guard.occurrences().len(),
-                        elapsed = ?started.elapsed(),
-                        "reverse occurrence table built"
-                    );
-                })
+                tokio::task::spawn_blocking(move || scan_occurrences(&index))
             };
             if scanning.await.is_err() {
                 tracing::error!("the occurrence scan panicked");
@@ -366,11 +346,7 @@ impl Backend {
             // Layer 3 last. It is optional and it is the only step that talks
             // to anything outside this machine, so nothing else waits on it
             // ([05](../../../docs/specs/05-live-bridge.md)).
-            let config = state
-                .read()
-                .expect("state lock poisoned by a panic")
-                .config
-                .clone();
+            let config = state.read_or_recover().config.clone();
             let outcome = crate::bridge::sync_once(&index, &config).await;
             crate::bridge::settle(&index, &outcome);
             crate::bridge::log(&outcome);
@@ -378,7 +354,7 @@ impl Backend {
             // Written after the scan so the cache carries the table; a warm
             // start then answers `references` immediately.
             if let Some(directory) = cache.as_deref() {
-                let guard = index.read().expect("index lock poisoned by a panic");
+                let guard = index.read_or_recover();
                 let _ = frappe_index::cache::save(&guard, &root, directory);
             }
         });
@@ -387,7 +363,7 @@ impl Backend {
     /// Guards are never held across an `.await`: the trait requires `Send`
     /// futures, so this is checked at compile time rather than by review.
     fn write<T>(&self, f: impl FnOnce(&mut State) -> T) -> T {
-        f(&mut self.state.write().expect("state lock poisoned by a panic"))
+        f(&mut self.state.write_or_recover())
     }
 }
 
@@ -407,14 +383,14 @@ async fn publish_conflicts(
     state: &Arc<RwLock<State>>,
 ) {
     let (config, open) = {
-        let guard = state.read().expect("state lock poisoned by a panic");
+        let guard = state.read_or_recover();
         (guard.config.clone(), guard.buffers.uris())
     };
 
     // Everything is computed before the first await: the index guard is not
     // `Send`, and holding it across one would not compile.
     let computed: Vec<(Uri, Vec<Diagnostic>)> = {
-        let index = index.read().expect("index lock poisoned by a panic");
+        let index = index.read_or_recover();
         let mut seen: Vec<Uri> = Vec::new();
         let mut computed = Vec::new();
         for path in index
@@ -441,7 +417,7 @@ async fn publish_conflicts(
 
     let published: Vec<Uri> = computed.iter().map(|(uri, _)| uri.clone()).collect();
     let stale: Vec<Uri> = {
-        let mut guard = state.write().expect("state lock poisoned by a panic");
+        let mut guard = state.write_or_recover();
         let stale = guard
             .conflicting
             .iter()
@@ -460,6 +436,44 @@ async fn publish_conflicts(
     }
 }
 
+/// Fill the reverse occurrence table without stopping the server.
+///
+/// The scan takes seconds on a real bench. Under the write lock it froze every
+/// request for that long. A read lock is not enough either: the lock prefers
+/// writers, so one save queued behind the scan would hold every reader back
+/// just the same. It scans a snapshot, holding no lock, and installs the
+/// result only if nothing changed the index meanwhile — a save, a bridge sync,
+/// a forced rebuild. An index that keeps changing is scanned under the write
+/// lock as a last resort, which is what every scan used to cost.
+pub(crate) fn scan_occurrences(index: &RwLock<Index>) {
+    let started = std::time::Instant::now();
+    for _ in 0..3 {
+        let (revision, snapshot) = {
+            let guard = index.read_or_recover();
+            if guard.occurrences().scanned {
+                return;
+            }
+            (guard.revision(), guard.clone())
+        };
+        let table = snapshot.collect_occurrences();
+        drop(snapshot);
+        let mut guard = index.write_or_recover();
+        if guard.revision() == revision {
+            guard.install_occurrences(table);
+            tracing::info!(
+                sites = guard.occurrences().len(),
+                elapsed = ?started.elapsed(),
+                "reverse occurrence table built"
+            );
+            return;
+        }
+    }
+    let mut guard = index.write_or_recover();
+    if !guard.occurrences().scanned {
+        guard.scan_occurrences();
+    }
+}
+
 /// Build or warm the index in place, then write the cache.
 fn build(index: &Arc<RwLock<Index>>, root: &Path, cache: Option<&Path>) {
     // A cache is an optimisation: anything wrong with it means a full
@@ -469,7 +483,7 @@ fn build(index: &Arc<RwLock<Index>>, root: &Path, cache: Option<&Path>) {
     let built = warm.unwrap_or_else(|| Index::build(root));
 
     let status = built.status();
-    *index.write().expect("index lock poisoned by a panic") = built;
+    *index.write_or_recover() = built;
     tracing::info!(
         apps = status.apps,
         doctypes = status.doctypes,
@@ -490,7 +504,7 @@ fn build(index: &Arc<RwLock<Index>>, root: &Path, cache: Option<&Path>) {
     if let Some(directory) = cache
         && !from_cache
     {
-        let guard = index.read().expect("index lock poisoned by a panic");
+        let guard = index.read_or_recover();
         match frappe_index::cache::save(&guard, root, directory) {
             Ok(()) => tracing::debug!("index cache written"),
             // Costs a slower start next time and nothing else.
@@ -638,7 +652,7 @@ impl LanguageServer for Backend {
         };
         let index = Arc::clone(&self.index);
         tokio::task::spawn_blocking(move || {
-            let mut index = index.write().expect("index lock poisoned by a panic");
+            let mut index = index.write_or_recover();
             let reindexed = index.reindex(&path);
             if reindexed.known {
                 tracing::debug!(
@@ -709,7 +723,7 @@ impl LanguageServer for Backend {
             let reindexing = {
                 let index = Arc::clone(&index);
                 tokio::task::spawn_blocking(move || {
-                    let mut index = index.write().expect("index lock poisoned by a panic");
+                    let mut index = index.write_or_recover();
                     for path in paths {
                         index.reindex(&path);
                     }
@@ -751,7 +765,7 @@ impl LanguageServer for Backend {
 
     async fn completion_resolve(&self, item: CompletionItem) -> Result<CompletionItem> {
         let markdown = self.write(|state| state.support.markdown);
-        let index = self.index.read().expect("index lock poisoned by a panic");
+        let index = self.index.read_or_recover();
         Ok(completion::resolve(&index, item, markdown))
     }
 
@@ -911,7 +925,7 @@ impl LanguageServer for Backend {
         // The buffer's text when it is open, the file's otherwise: a JSON the
         // user is editing has ranges the file on disk no longer has.
         let source = {
-            let state = self.state.read().expect("state lock poisoned by a panic");
+            let state = self.state.read_or_recover();
             state
                 .buffers
                 .get(&uri)
@@ -921,7 +935,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        let index = self.index.read().expect("index lock poisoned by a panic");
+        let index = self.index.read_or_recover();
         let found = symbols::document_symbols(&index, &path, &source);
         Ok((!found.is_empty()).then_some(DocumentSymbolResponse::Nested(found)))
     }
@@ -932,7 +946,7 @@ impl LanguageServer for Backend {
         &self,
         params: WorkspaceSymbolParams,
     ) -> Result<Option<WorkspaceSymbolResponse>> {
-        let index = self.index.read().expect("index lock poisoned by a panic");
+        let index = self.index.read_or_recover();
         Ok(Some(WorkspaceSymbolResponse::Nested(
             symbols::workspace_symbols(&index, &params.query),
         )))
@@ -946,7 +960,7 @@ impl LanguageServer for Backend {
         };
 
         let source = {
-            let state = self.state.read().expect("state lock poisoned by a panic");
+            let state = self.state.read_or_recover();
             state
                 .buffers
                 .get(&uri)
@@ -958,7 +972,7 @@ impl LanguageServer for Backend {
 
         let config = self.write(|state| state.config.clone());
         let chosen = self.write(|state| state.chosen_site.clone());
-        let index = self.index.read().expect("index lock poisoned by a panic");
+        let index = self.index.read_or_recover();
         let lenses = testing::lenses(&index, &config, chosen.as_deref(), &path, &source);
         Ok((!lenses.is_empty()).then_some(lenses))
     }
@@ -990,7 +1004,7 @@ impl LanguageServer for Backend {
         let config = self.write(|state| state.config.clone());
         let chosen = self.write(|state| state.chosen_site.clone());
         let argv = {
-            let index = self.index.read().expect("index lock poisoned by a panic");
+            let index = self.index.read_or_recover();
             testing::rebuild(&index, &config, chosen.as_deref(), &scope)
         };
         let Some(argv) = argv else {
@@ -1058,8 +1072,8 @@ impl LanguageServer for Backend {
     /// Quick fixes for the diagnostics the client is showing — spec 23.
     async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
         let uri = params.text_document.uri;
-        let index = self.index.read().expect("index lock poisoned by a panic");
-        let state = self.state.read().expect("state lock poisoned by a panic");
+        let index = self.index.read_or_recover();
+        let state = self.state.read_or_recover();
         let Some(buffer) = state.buffers.get(&uri) else {
             return Ok(None);
         };
@@ -1079,8 +1093,8 @@ impl LanguageServer for Backend {
             .to_file_path()
             .map(|path| path.into_owned())
             .map(|path| {
-                let index = self.index.read().expect("index lock poisoned by a panic");
-                let state = self.state.read().expect("state lock poisoned by a panic");
+                let index = self.index.read_or_recover();
+                let state = self.state.read_or_recover();
                 state
                     .buffers
                     .get(&params.text_document.uri)
@@ -1189,7 +1203,7 @@ impl Backend {
             // references" from "not yet" (specs/21).
             "occurrences": status.occurrences,
             // Which site Layer 3 came from, or null when the bridge is off.
-            "site": self.index.read().expect("index lock poisoned by a panic").site(),
+            "site": self.index.read_or_recover().site(),
             "frappeVersion": status.frappe_version,
             "buildTimeMs": status.build_time.as_millis() as u64,
         }))
@@ -1238,7 +1252,7 @@ impl Backend {
             });
         };
 
-        *self.index.write().expect("index lock poisoned by a panic") = Index::partial();
+        *self.index.write_or_recover() = Index::partial();
         self.build_in_background(root.clone());
         Ok(json!({ "started": true, "root": root.display().to_string() }))
     }

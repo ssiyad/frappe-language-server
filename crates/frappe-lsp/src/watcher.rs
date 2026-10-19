@@ -8,6 +8,7 @@
 //! already knows which files changed, and a second inotify tree over a bench is
 //! thousands of watches for the same answer. This is the fallback.
 
+use crate::guard::Recover;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
@@ -140,15 +141,14 @@ fn apply(index: &Arc<RwLock<Index>>, paths: &[PathBuf], bench: Option<&Path>) {
     {
         tracing::info!("the installed apps changed; rebuilding the index");
         let rebuilt = Index::build(bench);
-        if let Ok(mut index) = index.write() {
-            *index = rebuilt;
-        }
+        *index.write_or_recover() = rebuilt;
+        // A fresh index has no reverse occurrence table, and nothing else
+        // would ever fill it: `references` would answer nothing until restart.
+        crate::server::scan_occurrences(index);
         return;
     }
 
-    let Ok(mut index) = index.write() else {
-        return;
-    };
+    let mut index = index.write_or_recover();
     let mut touched = 0;
     for path in paths {
         if index.reindex(path).known {

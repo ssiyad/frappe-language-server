@@ -29,6 +29,10 @@ serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 tokio = "1"
 toml = "1.1"
+# `tower` and `futures` come with tower-lsp-server already; named here only so
+# a panicking request can be caught at the service boundary.
+futures = { version = "0.3", default-features = false, features = ["std"] }
+tower = { version = "0.5", default-features = false }
 tower-lsp-server = "0.23"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

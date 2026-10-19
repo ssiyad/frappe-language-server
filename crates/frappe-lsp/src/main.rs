@@ -1,5 +1,6 @@
 use std::process::ExitCode;
 
+use frappe_lsp::guard::Guarded;
 use frappe_lsp::server::{Backend, SERVER_NAME, VERSION};
 use frappe_lsp::{cli, logging};
 use tower_lsp_server::{LspService, Server};
@@ -32,8 +33,10 @@ async fn main() -> ExitCode {
         .custom_method("frappe-lsp/reindex", Backend::reindex)
         .custom_method("frappe-lsp/refreshBridge", Backend::refresh_bridge)
         .finish();
+    // A panic in one request answers that request with an error; unguarded,
+    // it would end the session.
     Server::new(tokio::io::stdin(), tokio::io::stdout(), socket)
-        .serve(service)
+        .serve(Guarded(service))
         .await;
 
     ExitCode::SUCCESS

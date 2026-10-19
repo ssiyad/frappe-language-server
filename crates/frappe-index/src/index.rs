@@ -217,6 +217,15 @@ pub struct Index {
     problems: Vec<Problem>,
     confidence: Confidence,
     build_time: Duration,
+    /// Changes whenever the index does, and is never reused in a process, so
+    /// work done under a read lock can check nothing moved before it writes.
+    #[serde(skip, default = "next_revision")]
+    revision: u64,
+}
+
+fn next_revision() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 impl Index {
@@ -269,6 +278,7 @@ impl Index {
             remapped: BTreeMap::new(),
             confidence: Confidence::Partial,
             build_time: Duration::ZERO,
+            revision: next_revision(),
         }
     }
 
@@ -312,6 +322,7 @@ impl Index {
             conflicts: Vec::new(),
             confidence: Confidence::Static,
             build_time: Duration::ZERO,
+            revision: next_revision(),
         };
 
         // DocType JSON parsing is embarrassingly parallel; the merge below is
@@ -1417,6 +1428,7 @@ impl Index {
         custom_fields: &str,
         property_setters: &str,
     ) -> Vec<String> {
+        self.revision = next_revision();
         let mut fixture = crate::fixtures::read(custom_fields).unwrap_or_default();
         let setters = crate::fixtures::read(property_setters).unwrap_or_default();
         fixture.property_setters.extend(setters.property_setters);
@@ -1459,6 +1471,7 @@ impl Index {
     /// knows its picture is incomplete (`Degraded`), which suppresses the
     /// absence checks of [23](../../../docs/specs/23-diagnostics.md).
     pub fn evict_site(&mut self, reachable: bool) -> Vec<String> {
+        self.revision = next_revision();
         let affected: Vec<String> = self
             .site
             .take()
@@ -1511,6 +1524,16 @@ impl Index {
     /// after the index is published, and the cache carries the result, so a
     /// warm start pays nothing.
     pub fn scan_occurrences(&mut self) {
+        let table = self.collect_occurrences();
+        self.install_occurrences(table);
+    }
+
+    /// The whole reverse occurrence table, computed without changing the
+    /// index, so a server can build it under a read lock while requests are
+    /// still being answered. [`Self::revision`] tells it whether the table is
+    /// still current when it comes to install it.
+    #[must_use]
+    pub fn collect_occurrences(&self) -> crate::occurrences::Occurrences {
         let files: Vec<PathBuf> = self
             .workspace
             .apps
@@ -1532,18 +1555,32 @@ impl Index {
             .map(|(found, path)| (path, found))
             .collect();
 
+        let mut table = crate::occurrences::Occurrences::default();
         for (path, keys) in found {
             let path: Arc<Path> = Arc::from(path.as_path());
             for (key, range) in keys {
-                self.occurrences.insert(key, &path, range);
+                table.insert(key, &path, range);
             }
         }
 
-        self.schema_occurrences();
-        self.hook_occurrences();
-        self.fixture_occurrences();
-        self.occurrences.sort();
-        self.occurrences.scanned = true;
+        self.schema_occurrences(&mut table);
+        self.hook_occurrences(&mut table);
+        self.fixture_occurrences(&mut table);
+        table.sort();
+        table.scanned = true;
+        table
+    }
+
+    /// Take a table from [`Self::collect_occurrences`].
+    pub fn install_occurrences(&mut self, table: crate::occurrences::Occurrences) {
+        self.occurrences = table;
+        self.revision = next_revision();
+    }
+
+    /// Changes on every mutation and is never reused in a process.
+    #[must_use]
+    pub fn revision(&self) -> u64 {
+        self.revision
     }
 
     /// Re-scan one file's occurrences, and those of every DocType it touched.
@@ -1573,8 +1610,10 @@ impl Index {
                 self.occurrences.forget(&doctype.path);
             }
         }
-        self.schema_occurrences();
-        self.occurrences.sort();
+        let mut table = std::mem::take(&mut self.occurrences);
+        self.schema_occurrences(&mut table);
+        table.sort();
+        self.occurrences = table;
     }
 
     /// DocType names used as hook map keys.
@@ -1584,7 +1623,7 @@ impl Index {
     /// schemas written `Map<DocTypeName, …>` in
     /// [12](../../../docs/specs/12-surface-hooks.md) are walked, which is the
     /// same rule the diagnostics use.
-    fn hook_occurrences(&mut self) {
+    fn hook_occurrences(&self, table: &mut crate::occurrences::Occurrences) {
         use crate::occurrences::Key;
         use frappe_syntax::generated::Schema;
         use frappe_syntax::hooks::Value;
@@ -1632,13 +1671,13 @@ impl Index {
 
         for (name, path, range) in found {
             let path: Arc<Path> = Arc::from(path.as_path());
-            self.occurrences.insert(Key::DocType(name), &path, range);
+            table.insert(Key::DocType(name), &path, range);
         }
     }
 
     /// DocType names a Layer-2 fixtures file targets — spec 21 counts fixtures
     /// as a surface, and a Custom Field is how half a bench's schema arrives.
-    fn fixture_occurrences(&mut self) {
+    fn fixture_occurrences(&self, table: &mut crate::occurrences::Occurrences) {
         use crate::occurrences::Key;
 
         let mut found: Vec<(Key, PathBuf, Range)> = Vec::new();
@@ -1666,7 +1705,7 @@ impl Index {
 
         for (key, path, range) in found {
             let path: Arc<Path> = Arc::from(path.as_path());
-            self.occurrences.insert(key, &path, range);
+            table.insert(key, &path, range);
         }
     }
 
@@ -1716,7 +1755,7 @@ impl Index {
 
     /// The occurrences the schema itself holds: a `Link` naming a DocType, a
     /// `fetch_from` naming a field, the field declarations themselves.
-    fn schema_occurrences(&mut self) {
+    fn schema_occurrences(&self, table: &mut crate::occurrences::Occurrences) {
         use crate::occurrences::Key;
 
         let mut found: Vec<(Key, PathBuf, Range)> = Vec::new();
@@ -1753,7 +1792,7 @@ impl Index {
 
         for (key, path, range) in found {
             let path: Arc<Path> = Arc::from(path.as_path());
-            self.occurrences.insert(key, &path, range);
+            table.insert(key, &path, range);
         }
     }
 
@@ -1892,6 +1931,7 @@ impl Index {
     /// ([32](../../../docs/specs/32-testing.md) asserts it). A file that no
     /// longer exists is removed from every layer it contributed to.
     pub fn reindex(&mut self, path: &Path) -> Reindexed {
+        self.revision = next_revision();
         let mut affected: BTreeSet<String> = BTreeSet::new();
         let mut known = false;
 
