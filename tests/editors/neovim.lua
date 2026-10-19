@@ -4,8 +4,8 @@
 --   cargo build --release
 --   nvim --clean --headless -l tests/editors/neovim.lua [BENCH]
 --
--- The setup block below is the one docs/editors.md tells users to copy, so the
--- documented configuration is the tested one. Targets are found by searching
+-- It loads the plugin from this repository the way a plugin manager would,
+-- so the plugin users install is the configuration under test. Targets are found by searching
 -- the buffer rather than by line number, so the check survives the bench
 -- moving. Exits non-zero on the first broken expectation.
 
@@ -13,35 +13,10 @@ local repo = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(vim.fs.normalize(arg[0
 local bench = vim.fs.normalize(arg[1] or os.getenv('FRAPPE_LSP_REFERENCE_BENCH') or '~/sources/frappe-dev')
 local binary = os.getenv('FRAPPE_LSP') or (repo .. '/target/release/frappe-lsp')
 
--- >>> setup
-vim.lsp.config('frappe_lsp', {
-  cmd = { binary },
-  filetypes = { 'python', 'javascript', 'json', 'text', 'html', 'htmldjango', 'jinja' },
-  -- A bench is the directory holding sites/apps.txt.
-  root_dir = function(bufnr, on_dir)
-    for dir in vim.fs.parents(vim.api.nvim_buf_get_name(bufnr)) do
-      if vim.uv.fs_stat(dir .. '/sites/apps.txt') then
-        return on_dir(dir)
-      end
-    end
-  end,
-})
-vim.lsp.enable('frappe_lsp')
-
--- Test lenses. The server answers with the command to run, and the editor runs
--- it in a terminal so the tests get a TTY.
-vim.lsp.commands['frappe-lsp.runTest'] = function(command, ctx)
-  local client = assert(vim.lsp.get_client_by_id(ctx.client_id))
-  client:request('workspace/executeCommand', command, function(err, result)
-    if err or not result or not result.argv then
-      vim.notify('frappe-lsp: ' .. (err and err.message or 'nothing to run'), vim.log.levels.WARN)
-      return
-    end
-    vim.cmd('botright new')
-    vim.fn.jobstart(result.argv, { cwd = result.cwd, term = true })
-  end, ctx.bufnr)
-end
--- <<< setup
+-- The plugin in this repository, as lazy.nvim or vim.pack would load it.
+vim.opt.runtimepath:prepend(repo)
+vim.g.frappe_lsp_cmd = binary
+require('frappe_lsp').setup()
 
 local failed = 0
 local function check(name, ok, detail)
@@ -193,6 +168,7 @@ local run = lens and lens.command and client:request_sync('workspace/executeComm
 local argv = run and run.result and run.result.argv or {}
 check('a lens resolves to a bench command', vim.tbl_contains(argv, 'run-tests'), table.concat(argv, ' '))
 check('the runTest handler is registered', type(vim.lsp.commands['frappe-lsp.runTest']) == 'function')
+check('the commands exist', vim.fn.exists(':FrappeLspStatus') == 2 and vim.fn.exists(':FrappeLspInstall') == 2)
 
 check('the server is still running', not client:is_stopped())
 print(failed == 0 and 'neovim: all checks passed' or ('neovim: ' .. failed .. ' failed'))

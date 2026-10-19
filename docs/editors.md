@@ -10,43 +10,39 @@ root ([03](specs/03-workspace-model.md)).
 
 ## Neovim
 
-Neovim 0.11 or later, built-in client, no plugins. `tests/editors/neovim.lua`
-runs this block against a real bench, so it is the tested configuration.
+Neovim 0.11 or later. This repository is the plugin. With lazy.nvim:
 
 ```lua
-vim.lsp.config('frappe_lsp', {
-  cmd = { 'frappe-lsp' },
-  filetypes = { 'python', 'javascript', 'json', 'text', 'html', 'htmldjango', 'jinja' },
-  -- A bench is the directory holding sites/apps.txt.
-  root_dir = function(bufnr, on_dir)
-    for dir in vim.fs.parents(vim.api.nvim_buf_get_name(bufnr)) do
-      if vim.uv.fs_stat(dir .. '/sites/apps.txt') then
-        return on_dir(dir)
-      end
-    end
+{
+  'ssiyad/frappe-language-server',
+  config = function()
+    require('frappe_lsp').setup()
   end,
-})
-vim.lsp.enable('frappe_lsp')
-
--- Test lenses. The server answers with the command to run, and the editor runs
--- it in a terminal so the tests get a TTY.
-vim.lsp.commands['frappe-lsp.runTest'] = function(command, ctx)
-  local client = assert(vim.lsp.get_client_by_id(ctx.client_id))
-  client:request('workspace/executeCommand', command, function(err, result)
-    if err or not result or not result.argv then
-      vim.notify('frappe-lsp: ' .. (err and err.message or 'nothing to run'), vim.log.levels.WARN)
-      return
-    end
-    vim.cmd('botright new')
-    vim.fn.jobstart(result.argv, { cwd = result.cwd, term = true })
-  end, ctx.bufnr)
-end
+}
 ```
 
-Neovim does not show code lenses by default. Turn them on with
-`vim.lsp.codelens.enable(true)` in 0.12, or call `vim.lsp.codelens.refresh()`
-on `BufEnter` and `InsertLeave` in 0.11. Run the lens under the cursor with
-`vim.lsp.codelens.run()`.
+Or with `vim.pack` in Neovim 0.12:
+
+```lua
+vim.pack.add({ 'https://github.com/ssiyad/frappe-language-server' })
+require('frappe_lsp').setup()
+```
+
+Then run `:FrappeLspInstall` once. It downloads the release for your platform,
+checks it against `SHA256SUMS`, and puts it under Neovim's data directory; run
+it again to update. With an authenticated `gh` it downloads through `gh`, which
+also reaches a private repository. To use a binary of your own instead, pass
+`setup({ cmd = '/path/to/frappe-lsp' })`, or leave `frappe-lsp` on your `PATH`.
+
+`setup()` starts the server for any file in a bench, shows test lenses and runs
+them in a terminal, and adds two more commands: `:FrappeLspStatus` prints what
+the server indexed, and `:FrappeLspReindex` rebuilds the index from scratch.
+`setup({ codelens = false })` leaves the lenses off.
+
+Without `setup()`, `vim.lsp.enable('frappe_lsp')` still starts the server, from
+the `lsp/frappe_lsp.lua` the plugin ships, but test lenses do nothing when
+clicked. `tests/editors/neovim.lua` loads the plugin the same way against a
+real bench, so this is the tested configuration.
 
 A bench with more than one site asks which site to run tests against on the
 first click. Set `test.site` to skip the question ([30](specs/30-configuration.md)).
@@ -110,10 +106,10 @@ apps, DocTypes, fields and modules the server found, the frappe version, and
 whether the index is complete (`confidence`). Zero apps means it found no bench
 above the root the editor sent. In Neovim:
 
-```lua
-:lua vim.print(vim.lsp.get_clients({ name = 'frappe_lsp' })[1]:request_sync('frappe-lsp/indexStatus', vim.NIL).result)
+```vim
+:FrappeLspStatus
 ```
 
 For more detail, add `--log-level debug` to the command, for example
-`cmd = { 'frappe-lsp', '--log-level', 'debug' }`. The server logs to stderr,
+`setup({ cmd = { 'frappe-lsp', '--log-level', 'debug' } })`. The server logs to stderr,
 and Neovim writes that to `:LspLog`. Attach both to a bug report.

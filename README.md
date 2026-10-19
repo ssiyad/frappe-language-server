@@ -63,9 +63,11 @@ library.
 
 ## Set up your editor
 
-Point your editor's LSP client at the `frappe-lsp` command for Python,
-JavaScript and JSON files. [docs/editors.md](docs/editors.md) has the
-configuration for Neovim and Helix, and what any other client needs.
+In Neovim, this repository is a plugin: install it with your plugin manager,
+call `require('frappe_lsp').setup()`, and run `:FrappeLspInstall` for the
+binary. For other editors, point the LSP client at the `frappe-lsp` command
+for Python, JavaScript, JSON and HTML files. [docs/editors.md](docs/editors.md)
+has Neovim, Helix, and what any other client needs.
 
 Open a file in any app of a bench. The first index of a bench with `frappe`,
 `erpnext` and six more apps takes about two seconds. Later starts read a cache.
