@@ -32,6 +32,15 @@ the build completes.
   occurrences. Intern to `u32` symbols; store names once.
 - **Lazy tree-sitter.** Only open buffers hold trees. Closed files contribute
   through the index and the reverse-occurrence table.
+- **Bounded malloc arenas.** Most resident memory is not the index. On the
+  reference bench of eight apps the live index is about 60 MB, yet the process
+  held 660 MB: tree-sitter allocates through the C library, and glibc keeps a
+  separate arena per thread and seldom returns freed pages. On Linux with glibc
+  the server re-executes itself once with `MALLOC_ARENA_MAX=2`, unless the user
+  set it, which brings the same bench to about 440 MB. Other allocators for the
+  Rust side were measured and change nothing, since the retained memory is not
+  theirs. `malloc_trim` would release more, but it needs `unsafe`, which the
+  workspace forbids.
 - **Deferred occurrence scan.** The reverse table costs a full extract pass and
   is built after the index is published, not inside the cold budget
   ([21](21-navigation.md)). It is cached with the index, so the cost is paid

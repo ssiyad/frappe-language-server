@@ -5,8 +5,51 @@ use frappe_lsp::server::{Backend, SERVER_NAME, VERSION};
 use frappe_lsp::{cli, logging};
 use tower_lsp_server::{LspService, Server};
 
-#[tokio::main]
-async fn main() -> ExitCode {
+fn main() -> ExitCode {
+    bound_malloc_arenas();
+    match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime.block_on(serve()),
+        Err(error) => {
+            eprintln!("frappe-lsp: could not start the async runtime: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Run once more with two glibc malloc arenas, unless the user chose a number.
+///
+/// tree-sitter allocates through the C library, and glibc gives every thread
+/// its own arena and seldom returns what is freed in one. Parsing a whole bench
+/// on every core left 660 MB resident for 60 MB of live index; two arenas keep
+/// about 400 MB ([31](../../../docs/specs/31-performance.md)). The variable is
+/// read when the process starts, so setting it means starting again, and
+/// `exec` keeps the PID and the stdio the editor is talking to.
+#[cfg(all(target_os = "linux", target_env = "gnu"))]
+fn bound_malloc_arenas() {
+    use std::os::unix::process::CommandExt;
+
+    const ARENAS: &str = "MALLOC_ARENA_MAX";
+    if std::env::var_os(ARENAS).is_some() {
+        return;
+    }
+    let Ok(binary) = std::env::current_exe() else {
+        return;
+    };
+    let error = std::process::Command::new(binary)
+        .args(std::env::args_os().skip(1))
+        .env(ARENAS, "2")
+        .exec();
+    // Only reached when `exec` failed; the server still works, with more memory.
+    eprintln!("frappe-lsp: could not restart with bounded malloc arenas: {error}");
+}
+
+#[cfg(not(all(target_os = "linux", target_env = "gnu")))]
+fn bound_malloc_arenas() {}
+
+async fn serve() -> ExitCode {
     let args = match cli::parse(std::env::args().skip(1)) {
         Ok(cli::Invocation::Serve(args)) => args,
         Ok(cli::Invocation::Help) => {
