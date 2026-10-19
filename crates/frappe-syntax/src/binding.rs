@@ -232,7 +232,7 @@ pub(crate) fn javascript_scopes(root: Node<'_>, source: &str, frm_doctype: Optio
             .map(|name| Scoped {
                 name: name.to_string(),
                 span,
-                binding: Binding::DocType(doctype.text.clone()),
+                binding: Binding::Form(doctype.text.clone()),
             })
             .collect();
         scopes.scopes.push(Scope { span, bound });
@@ -410,10 +410,10 @@ fn resolve_table_rows(scopes: &mut Scopes) {
                             Some(Binding::DocType(name)) => Some(name.clone()),
                             // A row of a row is two joins deep; specs/06 stops
                             // at one.
-                            Some(Binding::TableRow { .. }) | None => None,
+                            Some(Binding::TableRow { .. } | Binding::Form(_)) | None => None,
                         },
                     )),
-                    Binding::DocType(_) => None,
+                    Binding::DocType(_) | Binding::Form(_) => None,
                 })
                 .collect::<Vec<_>>()
         })

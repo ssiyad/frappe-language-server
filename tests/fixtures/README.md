@@ -34,6 +34,7 @@ indexed and MUST NOT raise `duplicate-doctype`. This is the reference bench's
 | Library Settings | library | Single (`issingle`), `depends_on` naming a plain fieldname |
 | Library Availability | library | Virtual (`is_virtual`) with a controller that implements the persistence methods |
 | Loan | circulation | Inter-app reference: `Link` and `Table` into `library` |
+| Loan Fine | circulation | A child with one parent, `Loan`, where `Library Loan Item` has two: `frm` in its form script is Loan's form |
 | Circulation Broken Field | circulation | Field-level errors, beside their near misses |
 | Circulation Broken Meta | circulation | Document-level errors |
 | Circulation Malformed | circulation | JSON that does not parse |

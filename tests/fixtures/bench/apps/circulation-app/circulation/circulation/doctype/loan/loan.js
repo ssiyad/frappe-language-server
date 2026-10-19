@@ -30,3 +30,13 @@ frappe.ui.form.on("Library Loan Item", {
 		frappe.model.set_value(cdt, cdn, "book_title", ""); // expect: clean
 	},
 });
+
+// Its keys are the child's, but `frm` is the parent's form. Loan Fine has one
+// parent, so `frm` is Loan's.
+frappe.ui.form.on("Loan Fine", {
+	amount(frm) {
+		frm.refresh_field("fines"); // expect: clean
+		frm.set_value("status", "Open"); // expect: clean
+		frm.set_value("amount", 0); // expect: unknown-field, a field of the row, not of Loan
+	},
+});

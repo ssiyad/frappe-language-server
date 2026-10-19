@@ -1114,22 +1114,28 @@ impl Index {
     /// ([10](../../../docs/specs/10-surface-python.md)).
     #[must_use]
     pub fn parent_with_field(&self, child: &str, fieldname: &str) -> Option<&str> {
-        if !self.doctype(child).is_some_and(|doctype| doctype.is_child) {
-            return None;
-        }
-        self.doctypes
-            .values()
-            .filter(|parent| {
-                parent.fields.iter().any(|field| {
+        self.parents(child)
+            .find(|parent| parent.has_field(&self.interner, fieldname))
+            .map(|parent| parent.name.as_str())
+    }
+
+    /// Every DocType with a `Table` field holding rows of `child`, once each.
+    /// Empty when `child` is not a child DocType.
+    pub fn parents<'s, 'c>(
+        &'s self,
+        child: &'c str,
+    ) -> impl Iterator<Item = &'s DocType> + use<'s, 'c> {
+        let is_child = self.doctype(child).is_some_and(|doctype| doctype.is_child);
+        self.doctypes.values().filter(move |parent| {
+            is_child
+                && parent.fields.iter().any(|field| {
                     self.interner.resolve(field.fieldtype) == "Table"
                         && field
                             .options
                             .as_deref()
                             .is_some_and(|options| options.eq_ignore_ascii_case(child))
                 })
-            })
-            .find(|parent| parent.has_field(&self.interner, fieldname))
-            .map(|parent| parent.name.as_str())
+        })
     }
 
     /// Whether `fieldname` is a `Table` field, on any DocType, holding rows of

@@ -234,9 +234,9 @@ mod tests {
                 .artifacts
                 .doctypes()
                 .count(),
-            4
+            5
         );
-        assert_eq!(workspace.doctypes().count(), 9);
+        assert_eq!(workspace.doctypes().count(), 10);
     }
 
     #[test]

@@ -81,10 +81,11 @@ impl Anchor {
 
 /// What a name is bound to inside one function scope.
 ///
-/// The two cases of [06](../../../docs/specs/06-analysis-pipeline.md)'s binding
+/// The cases of [06](../../../docs/specs/06-analysis-pipeline.md)'s binding
 /// rules that survive without an index. Naming the child DocType behind a
 /// `Table` field needs the schema, so [`Binding::TableRow`] stops at the field
-/// and leaves the join to the resolver.
+/// and leaves the join to the resolver; [`Binding::Form`] does the same for
+/// the parent of a child DocType.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Binding {
     /// A literal DocType name from a recognized constructor, or `self` in a
@@ -97,19 +98,24 @@ pub enum Binding {
         /// The `Table` field being iterated.
         fieldname: String,
     },
+    /// `frm` inside `frappe.ui.form.on(D, …)`. When `D` is a child DocType,
+    /// `frm` is still the form of its parent
+    /// ([11](../../../docs/specs/11-surface-javascript.md)), and only the
+    /// schema knows which DocType that is.
+    Form(String),
 }
 
 impl Binding {
     /// The anchor this binding gives a position on the bound name.
     ///
-    /// A `TableRow` yields `Unknown`: the child DocType is a schema lookup, and
-    /// a guess here would be exactly the false positive
+    /// A `TableRow` or a `Form` yields `Unknown`: the child, or the parent, is
+    /// a schema lookup, and a guess here would be exactly the false positive
     /// [23](../../../docs/specs/23-diagnostics.md) forbids.
     #[must_use]
     pub fn anchor(&self) -> Anchor {
         match self {
             Self::DocType(name) => Anchor::DocType(name.clone()),
-            Self::TableRow { .. } => Anchor::Unknown,
+            Self::TableRow { .. } | Self::Form(_) => Anchor::Unknown,
         }
     }
 }
@@ -254,6 +260,12 @@ mod tests {
             doctype: "Library Member".into(),
             fieldname: "loans".into(),
         };
+        assert_eq!(binding.anchor(), Anchor::Unknown);
+    }
+
+    #[test]
+    fn a_form_binding_leaves_the_parent_to_the_resolver() {
+        let binding = Binding::Form("Library Loan Item".into());
         assert_eq!(binding.anchor(), Anchor::Unknown);
     }
 

@@ -27,7 +27,12 @@ frappe.ui.form.on("Library Loan Item", {
 	// fieldname: `grid.js` triggers it as `(fieldname + "_add", row.doctype)`.
 	// expect: clean
 	loans_add(frm, cdt, cdn) {
-		frm.refresh_field("loans");
+		// `frm` is the parent's form even in a child's block, and this child
+		// has two parents, Library Member and Loan. Which one is not knowable,
+		// so nothing is said, not even about a name neither parent declares.
+		frm.refresh_field("loans"); // expect: clean
+		frm.set_value("email_id", frm.doc.member_name); // expect: clean
+		frm.refresh_field("loan_items"); // expect: clean
 	},
 });
 

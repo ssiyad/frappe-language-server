@@ -9,6 +9,7 @@
   "member",
   "loan_date",
   "items",
+  "fines",
   "status"
  ],
  "fields": [
@@ -30,6 +31,12 @@
    "fieldtype": "Table",
    "label": "Items",
    "options": "Library Loan Item"
+  },
+  {
+   "fieldname": "fines",
+   "fieldtype": "Table",
+   "label": "Fines",
+   "options": "Loan Fine"
   },
   {
    "default": "Open",

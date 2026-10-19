@@ -347,7 +347,7 @@ fn the_index_builds_in_the_background_and_reports_itself() {
         "index never finished: {status}"
     );
     assert_eq!(status["apps"], 3);
-    assert_eq!(status["doctypes"], 8, "{status}");
+    assert_eq!(status["doctypes"], 9, "{status}");
     assert_eq!(status["controllers"], 5);
     assert_eq!(status["whitelistedMethods"], 5);
     assert_eq!(status["frappeVersion"], "17.0.0-dev");
@@ -384,7 +384,7 @@ fn a_forced_reindex_starts_over() {
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
-    assert_eq!(status["doctypes"], 8, "{status}");
+    assert_eq!(status["doctypes"], 9, "{status}");
 
     session.request(200, "shutdown", json!(null));
     session.notify("exit", json!(null));
@@ -465,7 +465,7 @@ fn saving_a_doctype_patches_the_graph_without_a_rebuild() {
     session.notify("initialized", json!({}));
 
     let before = settled(&mut session, 10);
-    assert_eq!(before["doctypes"], 8, "{before}");
+    assert_eq!(before["doctypes"], 9, "{before}");
     let fields_before = before["fields"].as_u64().expect("a field count");
 
     // Add a DocType the way `bench new-doctype` would, then tell the server the
@@ -516,14 +516,14 @@ fn saving_a_doctype_patches_the_graph_without_a_rebuild() {
     for attempt in 0..100 {
         after =
             session.request(300 + attempt, "frappe-lsp/indexStatus", json!(null))["result"].clone();
-        if after["doctypes"] == 9 {
+        if after["doctypes"] == 10 {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(20));
     }
 
     assert_eq!(
-        after["doctypes"], 9,
+        after["doctypes"], 10,
         "the save was never picked up: {after}"
     );
     assert_eq!(
@@ -1032,7 +1032,7 @@ fn a_doctype_created_outside_the_editor_is_picked_up() {
     session.notify("initialized", json!({}));
 
     let before = settled(&mut session, 10);
-    assert_eq!(before["doctypes"], 8, "{before}");
+    assert_eq!(before["doctypes"], 9, "{before}");
 
     // Written straight to disk. The server is told nothing.
     let directory = bench.join("apps/library/library/library/doctype/library_shelf");
@@ -1059,13 +1059,13 @@ fn a_doctype_created_outside_the_editor_is_picked_up() {
     for attempt in 0..80 {
         after =
             session.request(300 + attempt, "frappe-lsp/indexStatus", json!(null))["result"].clone();
-        if after["doctypes"] == 9 {
+        if after["doctypes"] == 10 {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
     assert_eq!(
-        after["doctypes"], 9,
+        after["doctypes"], 10,
         "the filesystem change never landed: {after}"
     );
 
@@ -1075,13 +1075,13 @@ fn a_doctype_created_outside_the_editor_is_picked_up() {
     for attempt in 0..80 {
         removed =
             session.request(400 + attempt, "frappe-lsp/indexStatus", json!(null))["result"].clone();
-        if removed["doctypes"] == 8 {
+        if removed["doctypes"] == 9 {
             break;
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
     assert_eq!(
-        removed["doctypes"], 8,
+        removed["doctypes"], 9,
         "the deletion never landed: {removed}"
     );
 

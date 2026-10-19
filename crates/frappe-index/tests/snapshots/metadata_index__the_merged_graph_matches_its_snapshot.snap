@@ -1,5 +1,6 @@
 ---
 source: crates/frappe-index/tests/metadata_index.rs
+assertion_line: 711
 expression: index().fingerprint()
 ---
 app frappe order=0 package=apps/frappe/frappe
@@ -66,14 +67,19 @@ doctype Library Settings app=library module=Library child=false single=true subm
   field enable_reminders type=Check layer=schema app=library source=apps/library/library/library/doctype/library_settings/library_settings.json range=464..580 label=Some("Enable Reminders") options=None default=Some("1") reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
   field notification_email type=Data layer=schema app=library source=apps/library/library/library/doctype/library_settings/library_settings.json range=584..744 label=Some("Notification Email") options=Some("Email") default=None reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=Some("enable_reminders") fetch_from=None
   controller apps/library/library/library/doctype/library_settings/library_settings.py class=LibrarySettings range=45..83
-doctype Loan app=circulation_app module=Circulation child=false single=false submittable=false virtual=false tree=false autoname=Some("hash") title_field=None sort_field=Some("creation") search_fields=None path=apps/circulation-app/circulation/circulation/doctype/loan/loan.json range=0..1163
-  order member loan_date items status
-  field member type=Link layer=schema app=circulation_app source=apps/circulation-app/circulation/circulation/doctype/loan/loan.json range=233..355 label=Some("Member") options=Some("Library Member") default=None reqd=true hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
-  field loan_date type=Date layer=schema app=circulation_app source=apps/circulation-app/circulation/circulation/doctype/loan/loan.json range=359..455 label=Some("Loan Date") options=None default=None reqd=true hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
-  field items type=Table layer=schema app=circulation_app source=apps/circulation-app/circulation/circulation/doctype/loan/loan.json range=459..569 label=Some("Items") options=Some("Library Loan Item") default=None reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
-  field status type=Select layer=schema app=circulation_app source=apps/circulation-app/circulation/circulation/doctype/loan/loan.json range=573..703 label=Some("Status") options=Some("Open\nClosed") default=Some("Open") reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
+doctype Loan app=circulation_app module=Circulation child=false single=false submittable=false virtual=false tree=false autoname=Some("hash") title_field=None sort_field=Some("creation") search_fields=None path=apps/circulation-app/circulation/circulation/doctype/loan/loan.json range=0..1280
+  order member loan_date items fines status
+  field member type=Link layer=schema app=circulation_app source=apps/circulation-app/circulation/circulation/doctype/loan/loan.json range=244..366 label=Some("Member") options=Some("Library Member") default=None reqd=true hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
+  field loan_date type=Date layer=schema app=circulation_app source=apps/circulation-app/circulation/circulation/doctype/loan/loan.json range=370..466 label=Some("Loan Date") options=None default=None reqd=true hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
+  field items type=Table layer=schema app=circulation_app source=apps/circulation-app/circulation/circulation/doctype/loan/loan.json range=470..580 label=Some("Items") options=Some("Library Loan Item") default=None reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
+  field fines type=Table layer=schema app=circulation_app source=apps/circulation-app/circulation/circulation/doctype/loan/loan.json range=584..686 label=Some("Fines") options=Some("Loan Fine") default=None reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
+  field status type=Select layer=schema app=circulation_app source=apps/circulation-app/circulation/circulation/doctype/loan/loan.json range=690..820 label=Some("Status") options=Some("Open\nClosed") default=Some("Open") reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
   controller apps/circulation-app/circulation/circulation/doctype/loan/loan.py class=Loan range=59..182
     method validate whitelisted=false range=82..182
+doctype Loan Fine app=circulation_app module=Circulation child=true single=false submittable=false virtual=false tree=false autoname=None title_field=None sort_field=Some("creation") search_fields=None path=apps/circulation-app/circulation/circulation/doctype/loan_fine/loan_fine.json range=0..708
+  order amount reason
+  field amount type=Currency layer=schema app=circulation_app source=apps/circulation-app/circulation/circulation/doctype/loan_fine/loan_fine.json range=186..302 label=Some("Amount") options=None default=None reqd=true hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
+  field reason type=Data layer=schema app=circulation_app source=apps/circulation-app/circulation/circulation/doctype/loan_fine/loan_fine.json range=306..404 label=Some("Reason") options=None default=None reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
 conflict duplicate-doctype Library Availability None apps/library/library/library/doctype/library_availability/library_availability.json,apps/circulation-app/circulation/circulation/doctype/library_availability/library_availability.json
 conflict custom-field-collision Library Member Some("member_name") apps/circulation-app/circulation/fixtures/custom_field.json
 whitelisted library.api.get_member_summary allow_guest=false methods= params=member apps/library/library/api.py range=45..239

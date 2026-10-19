@@ -113,7 +113,11 @@ a fieldname reported `("Payment Request", "refresh", …)` as a missing field.
 DocType is what follows the colon.
 
 `frm.doc` is the **parent** document even inside a child DocType's handler
-block, because `frm` is always the parent form.
+block, because `frm` is always the parent form. Which parent is a schema
+question: a child held by one DocType's `Table` field resolves `frm` to that
+DocType, and a child held by several resolves `frm` to nothing. Resolving
+against the child itself reported `frm.refresh_field("items")` in erpnext's
+`Purchase Invoice Item` block as a field missing from the row.
 
 A file bound by `doctype_js` anchors `frm` to the DocType the hook names, for
 the whole file. A bound script need not contain a `frappe.ui.form.on` block at

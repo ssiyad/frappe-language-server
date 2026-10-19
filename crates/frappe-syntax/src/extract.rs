@@ -944,6 +944,10 @@ mod tests {
         Anchor::Field(doctype.to_string(), fieldname.to_string())
     }
 
+    fn form(doctype: &str) -> Option<Binding> {
+        Some(Binding::Form(doctype.to_string()))
+    }
+
     #[test]
     fn a_literal_doctype_anchors_the_call() {
         let found = python("frappe.get_all(\"Sales Invoice\", fields=[\"customer\"])\n");
@@ -1211,7 +1215,8 @@ mod tests {
         );
         let call = of(&found, "frm.add_child")[0];
 
-        assert_eq!(call.slots[0].anchor, field("Task", "items"));
+        assert_eq!(call.receiver, form("Task"));
+        assert_eq!(call.slots[0].role, Role::Field);
         assert_eq!(call.slots[1].role, Role::ChildField);
         assert_eq!(call.slots[1].text.as_deref(), Some("item_code"));
         assert_eq!(call.slots[1].anchor, Anchor::Unknown);
@@ -1290,7 +1295,7 @@ mod tests {
     }
 
     #[test]
-    fn frm_is_anchored_to_the_enclosing_form_on_and_nowhere_else() {
+    fn frm_is_bound_to_the_enclosing_form_on_and_nowhere_else() {
         let inside = javascript(
             "frappe.ui.form.on(\"Task\", {\n\
              \trefresh(frm) {\n\
@@ -1299,14 +1304,12 @@ mod tests {
              \t},\n\
              });\n",
         );
-        assert_eq!(
-            of(&inside, "frm.set_value")[0].slots[0].anchor,
-            field("Task", "subject")
-        );
-        assert_eq!(
-            of(&inside, "frm.doc.attribute")[0].slots[0].anchor,
-            field("Task", "status")
-        );
+        // Bound, not anchored: `Task` could be a child DocType, whose block
+        // runs on its parent's form, and only the resolver can tell.
+        let set_value = of(&inside, "frm.set_value")[0];
+        assert_eq!(set_value.receiver, form("Task"));
+        assert_eq!(set_value.slots[0].anchor, Anchor::Unknown);
+        assert_eq!(of(&inside, "frm.doc.attribute")[0].receiver, form("Task"));
 
         let outside = javascript("function helper(frm) {\n\tfrm.set_value(\"subject\", 1);\n}\n");
         assert!(outside.is_empty(), "{outside:?}");
@@ -1324,12 +1327,11 @@ mod tests {
         );
         let calls = of(&found, "frm.set_query");
 
+        assert_eq!(calls[0].receiver, form("Task"));
         assert_eq!(calls[0].slots[0].role, Role::Field);
-        assert_eq!(calls[0].slots[0].anchor, field("Task", "project"));
 
         assert_eq!(calls[1].slots[0].role, Role::ChildField);
-        assert_eq!(calls[1].slots[0].anchor, Anchor::Unknown);
-        assert_eq!(calls[1].slots[1].anchor, field("Task", "items"));
+        assert_eq!(calls[1].slots[1].role, Role::Field);
     }
 
     #[test]
@@ -1348,7 +1350,7 @@ mod tests {
             Role::Path(PathKind::Whitelisted)
         );
         assert_eq!(of(&found, "frm.call")[0].slots[0].role, Role::Method);
-        assert_eq!(of(&found, "frm.call")[0].anchor, doctype("Task"));
+        assert_eq!(of(&found, "frm.call")[0].receiver, form("Task"));
     }
 
     #[test]

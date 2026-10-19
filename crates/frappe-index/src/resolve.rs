@@ -148,11 +148,13 @@ pub struct Resolved {
 /// Resolve every position in one match.
 #[must_use]
 pub fn resolve(index: &Index, found: &Match) -> Vec<Resolved> {
-    // A `Table` row binding stops at the field; naming the child DocType is a
-    // schema lookup, which is this side of the line.
+    // A `Table` row binding stops at the field, and a form binding at the
+    // DocType its block names; the join is a schema lookup, which is this side
+    // of the line.
     let receiver = found.receiver.as_ref().and_then(|binding| match binding {
         Binding::DocType(name) => Some(name.clone()),
         Binding::TableRow { doctype, fieldname } => child_doctype(index, doctype, fieldname),
+        Binding::Form(name) => form_doctype(index, name),
     });
 
     // `doc.append(F, {…})`: the dict keys belong to the child DocType behind
@@ -372,6 +374,21 @@ fn child_doctype(index: &Index, doctype: &str, fieldname: &str) -> Option<String
     let field = index.field(doctype, fieldname)?;
     match index.options(field) {
         Options::ChildDocType(child) => Some(child.to_string()),
+        _ => None,
+    }
+}
+
+/// The DocType `frm` is the form of, inside `frappe.ui.form.on(name, …)`.
+///
+/// A child DocType has no form of its own, so its block runs on its parent's.
+/// A child held by more than one parent leaves that open, and stays so.
+fn form_doctype(index: &Index, name: &str) -> Option<String> {
+    if !index.doctype(name).is_some_and(|doctype| doctype.is_child) {
+        return Some(name.to_string());
+    }
+    let mut parents = index.parents(name);
+    match (parents.next(), parents.next()) {
+        (Some(only), None) => Some(only.name.clone()),
         _ => None,
     }
 }

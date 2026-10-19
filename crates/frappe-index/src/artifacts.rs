@@ -340,6 +340,6 @@ mod tests {
         assert!(problems[0].path.ends_with("circulation_malformed.json"));
 
         // The rest of the app still indexed.
-        assert_eq!(artifacts.doctypes().count(), 4);
+        assert_eq!(artifacts.doctypes().count(), 5);
     }
 }
