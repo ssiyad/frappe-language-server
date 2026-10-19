@@ -248,7 +248,7 @@ const CANONICAL: [&str; 2] = ["frappe", "erpnext"];
 
 /// Every file the checks read, across the canonical apps.
 pub(crate) fn corpus(index: &Index, all: bool) -> Vec<PathBuf> {
-    files(index, all, false)
+    files(index, all, true)
 }
 
 /// The corpus, optionally with the Jinja templates that smoke does not check

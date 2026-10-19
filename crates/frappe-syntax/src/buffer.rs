@@ -100,11 +100,9 @@ impl Buffer {
         encoding: PositionEncoding,
     ) -> Result<Self, GrammarError> {
         let mut parser = language.parser()?;
-        let tree = match language {
-            Language::Jinja => parser.parse(crate::jinja::to_python(text), None),
-            _ => parser.parse(text, None),
-        }
-        .ok_or(GrammarError::Empty { language })?;
+        let tree = language
+            .parse(&mut parser, text)
+            .ok_or(GrammarError::Empty { language })?;
         Ok(Self {
             language,
             encoding,

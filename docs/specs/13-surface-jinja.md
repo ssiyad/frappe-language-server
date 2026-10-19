@@ -62,9 +62,11 @@ app's package by the path relative to it, prefix matches first.
 
 ## Diagnostics
 
-None yet. Navigation, hover, completion and references read templates; the
-checks of [23](23-diagnostics.md) wait until they are measured quiet on the
-`frappe` and `erpnext` templates, the same bar every other surface met.
+The checks of [23](23-diagnostics.md) run on templates as on Python, against
+the same rewrite. They were held back until measured on the corpus, the bar
+every other surface met: over the 338 templates of `frappe` and `erpnext`,
+`cargo xtask smoke` reports nothing, and templates are part of its corpus
+from now on.
 
 ## Anchoring `doc`
 

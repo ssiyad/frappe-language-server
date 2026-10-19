@@ -56,6 +56,21 @@ impl Language {
         }
     }
 
+    /// Parse `source` the way this language is read: a template through its
+    /// Python rewrite ([`crate::jinja::to_python`]), anything else as it is.
+    /// Every caller that parses a file of any language goes through here, so a
+    /// template is never handed to the Python grammar raw.
+    pub fn parse(
+        self,
+        parser: &mut tree_sitter::Parser,
+        source: &str,
+    ) -> Option<tree_sitter::Tree> {
+        match self {
+            Self::Jinja => parser.parse(crate::jinja::to_python(source), None),
+            _ => parser.parse(source, None),
+        }
+    }
+
     /// A parser bound to this grammar.
     ///
     /// Fails only on an ABI mismatch between `tree-sitter` and a grammar crate,

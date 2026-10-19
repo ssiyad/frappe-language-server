@@ -84,9 +84,6 @@ pub fn for_buffer(
         findings.extend(hooks(index, source, path));
     } else if let Some(language) = frappe_syntax::Language::from_path(path)
         && crate::analysis::supported(language)
-        // Templates are read for navigation and completion only until their
-        // checks are measured quiet on the corpus (spec 13).
-        && language != frappe_syntax::Language::Jinja
     {
         findings.extend(code(index, language, path, source));
     }
@@ -406,7 +403,7 @@ fn code(
     let Ok(mut parser) = language.parser() else {
         return Vec::new();
     };
-    let Some(tree) = parser.parse(source, None) else {
+    let Some(tree) = language.parse(&mut parser, source) else {
         return Vec::new();
     };
 

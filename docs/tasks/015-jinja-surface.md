@@ -23,8 +23,7 @@ DocTypes and fields named in templates.
   elsewhere — no guessing.
 - Whitelisted Jinja globals plus `jinja` hook additions: completion only, no
   diagnostics until the vendored global list is proven exact.
-- The checks of [23](../specs/23-diagnostics.md) on templates, once measured
-  quiet on the corpus.
+
 
 ## Done when
 

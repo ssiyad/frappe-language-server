@@ -971,13 +971,20 @@ fn a_jinja_template_navigates_hovers_and_completes() {
         json!({"textDocument": {"uri": uri, "version": 3}, "contentChanges": [{"text": source}]}),
     );
 
-    // Not yet measured quiet on the corpus, so nothing is reported.
+    // The checks run on templates too: the misspelt field is reported, on
+    // the name and not the quotes.
     let report = session.request(
         2003,
         "textDocument/diagnostic",
         json!({"textDocument": {"uri": uri}}),
     );
-    assert_eq!(report["result"]["items"], json!([]), "{report}");
+    let items = report["result"]["items"].as_array().expect("a report");
+    assert_eq!(items.len(), 1, "{report}");
+    assert_eq!(items[0]["code"], "frappe-lsp/unknown-field");
+    assert_eq!(
+        items[0]["range"]["start"],
+        json!({"line": 2, "character": 48})
+    );
 
     session.request(2100, "shutdown", json!(null));
     session.notify("exit", json!(null));

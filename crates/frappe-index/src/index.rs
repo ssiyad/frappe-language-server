@@ -1825,12 +1825,7 @@ impl Index {
         let Ok(mut parser) = language.parser() else {
             return Vec::new();
         };
-        let parsed = match language {
-            frappe_syntax::Language::Jinja => {
-                parser.parse(frappe_syntax::jinja::to_python(source), None)
-            }
-            _ => parser.parse(source, None),
-        };
+        let parsed = language.parse(&mut parser, source);
         let Some(tree) = parsed else {
             return Vec::new();
         };
