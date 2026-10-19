@@ -958,7 +958,12 @@ fn a_jinja_template_navigates_hovers_and_completes() {
     let paths = session.request(2004, "textDocument/completion", at(0, 18));
     let labels: Vec<&str> = paths["result"]["items"]
         .as_array()
-        .map(|items| items.iter().filter_map(|item| item["label"].as_str()).collect())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item["label"].as_str())
+                .collect()
+        })
         .unwrap_or_default();
     assert!(labels.contains(&"www/books.html"), "{paths}");
     session.notify(
