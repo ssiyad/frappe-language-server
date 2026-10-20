@@ -129,6 +129,15 @@ Release binaries, editor setup docs, packaging. Then the upstream conversation
 ([019](tasks/019-upstream.md)) — deliberately last, so it is argued from a
 working server and measured evidence rather than a proposal.
 
+Distribution is **done**. Each release target builds on its own platform, and
+the archive a user downloads is unpacked, checked against its checksum and
+driven through `tests/editors/neovim.lua` before anything is published. 0.2.0
+shipped that way on Linux and macOS, x86_64 and aarch64. The Neovim plugin
+installs it with `:FrappeLspInstall`, and completion works on the reference
+bench with no build step. pi and Claude Code load the server as plugins, and
+the VS Code setup was checked by hand. What is left is the upstream
+conversation, which waits on real use.
+
 ## Deferred
 
 Field rename across a workspace, DocType scaffolding, semantic tokens, inlay

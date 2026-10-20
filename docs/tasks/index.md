@@ -19,10 +19,13 @@ checker integration (`017`) are done and their files deleted.
 
 ## Phase 5 — Distribution and upstream
 
+Distribution (`016`) is done and its file deleted: 0.2.0 was built and
+driven through an editor on all four platforms before it was published, and
+the Neovim plugin installs it with no build step.
+
 | # | Task | Depends on |
 | --- | --- | --- |
-| 016 | [Distribution](016-distribution.md) | — |
-| 019 | [Upstream into Frappe](019-upstream.md) | 016 |
+| 019 | [Upstream into Frappe](019-upstream.md) | — |
 
 ## Critical path
 
@@ -31,14 +34,15 @@ Setter, UI-created DocTypes and the site's scripts all reach the index. The
 Jinja surface (`015`) is done too: grammar, includes, expressions, `doc` in
 print formats, globals and diagnostics. So is `017`: the cast action, and a
 generated `document.pyi` that pyright reads through `stubPath`. What is left is
-phase 5: `016` is mostly done, and `019` waits on real use.
+phase 5: `019`, which waits on real use.
 
 What phase 3 left behind:
 
 - `012`'s one open item — `Degraded` confidence — landed with `014`, the task
   that gives that state a way to occur.
 - `018` shipped the client-run path; the Neovim glue for
-  `frappe-lsp.runTest` is documented by [016](016-distribution.md).
+  `frappe-lsp.runTest` is the plugin's, set up in
+  [editors](../editors.md#neovim).
 
 ## Carried forward
 

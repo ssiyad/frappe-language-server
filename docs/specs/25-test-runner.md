@@ -76,7 +76,7 @@ LSP has no test protocol, so the client decides. Two paths, both supported:
    case, test}` — as its argument. The client spawns the resulting command in a
    terminal, where the user gets a TTY, colour, and their own scrollback. The
    server never sees the output. Requires a small client-side handler, which
-   [16](../tasks/016-distribution.md) documents for Neovim.
+   the Neovim plugin ships ([editors](../editors.md#neovim)).
 
    The lens carries a scope rather than an argv on purpose. A lens travels
    through the client, so what comes back is a request and not evidence; the

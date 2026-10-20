@@ -1,6 +1,6 @@
 # 019 — Upstream into Frappe
 
-**Phase** 5 · **Depends on** 016 · Deliberately last
+**Phase** 5 · **Depends on** 016 (done) · Deliberately last
 
 The project is aimed at landing in Frappe. Nothing before this task changes
 `frappe` itself — this is where that conversation starts, once there is a working
