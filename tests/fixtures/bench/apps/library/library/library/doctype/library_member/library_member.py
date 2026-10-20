@@ -29,6 +29,12 @@ class LibraryMember(Document, MembershipMixin):
 		self._loan_tally = LoanTally(self.loans)
 		return f"{self._loan_tally.count()} / {self.membership_label}"
 
+	def after_insert(self):
+		# Not a field: handed in through `frappe.get_doc({...})`, which copies
+		# every key onto the document.
+		if hasattr(self, "welcome_note") and self.welcome_note:
+			frappe.msgprint(self.welcome_note)
+
 	def add_loan(self, title: str, due_date: str) -> None:
 		self.append("loans", {"book_title": title, "due_date": due_date, "loan_status": "Issued"})
 

@@ -87,6 +87,15 @@ pub struct Class {
     /// check that does not know about them reports the controller's own
     /// attributes as missing ([23](../../../docs/specs/23-diagnostics.md)).
     pub attributes: Vec<String>,
+    /// Every name the class touches on `self`: read, assigned, or tested
+    /// with `hasattr(self, "x")` or `getattr(self, "x", …)`.
+    ///
+    /// Wider than [`Class::attributes`] on purpose. A key in
+    /// `frappe.get_doc({...})` that is not a field becomes an attribute, and a
+    /// controller that reads it shows the key is meant
+    /// ([23](../../../docs/specs/23-diagnostics.md)). It is not evidence about
+    /// `doc.x`, where a read of a misspelled name is the bug itself.
+    pub uses: Vec<String>,
 }
 
 impl Class {
@@ -385,8 +394,10 @@ fn read_class(
     }
 
     let mut attributes = Vec::new();
+    let mut uses = Vec::new();
     if let Some(body) = definition.child_by_field_name("body") {
         read_attributes(body, source, &mut attributes);
+        read_uses(body, source, &mut uses);
     }
 
     Some(Class {
@@ -396,6 +407,7 @@ fn read_class(
         bases,
         methods,
         attributes,
+        uses,
     })
 }
 
@@ -426,6 +438,59 @@ fn read_attributes(node: Node<'_>, source: &str, into: &mut Vec<String>) {
         }
         read_attributes(child, source, into);
     }
+}
+
+/// `self.x` in any position, and `hasattr` / `getattr` on `self` with a
+/// literal name, anywhere below `node`. A nested class has its own `self`.
+fn read_uses(node: Node<'_>, source: &str, into: &mut Vec<String>) {
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        if child.kind() == "class_definition" {
+            continue;
+        }
+        if let Some(name) = self_attribute(child, source).or_else(|| self_lookup(child, source))
+            && !into.contains(&name)
+        {
+            into.push(name);
+        }
+        read_uses(child, source, into);
+    }
+}
+
+/// `self.x` → `x`.
+fn self_attribute(node: Node<'_>, source: &str) -> Option<String> {
+    if node.kind() != "attribute" {
+        return None;
+    }
+    let object = node.child_by_field_name("object")?;
+    (text(object, source) == "self")
+        .then(|| node.child_by_field_name("attribute"))
+        .flatten()
+        .map(|attribute| text(attribute, source))
+}
+
+/// `hasattr(self, "x")` or `getattr(self, "x", …)` → `x`.
+fn self_lookup(node: Node<'_>, source: &str) -> Option<String> {
+    if node.kind() != "call" {
+        return None;
+    }
+    let function = node.child_by_field_name("function")?;
+    if !matches!(text(function, source).as_str(), "hasattr" | "getattr") {
+        return None;
+    }
+    let arguments = node.child_by_field_name("arguments")?;
+    let mut cursor = arguments.walk();
+    let mut positional = arguments.named_children(&mut cursor);
+    let object = positional.next()?;
+    let name = positional.next()?;
+    if text(object, source) != "self" || name.kind() != "string" {
+        return None;
+    }
+    let mut cursor = name.walk();
+    let content = name
+        .named_children(&mut cursor)
+        .find(|part| part.kind() == "string_content")?;
+    Some(text(content, source))
 }
 
 fn read_function(
@@ -635,6 +700,25 @@ mod tests {
 
     fn module(source: &str) -> Module {
         read(source).expect("the Python grammar loads")
+    }
+
+    #[test]
+    fn uses_cover_reads_and_lookups_on_self_but_not_a_nested_class() {
+        let module = module(
+            "class Site(Document):\n\
+             \tdef after_insert(self):\n\
+             \t\tif hasattr(self, \"app_plans\") and self.app_plans:\n\
+             \t\t\tpass\n\
+             \t\tself.status = getattr(self, 'initial_status', None)\n\
+             \t\tother.version = 1\n\
+             \t\tclass Inner:\n\
+             \t\t\tdef f(self):\n\
+             \t\t\t\treturn self.inner_only\n",
+        );
+        let class = module.class("Site").expect("the class");
+        assert_eq!(class.uses, ["app_plans", "status", "initial_status"]);
+        // Assignments alone stay the narrower list `doc.x` relies on.
+        assert_eq!(class.attributes, ["status"]);
     }
 
     #[test]

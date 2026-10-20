@@ -138,6 +138,13 @@ frappe acts on. It becomes a column in a query, and a name that is not a field
 silently returns nothing. That is worth reporting, and `unknown-field` ships
 **on**.
 
+A key in `frappe.get_doc({"doctype": D, …})` is the exception. Frappe copies
+every key onto the document, field or not, so a key that is not a field is an
+attribute handed in. It is reported only when nothing reads it back: not the
+controller, its overrides and extensions, nor any class they derive from, as
+`self.x`, `hasattr(self, "x")` or `getattr(self, "x")`. press's `Site` takes
+`app_plans` that way.
+
 `doc.x` is Python being Python. A `Document` is an open object: controllers
 hang working state off `self`, `update()` attaches whatever a dict holds, and
 `as_dict` rows carry joined columns that belong to no schema. Deciding whether

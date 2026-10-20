@@ -1308,20 +1308,6 @@ count = 1
 reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
-file = "apps/frappe/frappe/permissions.py"
-code = "unknown-field"
-message = "`Custom DocPerm` has no field `parentfield`"
-count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
-
-[[allow]]
-file = "apps/frappe/frappe/permissions.py"
-code = "unknown-field"
-message = "`Custom DocPerm` has no field `parenttype`"
-count = 1
-reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
-
-[[allow]]
 file = "apps/frappe/frappe/printing/doctype/print_format/print_format.py"
 code = "unknown-field"
 message = "`Print Format` has no field `print_designer`"

@@ -544,6 +544,15 @@ fn finding_for(index: &Index, resolved: &frappe_index::resolve::Resolved) -> Opt
                 ),
             }
         }
+        // Every key of `frappe.get_doc({...})` lands on the document, field or
+        // not. One the controller reads back is working state handed in on
+        // purpose, not a misspelled field (spec 23).
+        Target::UnknownField { doctype, fieldname }
+            if resolved.pattern.0 == "frappe.get_doc{}"
+                && index.controller_uses(doctype, fieldname) =>
+        {
+            return None;
+        }
         // A fieldname written as a string is a claim frappe will act on: it goes
         // into a query, and a name that is not a field silently returns
         // nothing. `doc.x` is Python being Python — a Document is an open

@@ -49,6 +49,12 @@ def member_email_alias(member: str) -> str | None:
 	return frappe.get_value("Library Member", member, "emial_id")  # expect: unknown-field
 
 
+def enrol(name: str) -> None:
+	# A key the controller reads back is meant; one nothing reads is a typo.
+	frappe.get_doc({"doctype": "Library Member", "member_name": name, "welcome_note": "Hi"}).insert()  # expect: clean
+	frappe.get_doc({"doctype": "Library Member", "member_name": name, "welcom_note": "Hi"}).insert()  # expect: unknown-field
+
+
 def member_emails(member: str) -> list[str]:
 	return frappe.get_all(
 		"Library Member",

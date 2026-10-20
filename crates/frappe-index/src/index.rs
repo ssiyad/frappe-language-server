@@ -235,6 +235,7 @@ pub struct Index {
     handlers: BTreeSet<String>,
     occurrences: crate::occurrences::Occurrences,
     class_attributes: BTreeMap<String, BTreeSet<String>>,
+    class_uses: BTreeMap<String, BTreeSet<String>>,
     class_bases: BTreeMap<String, Vec<String>>,
     packages: Vec<(String, PathBuf)>,
     whitelisted: BTreeMap<String, WhitelistedMethod>,
@@ -303,6 +304,7 @@ impl Index {
             handlers: BTreeSet::new(),
             occurrences: crate::occurrences::Occurrences::default(),
             class_attributes: BTreeMap::new(),
+            class_uses: BTreeMap::new(),
             class_bases: BTreeMap::new(),
             controller_extras: BTreeMap::new(),
             remapped: BTreeMap::new(),
@@ -337,6 +339,7 @@ impl Index {
             handlers: BTreeSet::new(),
             occurrences: crate::occurrences::Occurrences::default(),
             class_attributes: BTreeMap::new(),
+            class_uses: BTreeMap::new(),
             class_bases: BTreeMap::new(),
             controller_extras: BTreeMap::new(),
             remapped: BTreeMap::new(),
@@ -522,6 +525,7 @@ impl Index {
     /// [23](../../../docs/specs/23-diagnostics.md) says to err in.
     fn collect_classes(&mut self) {
         self.class_attributes.clear();
+        self.class_uses.clear();
         self.class_bases.clear();
         for module in self.modules.values() {
             for class in &module.classes {
@@ -529,6 +533,10 @@ impl Index {
                     .entry(class.name.clone())
                     .or_default()
                     .extend(class.attributes.iter().cloned());
+                self.class_uses
+                    .entry(class.name.clone())
+                    .or_default()
+                    .extend(class.uses.iter().cloned());
                 let bases = self.class_bases.entry(class.name.clone()).or_default();
                 for base in &class.bases {
                     // `frappe.model.document.Document` and `Document` are the
@@ -571,17 +579,47 @@ impl Index {
 
     /// Whether `class_name` or anything it derives from assigns `name`.
     fn class_assigns(&self, class_name: &str, name: &str) -> bool {
+        self.in_class_graph(&self.class_attributes, class_name, name)
+    }
+
+    /// Whether the controller of `doctype`, an override or extension of it,
+    /// or anything they derive from touches `name` on `self` at all.
+    ///
+    /// The evidence that a key in `frappe.get_doc({...})` that is not a field
+    /// is meant: frappe copies every key onto the document, and press's
+    /// `Site` reads `self.app_plans` that way
+    /// ([23](../../../docs/specs/23-diagnostics.md)).
+    #[must_use]
+    pub fn controller_uses(&self, doctype: &str, name: &str) -> bool {
+        let own = self
+            .doctype(doctype)
+            .and_then(|doctype| doctype.controller.as_ref())
+            .map(|controller| controller.class_name.as_str());
+        let extras = self
+            .controller_extras
+            .get(doctype)
+            .into_iter()
+            .flatten()
+            .map(|extra| extra.class_name.as_str());
+        own.into_iter()
+            .chain(extras)
+            .any(|class_name| self.in_class_graph(&self.class_uses, class_name, name))
+    }
+
+    /// Whether `class_name` or anything it derives from has `name` in `map`.
+    fn in_class_graph(
+        &self,
+        map: &BTreeMap<String, BTreeSet<String>>,
+        class_name: &str,
+        name: &str,
+    ) -> bool {
         let mut pending = vec![class_name.to_string()];
         let mut seen: BTreeSet<String> = BTreeSet::new();
         while let Some(current) = pending.pop() {
             if !seen.insert(current.clone()) {
                 continue;
             }
-            if self
-                .class_attributes
-                .get(&current)
-                .is_some_and(|attributes| attributes.contains(name))
-            {
+            if map.get(&current).is_some_and(|names| names.contains(name)) {
                 return true;
             }
             if let Some(bases) = self.class_bases.get(&current) {

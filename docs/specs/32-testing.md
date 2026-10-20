@@ -111,7 +111,7 @@ and are pruned when noticed.
 ### What is on it
 
 Measured with the shipping defaults over `frappe` `c7a96ecc99` and `erpnext`
-`b23da5d57f`: 7 935 files checked, templates included, **197 allowed findings**
+`b23da5d57f`: 7 935 files checked, templates included, **196 allowed findings**
 and nothing else.
 By code:
 
@@ -124,13 +124,13 @@ By code:
 | `unresolvable-fetch-from` | 4 | the source field is absent from the linked DocType, so the fetch silently stays empty |
 | `unresolvable-patch` | 3 | `patches.txt` names three modules that are not in the checkout |
 | `missing-asset` | 3 | absent from the app, or served from a DocType at runtime |
-| `unknown-field` | 97 | a fieldname written as a string, in a position frappe queries, that no schema declares: a dead reference, or a Custom Field or runtime attribute that code creates |
+| `unknown-field` | 96 | a fieldname written as a string, in a position frappe queries, that no schema declares: a dead reference, or a Custom Field or runtime attribute that code creates |
 | `unknown-doctype` | 33 | erpnext links into apps this checkout does not install |
 | `unknown-form-event` | 18 | a handler nothing triggers, on no field and no event: it never fires |
 | `parent-field-on-child` | 2 | a test's row dict sets a field only the parent declares, and frappe drops it |
 
 The last four arrived when the absence checks were turned on, and they are the
-reason the list is 197 entries rather than 47. That is a long list, and the
+reason the list is 196 entries rather than 47. That is a long list, and the
 entry format is what keeps it from becoming wallpaper: matching on file, code,
 message **and** count means a second `unknown-field` in an already-listed file
 still fails the job. Shortening it means installing the apps erpnext links into

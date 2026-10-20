@@ -471,7 +471,7 @@ fn a_controller_beside_the_json_is_found_with_its_methods() {
             .iter()
             .map(|method| method.name.as_str())
             .collect::<Vec<_>>(),
-        ["validate", "summarise", "add_loan", "renew_all"]
+        ["validate", "summarise", "after_insert", "add_loan", "renew_all"]
     );
     assert!(controller.method("renew_all").expect("method").whitelisted);
     assert!(!controller.method("validate").expect("method").whitelisted);
