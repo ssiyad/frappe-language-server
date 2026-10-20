@@ -9,6 +9,24 @@ The server finds the bench by itself. It walks up from the root the editor
 sends until it finds a bench, so an app's own checkout under `apps/` works as a
 root ([03](specs/03-workspace-model.md)).
 
+## How the plugins get the server
+
+The Neovim, pi and Claude Code plugins need no `frappe-lsp` on `PATH`. Each one
+starts the server through `bin/frappe-lsp` in this repository. On first use,
+that launcher:
+
+1. Reads the version from `package.json`, so a plugin always runs the server
+   it was released with.
+2. Downloads that release for your platform from GitHub and checks it against
+   `SHA256SUMS`.
+3. Keeps it in `~/.local/share/frappe-lsp/<version>/`, or under
+   `$XDG_DATA_HOME`. All the plugins share this copy.
+
+The launcher needs `curl` or `wget`, `tar`, and `sha256sum` or `shasum`. When
+the download fails, it runs the newest copy it already has, then a
+`frappe-lsp` on `PATH`. To run a local build instead, set `FRAPPE_LSP` to its
+path.
+
 ## Neovim
 
 Neovim 0.11 or later. This repository is the plugin. With lazy.nvim:
@@ -29,11 +47,11 @@ vim.pack.add({ 'https://github.com/ssiyad/frappe-language-server' })
 require('frappe_lsp').setup()
 ```
 
-Then run `:FrappeLspInstall` once. It downloads the release for your platform,
-checks it against `SHA256SUMS`, and puts it under Neovim's data directory; run
-it again to update. With an authenticated `gh` it downloads through `gh`, which
-also reaches a private repository. To use a binary of your own instead, pass
-`setup({ cmd = '/path/to/frappe-lsp' })`, or leave `frappe-lsp` on your `PATH`.
+The first file you open in a bench downloads the server
+([above](#how-the-plugins-get-the-server)), with a notification. Updating the
+plugin updates the server. `:FrappeLspInstall` downloads it now, for a machine
+about to go offline. To use a binary of your own, pass
+`setup({ cmd = '/path/to/frappe-lsp' })`.
 
 `setup()` starts the server for any file in a bench, shows test lenses and runs
 them in a terminal, and adds two more commands: `:FrappeLspStatus` prints what
@@ -50,11 +68,9 @@ first click. Set `test.site` to skip the question ([30](specs/30-configuration.m
 
 ## pi
 
-This repository is also a [pi](https://pi.dev) package. Install it from a
-checkout, or straight from the repository:
+This repository is also a [pi](https://pi.dev) package:
 
 ```sh
-pi install /path/to/frappe-language-server
 pi install git:github.com/ssiyad/frappe-language-server
 ```
 
@@ -67,17 +83,17 @@ writes in the bench is checked too, and any problem is appended to that edit's
 result, so a misspelled fieldname is caught on the turn it is written. A skill
 tells the agent when to reach for the tools.
 
-The binary is found through `FRAPPE_LSP`, then `PATH`, then the copy
-`:FrappeLspInstall` puts under Neovim's data directory.
+The first session in a bench downloads the server
+([above](#how-the-plugins-get-the-server)). To install from a checkout instead,
+run `pi install /path/to/frappe-language-server`.
 
 ## Claude Code
 
-This repository is also a [Claude Code](https://claude.com/claude-code) plugin.
-Add this repository as a marketplace and install from it:
+This repository is also a [Claude Code](https://claude.com/claude-code) plugin
+and its marketplace. One command adds both:
 
 ```sh
-claude plugin marketplace add ssiyad/frappe-language-server
-claude plugin install frappe-lsp@frappe-lsp
+claude plugin install frappe-lsp --marketplace ssiyad/frappe-language-server
 ```
 
 The plugin declares frappe-lsp as the language server for Python, JavaScript,
@@ -88,14 +104,16 @@ after each edit, so a misspelled fieldname is caught on the turn it is written.
 A skill shipped with the plugin tells the agent when to use the LSP tool and
 the `frappe-lsp/describe` and `frappe-lsp/references` methods.
 
-The plugin has no download step, so `frappe-lsp` must be on the `PATH` of the
-terminal that runs Claude Code. An error in `/plugin` says when it is not.
-Files outside an app directory get no checks: put code under `apps/`.
+The first start downloads the server
+([above](#how-the-plugins-get-the-server)). Claude Code waits up to two
+minutes for it. Files outside an app directory get no checks: put code under
+`apps/`.
 
 ## VS Code
 
-VS Code also needs an extension to start a language server. Any generic client
-works; with [Simple LSP Client](https://marketplace.visualstudio.com/items?itemName=wdomitrz.simple-lsp-client),
+VS Code needs an extension to start a language server, and the binary on
+`PATH` ([README](../README.md#install-the-binary)). Any generic client works.
+With [Simple LSP Client](https://marketplace.visualstudio.com/items?itemName=wdomitrz.simple-lsp-client),
 in `settings.json`:
 
 ```json
@@ -209,6 +227,13 @@ above the root the editor sent. In Neovim:
 :FrappeLspStatus
 ```
 
-For more detail, add `--log-level debug` to the command, for example
-`setup({ cmd = { 'frappe-lsp', '--log-level', 'debug' } })`. The server logs to stderr,
-and Neovim writes that to `:LspLog`. Attach both to a bug report.
+For more detail, add `--log-level debug` to the command. In Neovim:
+
+```lua
+require('frappe_lsp').setup({
+  cmd = { require('frappe_lsp.install').launcher(), '--log-level', 'debug' },
+})
+```
+
+The server logs to stderr, and Neovim writes that to `:LspLog`. Attach both to
+a bug report.

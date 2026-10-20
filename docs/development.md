@@ -13,10 +13,11 @@ crates/
   frappe-index/    discovery, metadata graph, cache     [03] [04]
   frappe-syntax/   grammars, queries, extraction        [06]
   frappe-bridge/   live site client                     [05]
+bin/frappe-lsp     launcher: downloads the pinned release, then runs it
 lua/ lsp/          Neovim plugin
 pi/                pi package: extension and skill
-claude/            Claude Code plugin: skill
-.claude-plugin/    Claude Code marketplace and plugin manifest
+claude/            Claude Code plugin skill
+.claude-plugin/    Claude Code plugin and marketplace manifests
 docs/
   specs/           normative design
   tasks/           open work only
@@ -147,14 +148,21 @@ Levels and what belongs in each: [32](specs/32-testing.md).
    bench.
 2. Set the new version in four places: `version` in the workspace
    `Cargo.toml`, the three `version` pins under `[workspace.dependencies]`,
-   `package.json` and `claude/.claude-plugin/plugin.json`.
+   `package.json` and `.claude-plugin/plugin.json`.
 3. Build, so `Cargo.lock` follows, and commit as `chore: release <version>`.
 4. Tag the commit `<version>` and push the commit and the tag.
+
+`.github/check-versions.sh` fails CI when the manifests disagree. The
+launcher downloads the release `package.json` names, so a plugin on `master`
+runs the last published release. Bump the version only in the release commit:
+the plugins on that commit cannot find their server until the release job
+publishes it, and they run the previous one until then.
 
 `.github/workflows/release.yml` refuses a tag that does not match the version,
 then builds and publishes Linux (static) and macOS binaries for x86_64 and
 aarch64 with their checksums. Each archive is unpacked and driven through
-`tests/editors/neovim.lua` on its own platform first. To check the build
+`tests/editors/neovim.lua` on its own platform first, through the launcher.
+After publishing, the launcher downloads the new release on Linux and macOS. To check the build
 without publishing, run the workflow by hand:
 
 ```sh

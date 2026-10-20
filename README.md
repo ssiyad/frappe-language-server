@@ -43,8 +43,9 @@ of the bench. It needs no configuration.
 
 ## Quick start
 
-frappe-lsp is one binary that speaks LSP. Pick your editor below, then open
-any file inside a bench.
+Pick your editor below, then open any file inside a bench. The Neovim, Claude
+Code and pi plugins download the server on first use, so there is nothing else
+to install.
 
 ### Neovim
 
@@ -59,8 +60,25 @@ You need Neovim 0.11 or later. Add the plugin with lazy.nvim:
 }
 ```
 
-Then run `:FrappeLspInstall` once. It downloads the binary for your platform
-and checks its checksum. Run it again to update.
+The first file you open in a bench downloads the server. Updating the plugin
+updates the server.
+
+### Claude Code
+
+```sh
+claude plugin install frappe-lsp --marketplace ssiyad/frappe-language-server
+```
+
+Claude can then navigate the bench, and it sees the checks after each edit.
+
+### pi
+
+```sh
+pi install git:github.com/ssiyad/frappe-language-server
+```
+
+The agent gets tools for DocType schemas and references. Each file it edits
+is checked on that turn.
 
 ### VS Code
 
@@ -80,28 +98,6 @@ and checks its checksum. Run it again to update.
 }
 ```
 
-### Claude Code
-
-[Install the binary](#install-the-binary), then add the plugin:
-
-```sh
-claude plugin marketplace add ssiyad/frappe-language-server
-claude plugin install frappe-lsp@frappe-lsp
-```
-
-Claude can then navigate the bench, and it sees the checks after each edit.
-
-### pi
-
-[Install the binary](#install-the-binary), then add the package:
-
-```sh
-pi install git:github.com/ssiyad/frappe-language-server
-```
-
-The agent gets tools for DocType schemas and references. Each file it edits
-is checked on that turn.
-
 ### Other editors
 
 Register a stdio language server with the command `frappe-lsp` for Python,
@@ -110,8 +106,8 @@ details for every editor.
 
 ## Install the binary
 
-The Neovim plugin installs the binary for you. For other editors, get it in
-one of these ways.
+The plugins download the binary for you. For VS Code and other editors, get it
+in one of these ways.
 
 **Download a release.** Each [release](https://github.com/ssiyad/frappe-language-server/releases/latest)
 has an archive for Linux and macOS, x86_64 and aarch64. The Linux binaries are

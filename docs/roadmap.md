@@ -132,10 +132,10 @@ working server and measured evidence rather than a proposal.
 Distribution is **done**. Each release target builds on its own platform, and
 the archive a user downloads is unpacked, checked against its checksum and
 driven through `tests/editors/neovim.lua` before anything is published. 0.2.0
-shipped that way on Linux and macOS, x86_64 and aarch64. The Neovim plugin
-installs it with `:FrappeLspInstall`, and completion works on the reference
-bench with no build step. pi and Claude Code load the server as plugins, and
-the VS Code setup was checked by hand. What is left is the upstream
+shipped that way on Linux and macOS, x86_64 and aarch64. The Neovim, pi and
+Claude Code plugins download it by themselves through `bin/frappe-lsp`, so
+each one installs with one command and completion works on the reference
+bench with no build step. The VS Code setup was checked by hand. What is left is the upstream
 conversation, which waits on real use.
 
 ## Deferred
