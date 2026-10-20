@@ -220,6 +220,8 @@ pub struct Index {
     /// Print format templates, by file, with the DocType each renders: what
     /// `doc` is inside them ([13](../../../docs/specs/13-surface-jinja.md)).
     print_formats: BTreeMap<PathBuf, String>,
+    /// What a template can name without importing it.
+    jinja_globals: crate::jinja_globals::JinjaGlobals,
     site: Option<LayerThree>,
     modules: BTreeMap<PathBuf, python::Module>,
     hook_reads: BTreeSet<String>,
@@ -282,6 +284,7 @@ impl Index {
             sources: BTreeMap::new(),
             fixtures: BTreeMap::new(),
             print_formats: BTreeMap::new(),
+            jinja_globals: crate::jinja_globals::JinjaGlobals::default(),
             site: None,
             modules: BTreeMap::new(),
             packages: Vec::new(),
@@ -336,6 +339,7 @@ impl Index {
             sources: BTreeMap::new(),
             fixtures: BTreeMap::new(),
             print_formats: BTreeMap::new(),
+            jinja_globals: crate::jinja_globals::JinjaGlobals::default(),
             site: None,
             modules: BTreeMap::new(),
             packages,
@@ -367,6 +371,7 @@ impl Index {
         // ordering requirement rather than a preference.
         index.read_javascript();
         index.sort_reports();
+        index.read_jinja_globals();
 
         index.build_time = started.elapsed();
         index
@@ -1491,6 +1496,53 @@ impl Index {
     #[must_use]
     pub fn hooks(&self, app: &str) -> Option<&crate::hooks::Hooks> {
         self.hooks.get(app)
+    }
+
+    /// What a Jinja template can name without importing it — completion only
+    /// ([13](../../../docs/specs/13-surface-jinja.md)).
+    #[must_use]
+    pub fn jinja_globals(&self) -> &crate::jinja_globals::JinjaGlobals {
+        &self.jinja_globals
+    }
+
+    /// frappe's own globals from its `safe_exec.py`, then each app's `jinja`
+    /// hook: a path to a module adds every function defined in it, a path to
+    /// a function adds that function.
+    fn read_jinja_globals(&mut self) {
+        let safe_exec = self
+            .workspace
+            .apps
+            .iter()
+            .find(|app| app.name == "frappe")
+            .map(|app| app.package.join("utils").join("safe_exec.py"))
+            .and_then(|path| std::fs::read_to_string(path).ok());
+        let mut globals = safe_exec
+            .as_deref()
+            .map(crate::jinja_globals::JinjaGlobals::scrape)
+            .unwrap_or_default();
+
+        let paths: Vec<String> = self
+            .hooks
+            .values()
+            .flat_map(|hooks| hooks.jinja.clone())
+            .collect();
+        for dotted in paths {
+            let resolution = self.resolve(&dotted, Kind::Callable);
+            match resolution.best() {
+                Some(candidate) if candidate.name.is_empty() => {
+                    for function in self
+                        .module(&candidate.path)
+                        .into_iter()
+                        .flat_map(|module| &module.functions)
+                    {
+                        globals.add(&function.name);
+                    }
+                }
+                Some(candidate) => globals.add(&candidate.name),
+                None => {}
+            }
+        }
+        self.jinja_globals = globals;
     }
 
     /// The DocType a print format template renders, when `path` is one.

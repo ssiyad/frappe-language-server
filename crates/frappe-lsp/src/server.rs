@@ -145,6 +145,69 @@ impl Backend {
         f(&index, &named, offset, range)
     }
 
+    /// A global a template can name: `frappe.`, `frappe.db.`, or a top-level
+    /// name. Asked last, so `doc.` and `frappe.get_doc("` keep their own
+    /// answers ([13](../../../docs/specs/13-surface-jinja.md)).
+    fn complete_jinja_global(&self, uri: &Uri, position: Position) -> Option<CompletionResponse> {
+        let index = self.index.read_or_recover();
+        let state = self.state.read_or_recover();
+        let buffer = state.buffers.get(uri)?;
+        if buffer.language() != frappe_syntax::Language::Jinja {
+            return None;
+        }
+        let text = buffer.text();
+        let offset = buffer
+            .offset(frappe_syntax::Position::new(
+                position.line,
+                position.character,
+            ))
+            .min(text.len());
+        if !frappe_syntax::jinja::expression_at(&text, offset) {
+            return None;
+        }
+
+        // `frappe.db.get_va|` → the namespace `frappe.db`, typed `get_va`.
+        let before = &text[..offset];
+        let start = before
+            .rfind(|c: char| !(c.is_alphanumeric() || c == '_' || c == '.'))
+            .map_or(0, |at| at + 1);
+        let token = &before[start..];
+        let (namespace, typed) = token.rsplit_once('.').unwrap_or(("", token));
+        let globals = index.jinja_globals();
+
+        let lines = locations::LineIndex::new(&text, state.support.position_encoding);
+        let range = Range {
+            start: lines.position(offset - typed.len()),
+            end: lines.position(offset),
+        };
+        let items: Vec<CompletionItem> = globals
+            .members(namespace)
+            .filter(|name| name.starts_with(typed))
+            .map(|name| CompletionItem {
+                label: name.to_string(),
+                kind: Some(if globals.is_namespace(namespace, name) {
+                    CompletionItemKind::MODULE
+                } else {
+                    CompletionItemKind::FUNCTION
+                }),
+                detail: Some(if namespace.is_empty() {
+                    "Jinja global".to_string()
+                } else {
+                    format!("{namespace}.{name}")
+                }),
+                text_edit: Some(CompletionTextEdit::Edit(TextEdit {
+                    range,
+                    new_text: name.to_string(),
+                })),
+                ..CompletionItem::default()
+            })
+            .collect();
+        (!items.is_empty()).then_some(CompletionResponse::List(CompletionList {
+            is_incomplete: false,
+            items,
+        }))
+    }
+
     /// Template names, listed once per index revision.
     fn template_names(&self) -> Arc<Vec<String>> {
         let revision = self.index.read_or_recover().revision();
@@ -899,7 +962,8 @@ impl LanguageServer for Backend {
         let uri = &position.text_document.uri;
         Ok(self
             .with_position(uri, position.position, complete)
-            .or_else(|| self.with_typing_position(uri, position.position, complete)))
+            .or_else(|| self.with_typing_position(uri, position.position, complete))
+            .or_else(|| self.complete_jinja_global(uri, position.position)))
     }
 
     async fn completion_resolve(&self, item: CompletionItem) -> Result<CompletionItem> {

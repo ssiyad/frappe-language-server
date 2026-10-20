@@ -57,6 +57,15 @@ pub fn to_python(template: &str) -> String {
     String::from_utf8(out).unwrap_or_default()
 }
 
+/// Whether `offset` sits inside an expression or statement block, where a
+/// global can be named — not in markup and not in a comment.
+#[must_use]
+pub fn expression_at(template: &str, offset: usize) -> bool {
+    blocks(template).iter().any(|block| {
+        block.kind != Kind::Comment && block.inner.start <= offset && offset <= block.inner.end
+    })
+}
+
 /// A path a template names with `include`, `extends`, `import` or `from`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TemplateRef {
@@ -455,6 +464,24 @@ mod tests {
     fn a_path_still_being_typed_is_a_reference() {
         let found = references("{% include \"templates/inc");
         assert_eq!(found[0].path, "templates/inc");
+    }
+
+    #[test]
+    fn an_offset_inside_a_block_is_an_expression() {
+        let template = "<p>frappe</p>{{ frappe.fo }}{# frappe #}{% if fr %}";
+        assert!(!expression_at(template, 4));
+        assert!(expression_at(
+            template,
+            template.find(".fo").expect("in it") + 3
+        ));
+        assert!(!expression_at(
+            template,
+            template.find("# frappe").expect("in it") + 3
+        ));
+        assert!(expression_at(
+            template,
+            template.find("fr %").expect("in it") + 2
+        ));
     }
 
     #[test]

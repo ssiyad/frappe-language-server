@@ -87,8 +87,17 @@ guess.
 
 ## Whitelisted globals
 
-Jinja templates see a restricted namespace built in `frappe/utils/jinja.py`, plus
-whatever the `jinja` hook adds ([12](12-surface-hooks.md)). Completion offers
-that set; calling anything outside it fails at render. Reporting non-whitelisted
-calls is valuable but requires the vendored global list to be exact — until it
-is, completion only, no diagnostics.
+Jinja templates see a restricted namespace, plus whatever the `jinja` hook adds
+([12](12-surface-hooks.md)). frappe builds the namespace in code: nested
+`NamespaceDict(name=…)` calls in `render_safe_globals` and `exec_safe_globals`
+of `frappe/utils/safe_exec.py`. The index reads those keyword names from the
+bench's own frappe, so the set is the installed version's and nobody keeps a
+list by hand. A `jinja` hook entry that names a module adds every function in
+it, as `get_jinja_hooks` does; one that names a function adds that function.
+
+Completion offers the set inside `{{ }}` and `{% %}`, by namespace —
+`frappe.`, `frappe.db.`, or the top level — after the DocType and field
+completions have had their turn. It is the union of the restricted and the
+unrestricted sets, which is safe only because nothing is reported from it:
+calling a name outside the set fails at render, but saying so needs to know
+which of the two sets a site uses.

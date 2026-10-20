@@ -89,8 +89,10 @@ them ([05](specs/05-live-bridge.md)). Credentials come from the environment or
 from any command that prints them, so no particular credential tool is a
 dependency. DocTypes created through the UI join the graph from their meta,
 and the site's Client and Server Scripts are written to read-only files that
-definition lands on. The bridge is done; the Jinja surface is what phase 4 has
-left.
+definition lands on. Templates are read as Jinja: includes navigate, `frappe.*`
+calls and `doc` in a print format resolve and complete, the globals complete,
+and the checks run on them. Phase 4 is done but for the experimental type
+stub ([24](specs/24-type-integration.md)).
 
 Live site layer, Custom Field and Property Setter resolution, in-DB scripts as
 virtual documents, Jinja surface. Type checker integration

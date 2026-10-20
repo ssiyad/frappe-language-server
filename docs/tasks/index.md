@@ -16,7 +16,6 @@ surface (`010`) and test running (`018`) are all done and their files deleted.
 
 | # | Task | Depends on |
 | --- | --- | --- |
-| 015 | [Jinja surface](015-jinja-surface.md) | — |
 | 017 | [Type checker integration](017-type-integration.md) | — · experimental |
 
 ## Phase 5 — Distribution and upstream
@@ -29,9 +28,10 @@ surface (`010`) and test running (`018`) are all done and their files deleted.
 ## Critical path
 
 The live bridge (`014`) is done and its file deleted: Custom Field, Property
-Setter, UI-created DocTypes and the site's scripts all reach the index. `015`
-is next in phase 4, `016` can start any time, and `017` is independent and
-experimental.
+Setter, UI-created DocTypes and the site's scripts all reach the index. The
+Jinja surface (`015`) is done too: grammar, includes, expressions, `doc` in
+print formats, globals and diagnostics. Phase 4 has `017` left, which is
+independent and experimental.
 
 What phase 3 left behind:
 

@@ -1074,6 +1074,53 @@ fn doc_in_a_print_format_is_the_doctype_it_renders() {
 }
 
 #[test]
+fn a_template_completes_the_globals_the_jinja_hook_adds() {
+    // `library.jinja_helpers` is a module in the hook, so every function in
+    // it is a global; `format_isbn` is named on its own.
+    let source = "<p>{{ mem }}</p>\n<p>{{ format_ }}</p>\n";
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let uri = format!(
+        "file://{}",
+        bench
+            .join("apps/library/library/templates/globals.html")
+            .display()
+    );
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {"uri": uri, "languageId": "html", "version": 1, "text": source}}),
+    );
+    let labels = |session: &mut Session, id: i64, line: u32, character: u32| -> Vec<String> {
+        let response = session.request(
+            id,
+            "textDocument/completion",
+            json!({"textDocument": {"uri": uri}, "position": {"line": line, "character": character}}),
+        );
+        response["result"]["items"]
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|item| item["label"].as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    assert!(labels(&mut session, 3500, 0, 9).contains(&"member_url".to_string()));
+    assert!(labels(&mut session, 3501, 1, 13).contains(&"format_isbn".to_string()));
+
+    session.request(3600, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
 fn completion_offers_the_fields_of_the_resolved_doctype() {
     let source = "import frappe\nfrappe.get_all(\"Library Member\", fields=[\"|\"])\n";
     let (text, position) = cursor(source);

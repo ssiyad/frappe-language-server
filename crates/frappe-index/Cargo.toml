@@ -21,6 +21,9 @@ rayon.workspace = true
 # spec 03, so the JSON reader is a discovery dependency, not just a test one.
 serde.workspace = true
 serde_json.workspace = true
+# Already built for frappe-syntax; named so the Jinja globals can walk the
+# tree of frappe's safe_exec.py.
+tree-sitter.workspace = true
 # The cache says what it reused, which is the first question when a start is
 # slower or staler than expected.
 tracing.workspace = true
