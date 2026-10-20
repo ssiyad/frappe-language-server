@@ -1,12 +1,16 @@
 name: Release
 
-# A tag `<version>` or `v<version>` builds the server for Linux and macOS, x86_64 and aarch64,
-# and publishes them with their checksums. Linux builds are static (musl), so
-# one file runs on any distribution — task 016.
+# A tag `<version>` or `v<version>` builds the server for Linux and macOS,
+# x86_64 and aarch64, and publishes them with their checksums. Linux builds
+# are static (musl), so one file runs on any distribution — task 016. Every
+# target builds on its own platform, and the packaged file is driven through
+# an editor session before anything is published. A manual run builds and
+# checks every archive but publishes nothing.
 
 on:
   push:
     tags: ["v[0-9]*", "[0-9]*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,6 +28,7 @@ jobs:
       # A tag that does not match the crate version publishes a binary that
       # reports the wrong version to every bug report.
       - name: The tag matches the crate version
+        if: github.ref_type == 'tag'
         run: |
           version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
           if [ "$version" != "${GITHUB_REF_NAME#v}" ]; then
@@ -40,19 +45,19 @@ jobs:
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             cross: true
-            runs: true
+            nvim: nvim-linux-x86_64
+          # `cross` images are x86_64 only, so the arm runner links
+          # against musl itself.
           - target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
-            cross: true
-            runs: false
+            os: ubuntu-24.04-arm
+            musl: true
+            nvim: nvim-linux-arm64
           - target: x86_64-apple-darwin
-            os: macos-latest
-            cross: false
-            runs: false
+            os: macos-15-intel
+            nvim: nvim-macos-x86_64
           - target: aarch64-apple-darwin
             os: macos-latest
-            cross: false
-            runs: true
+            nvim: nvim-macos-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -65,6 +70,14 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cross
+      - if: matrix.musl
+        name: musl
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends musl-tools
+          echo "CC_${TARGET//-/_}=musl-gcc" >> "$GITHUB_ENV"
 
       - name: Build
         env:
@@ -76,11 +89,6 @@ jobs:
           "$tool" build --release --locked --package frappe-lsp \
             --target "$TARGET"
 
-      # Where the runner can execute the binary, it must start.
-      - if: matrix.runs
-        name: The binary runs
-        run: target/${{ matrix.target }}/release/frappe-lsp --version
-
       - name: Package
         env:
           TARGET: ${{ matrix.target }}
@@ -91,6 +99,32 @@ jobs:
           tar czf "$name.tar.gz" "$name"
           shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
 
+      # What is checked is the archive a user downloads, not the build tree.
+      - name: The packaged binary runs
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          name="frappe-lsp-$GITHUB_REF_NAME-$TARGET"
+          mkdir unpacked
+          tar xzf "$name.tar.gz" -C unpacked
+          shasum -a 256 -c "$name.tar.gz.sha256"
+          "unpacked/$name/frappe-lsp" --version
+          echo "FRAPPE_LSP=$PWD/unpacked/$name/frappe-lsp" >> "$GITHUB_ENV"
+
+      - name: Neovim
+        env:
+          NVIM: ${{ matrix.nvim }}
+        run: |
+          base=https://github.com/neovim/neovim/releases/download/v0.12.6
+          curl --fail --silent --show-error --location "$base/$NVIM.tar.gz" \
+            | tar xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/$NVIM/bin" >> "$GITHUB_PATH"
+
+      - name: The packaged binary drives an editor
+        run: >-
+          nvim --clean --headless -l tests/editors/neovim.lua
+          tests/fixtures/bench
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.target }}
@@ -98,6 +132,7 @@ jobs:
 
   release:
     needs: build
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
       contents: write
