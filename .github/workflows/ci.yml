@@ -18,6 +18,7 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all --check
+      - run: .github/check-versions.sh
 
   test:
     strategy:

@@ -26,15 +26,11 @@ jobs:
         with:
           persist-credentials: false
       # A tag that does not match the crate version publishes a binary that
-      # reports the wrong version to every bug report.
-      - name: The tag matches the crate version
+      # reports the wrong version to every bug report, and a plugin manifest
+      # that lags makes the plugins download the wrong release.
+      - name: The tag matches every manifest
         if: github.ref_type == 'tag'
-        run: |
-          version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
-          if [ "$version" != "${GITHUB_REF_NAME#v}" ]; then
-            echo "tag $GITHUB_REF_NAME, crate version $version" >&2
-            exit 1
-          fi
+        run: .github/check-versions.sh "$GITHUB_REF_NAME"
 
   build:
     needs: version
@@ -151,3 +147,23 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes
+
+  # What a plugin does on first use: the launcher downloads the release just
+  # published, checks it and runs it.
+  launcher:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: The launcher installs the published release
+        run: |
+          export XDG_DATA_HOME="$RUNNER_TEMP/data"
+          version=$(bin/frappe-lsp --version)
+          echo "$version"
+          [ "$version" = "frappe-lsp ${GITHUB_REF_NAME#v}" ]
