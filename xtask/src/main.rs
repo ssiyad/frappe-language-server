@@ -13,6 +13,7 @@ Commands:
   codegen    --check [FRAPPE]: compare the vendored tables with what a frappe
              checkout reads, and fail on a name they lack
   smoke      Index a real bench and check its findings against the allowlist
+  stub       Write the type stub of spec 24 for a bench: [BENCH] [--out DIR] [--all]
   stress     Drive the release binary like an editor over a real bench
              [--positions N] [--edits N] [--limit FILES] [--seed N] [--all]
   help       Show this message
@@ -24,6 +25,7 @@ fn main() -> ExitCode {
         Some("codegen") if std::env::args().any(|argument| argument == "--check") => drift(),
         Some("codegen") => unimplemented("codegen", "docs/development.md#vendored-constants"),
         Some("stress") => stress(),
+        Some("stub") => stub(),
         Some("smoke") => {
             let bench = bench();
             let write = std::env::args().any(|argument| argument == "--write");
@@ -86,7 +88,48 @@ fn bench() -> std::path::PathBuf {
 }
 
 /// Flags that take a value, so the value is not read as the bench.
-const VALUED: [&str; 4] = ["--positions", "--edits", "--limit", "--seed"];
+const VALUED: [&str; 5] = ["--positions", "--edits", "--limit", "--seed", "--out"];
+
+fn stub() -> ExitCode {
+    let bench = bench();
+    let arguments: Vec<String> = std::env::args().collect();
+    let out = arguments
+        .iter()
+        .position(|argument| argument == "--out")
+        .and_then(|at| arguments.get(at + 1))
+        .map_or_else(|| bench.join(".frappe-lsp/stubs"), std::path::PathBuf::from);
+    let scope = if arguments.iter().any(|argument| argument == "--all") {
+        frappe_index::stub::Scope::All
+    } else {
+        frappe_index::stub::Scope::Referenced
+    };
+
+    let started = std::time::Instant::now();
+    let mut index = frappe_index::Index::build(&bench);
+    index.scan_occurrences();
+    match frappe_index::stub::generate(&index, scope) {
+        Ok(stub) => match frappe_index::stub::write(&out, &stub) {
+            Ok(_) => {
+                println!(
+                    "{} overloads for {} DocTypes in {}/frappe/model/document.pyi, {:?}",
+                    stub.overloads,
+                    stub.doctypes,
+                    out.display(),
+                    started.elapsed()
+                );
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("xtask: could not write the stub: {error}");
+                ExitCode::FAILURE
+            }
+        },
+        Err(error) => {
+            eprintln!("xtask: no stub: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
 
 fn number(flag: &str, default: u64) -> u64 {
     let arguments: Vec<String> = std::env::args().collect();

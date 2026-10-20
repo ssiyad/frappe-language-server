@@ -21,6 +21,7 @@ pub mod locations;
 pub mod logging;
 pub mod scripts;
 pub mod server;
+pub mod stub;
 pub mod symbols;
 pub mod templates;
 pub mod testing;

@@ -91,8 +91,9 @@ dependency. DocTypes created through the UI join the graph from their meta,
 and the site's Client and Server Scripts are written to read-only files that
 definition lands on. Templates are read as Jinja: includes navigate, `frappe.*`
 calls and `doc` in a print format resolve and complete, the globals complete,
-and the checks run on them. Phase 4 is done but for the experimental type
-stub ([24](specs/24-type-integration.md)).
+and the checks run on them. With `types.stub` on, a generated `document.pyi`
+makes pyright type `frappe.get_doc("Sales Invoice", …)` as `SalesInvoice`
+([24](specs/24-type-integration.md)). Phase 4 is done.
 
 Live site layer, Custom Field and Property Setter resolution, in-DB scripts as
 virtual documents, Jinja surface. Type checker integration

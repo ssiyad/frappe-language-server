@@ -522,6 +522,15 @@ impl Backend {
                 tracing::error!("the occurrence scan panicked");
                 return;
             }
+            // The type stub needs the reference table, so it comes now.
+            let config = state.read_or_recover().config.clone();
+            let stubbing = {
+                let index = Arc::clone(&index);
+                tokio::task::spawn_blocking(move || crate::stub::refresh(&index, &config))
+            };
+            if let Ok(Some(message)) = stubbing.await {
+                client.log_message(MessageType::INFO, message).await;
+            }
 
             // Layer 3 last. It is optional and it is the only step that talks
             // to anything outside this machine, so nothing else waits on it
@@ -838,15 +847,26 @@ impl LanguageServer for Backend {
             return;
         };
         let index = Arc::clone(&self.index);
-        tokio::task::spawn_blocking(move || {
-            let mut index = index.write_or_recover();
-            let reindexed = index.reindex(&path);
-            if reindexed.known {
-                tracing::debug!(
-                    path = %path.display(),
-                    doctypes = ?reindexed.doctypes,
-                    "re-indexed"
-                );
+        let config = self.write(|state| state.config.clone());
+        let client = self.client.clone();
+        tokio::spawn(async move {
+            let reindexing = tokio::task::spawn_blocking(move || {
+                {
+                    let mut guard = index.write_or_recover();
+                    let reindexed = guard.reindex(&path);
+                    if reindexed.known {
+                        tracing::debug!(
+                            path = %path.display(),
+                            doctypes = ?reindexed.doctypes,
+                            "re-indexed"
+                        );
+                    }
+                }
+                // A new `get_doc("X")`, or a renamed controller, changes it.
+                crate::stub::refresh(&index, &config)
+            });
+            if let Ok(Some(message)) = reindexing.await {
+                client.log_message(MessageType::WARNING, message).await;
             }
         });
     }
@@ -909,16 +929,24 @@ impl LanguageServer for Backend {
         tokio::spawn(async move {
             let reindexing = {
                 let index = Arc::clone(&index);
+                let config = state.read_or_recover().config.clone();
                 tokio::task::spawn_blocking(move || {
-                    let mut index = index.write_or_recover();
-                    for path in paths {
-                        index.reindex(&path);
+                    {
+                        let mut guard = index.write_or_recover();
+                        for path in paths {
+                            guard.reindex(&path);
+                        }
                     }
+                    crate::stub::refresh(&index, &config)
                 })
             };
-            if reindexing.await.is_err() {
-                tracing::error!("re-indexing panicked");
-                return;
+            match reindexing.await {
+                Ok(Some(message)) => client.log_message(MessageType::WARNING, message).await,
+                Ok(None) => {}
+                Err(_) => {
+                    tracing::error!("re-indexing panicked");
+                    return;
+                }
             }
             // A DocType added or removed changes who conflicts with whom, and
             // the other side of the pair is usually not open.

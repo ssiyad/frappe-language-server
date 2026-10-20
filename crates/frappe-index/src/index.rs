@@ -209,6 +209,10 @@ struct Source {
     package: Arc<Path>,
 }
 
+/// One name a file mentions, where, and the constructor call it is the
+/// DocType of, if any.
+type Occurrence = (crate::occurrences::Key, Range, Option<&'static str>);
+
 /// The resolved graph every feature queries.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Index {
@@ -1747,7 +1751,7 @@ impl Index {
             })
             .collect();
 
-        let found: Vec<(PathBuf, Vec<(crate::occurrences::Key, Range)>)> = files
+        let found: Vec<(PathBuf, Vec<Occurrence>)> = files
             .into_par_iter()
             .filter_map(|path| {
                 let source = std::fs::read_to_string(&path).ok()?;
@@ -1765,7 +1769,10 @@ impl Index {
         let mut table = crate::occurrences::Occurrences::default();
         for (path, keys) in found {
             let path: Arc<Path> = Arc::from(path.as_path());
-            for (key, range) in keys {
+            for (key, range, constructed) in keys {
+                if let (Some(call), crate::occurrences::Key::DocType(name)) = (constructed, &key) {
+                    table.construct(&path, call, name);
+                }
                 table.insert(key, &path, range);
             }
         }
@@ -1805,7 +1812,10 @@ impl Index {
         if let Ok(source) = std::fs::read_to_string(path) {
             let found = self.occurrences_in(path, &source);
             let owned: Arc<Path> = Arc::from(path);
-            for (key, range) in found {
+            for (key, range, constructed) in found {
+                if let (Some(call), crate::occurrences::Key::DocType(name)) = (constructed, &key) {
+                    self.occurrences.construct(&owned, call, name);
+                }
                 self.occurrences.insert(key, &owned, range);
             }
         }
@@ -1917,7 +1927,7 @@ impl Index {
     }
 
     /// Occurrences in one source file, without touching the table.
-    fn occurrences_in(&self, path: &Path, source: &str) -> Vec<(crate::occurrences::Key, Range)> {
+    fn occurrences_in(&self, path: &Path, source: &str) -> Vec<Occurrence> {
         use crate::occurrences::Key;
 
         let Some(language) = frappe_syntax::Language::from_path(path) else {
@@ -1957,7 +1967,16 @@ impl Index {
                     } => Key::Field(doctype, fieldname),
                     _ => return None,
                 };
-                Some((key, Range::from(resolved.span)))
+                let constructed = (language == frappe_syntax::Language::Python
+                    && resolved.role == frappe_syntax::Role::DocType)
+                    .then(|| {
+                        crate::stub::CONSTRUCTORS
+                            .iter()
+                            .copied()
+                            .find(|call| *call == resolved.pattern.0)
+                    })
+                    .flatten();
+                Some((key, Range::from(resolved.span), constructed))
             })
             .collect()
     }

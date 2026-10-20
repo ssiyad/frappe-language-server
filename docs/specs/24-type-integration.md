@@ -58,13 +58,30 @@ Measured, 200 call sites:
 | 1,000 | 7,368 ms | 14× |
 | 2,500 | 32,523 ms | 60× |
 
-`scope = "referenced"` (default) emits overloads only for DocTypes appearing in
-literal constructor positions in the workspace — the set already computed by
-[10](10-surface-python.md). For reference, `frappe` itself defines 288 DocTypes
-but references only 174 that way, which interpolates to ~2× baseline.
+`scope = "referenced"` (default) emits an overload for a DocType only on the
+calls the workspace makes with it: a DocType only ever passed to `get_doc` gets
+no `new_doc` overload, and frappe's `get_doc(doctype, /)` form, which reads a
+Single, is copied for Singles only. The occurrence table records each
+`(call, DocType)` pair per file, so a save keeps the set exact. On the eight-app
+reference bench this is 517 DocTypes and 912 overloads; one overload per
+DocType per function would have been 3,619, and pyright ran out of memory
+checking `frappe` against those.
 
 `scope = "all"` exists as an escape hatch and MUST be documented with the 2,500
 row above. It is not a supported configuration.
+
+Measured on the reference bench, pyright 1.1, stub against frappe `c7a96ecc99`:
+
+| Checked | Without | With | Errors without → with |
+| --- | --- | --- | --- |
+| one controller, `sales_order.py` | 3.0 s | 5.2 s | 52 → 44 |
+| erpnext `selling/`, 161 files | 9.1 s | 18.3 s | 2,819 → 2,034 |
+| all of `frappe`, 1,727 files | 39 s | 131 s, 2.5 GB peak | 14,553 → 12,529 |
+
+Checking all of `frappe` with the stub needs more than node's default heap
+(`NODE_OPTIONS=--max-old-space-size=4096`): the stub imports every covered
+controller, so a check of one app loads the controllers of all of them. An
+editor checks the open files, which is the first row.
 
 Beyond scoping, we accept the remaining cost. Lazy stub splitting, per-file
 overload subsets and incremental stub emission are explicitly out of scope while
@@ -77,8 +94,19 @@ mechanism for a package without `py.typed`. So the generated
 `frappe/model/document.pyi` MUST be complete: every public symbol of
 `document.py`, with the Literal overloads injected.
 
-Write to `<bench>/.frappe-lsp/stubs/frappe/model/document.pyi` and have the user
-point pyright at it:
+It is complete by construction: the stub is `document.py` itself, with the
+overloads inserted ahead of frappe's own and every module-level import
+rewritten as `from x import y as y`. A `.pyi` re-exports only that form, and
+without it every `from frappe.model.document import get_controller` elsewhere
+broke. Each new overload copies one of frappe's own signatures, so they follow
+the installed version. The controllers are imported under private aliases, so
+no class name collides with one `document.py` defines. A DocType replaced by
+`override_doctype_class` returns the override.
+
+Pyright reads `stubPath` module by module, so a stub directory holding only
+`frappe/model/document.pyi` leaves the rest of `frappe` to the real package.
+
+Set `types.stub = true` and point pyright at the directory:
 
 ```json
 { "stubPath": ".frappe-lsp/stubs" }
@@ -89,16 +117,26 @@ Never write into `apps/`. The stub is a build artifact, not source, and
 
 ### Generation and staleness
 
-Regenerate when the referenced set changes, when a controller class is renamed,
-or when the `frappe` checkout moves. The stub carries a header naming the
-generator version, the `frappe` commit it was derived from, and a
-do-not-edit notice.
+The server writes the stub once the occurrence table exists, and again after
+any save or watched-file change that alters it; an unchanged stub is not
+rewritten. The stub carries a header naming the generator version, the
+`frappe` commit it was derived from, and a do-not-edit notice. A stub that does
+not parse is never written. `cargo xtask stub [BENCH]` writes one without an
+editor.
 
 Completeness is the drift risk: `document.py` gains a symbol, the stub omits it,
-and pyright reports it missing. Mitigation is the smoke test in
-[32](32-testing.md) — generate against `develop` and assert pyright produces zero
-new diagnostics on `frappe` itself. A generation that cannot satisfy that MUST
-fail loudly rather than emit a partial stub.
+and pyright reports it missing. Copying the file removes that risk. The check
+of [32](32-testing.md) — generate, run pyright over `frappe`, compare — found
+zero missing symbols once imports were re-exported. "Zero new diagnostics" is
+not reachable and is not the check: better types expose real errors. Of the 575
+new errors on `frappe`, 398 repeat an argument error the line already had (with
+many overloads pyright adds "no overloads match"), and the rest are optional
+fields — `Data | None`, `Link | None` — passed where `str` is required, which
+`Document` used to hide. Against that, 2,385 `Cannot access attribute … for
+class "Document"` errors disappear.
+
+While the stub is on, `unknown-attribute` is off whatever its configured level:
+pyright reports `doc.x` from the real types.
 
 ## Mechanism B — cast code action
 

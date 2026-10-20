@@ -157,6 +157,30 @@ One line can opt out with a comment on it or on the line above:
 `frappe-lsp: ignore` for every check, or `frappe-lsp: ignore <code>` for one
 ([23](specs/23-diagnostics.md)).
 
+## Typed documents in pyright
+
+Pyright types `frappe.get_doc("Sales Invoice", name)` as `Document`, so every
+field access on it is an error. Set `types.stub = true` in `.frappe-lsp.toml`:
+
+```toml
+[types]
+stub = true
+```
+
+The server then writes `.frappe-lsp/stubs/frappe/model/document.pyi` in the
+bench and keeps it current. Point pyright at it in `pyrightconfig.json`, or the
+`[tool.pyright]` table of `pyproject.toml`:
+
+```json
+{ "stubPath": "/path/to/bench/.frappe-lsp/stubs" }
+```
+
+`get_doc`, `new_doc` and the rest then return the controller class, so a
+misspelt field is a pyright error. It costs pyright time: a controller file
+checks in about 5 s instead of 3 on an eight-app bench
+([24](specs/24-type-integration.md)). Without the stub, the "Cast to …" code
+action on a `get_doc` call types that one call.
+
 ## When something is wrong
 
 Send `frappe-lsp/indexStatus` and read the answer first. It reports how many

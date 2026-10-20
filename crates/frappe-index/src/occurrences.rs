@@ -10,7 +10,7 @@
 //! file's edit invalidates only its own rows, and carried in the index cache
 //! so a warm start pays nothing for it.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -41,6 +41,10 @@ pub struct Occurrences {
     sites: BTreeMap<Key, Vec<Site>>,
     /// What each file contributed, so re-indexing it removes exactly that.
     by_file: BTreeMap<PathBuf, Vec<Key>>,
+    /// `(call, DocType)` for each `frappe.get_doc`-family call a Python file
+    /// makes with a literal DocType: what the type stub covers, call by call
+    /// ([24](../../../docs/specs/24-type-integration.md)).
+    constructed: BTreeMap<PathBuf, BTreeSet<(String, String)>>,
     /// Whether the scan has run. Until it has, references answers nothing
     /// rather than answering wrongly.
     pub scanned: bool,
@@ -69,8 +73,27 @@ impl Occurrences {
         }
     }
 
+    /// Record that `path` calls `call` (`frappe.get_doc`, …) with `doctype`.
+    pub fn construct(&mut self, path: &Path, call: &str, doctype: &str) {
+        self.constructed
+            .entry(path.to_path_buf())
+            .or_default()
+            .insert((call.to_string(), doctype.to_string()));
+    }
+
+    /// Every `(call, DocType)` some Python file in the workspace makes.
+    #[must_use]
+    pub fn constructed(&self) -> BTreeSet<(&str, &str)> {
+        self.constructed
+            .values()
+            .flatten()
+            .map(|(call, doctype)| (call.as_str(), doctype.as_str()))
+            .collect()
+    }
+
     /// Drop everything one file contributed.
     pub fn forget(&mut self, path: &Path) {
+        self.constructed.remove(path);
         let Some(keys) = self.by_file.remove(path) else {
             return;
         };

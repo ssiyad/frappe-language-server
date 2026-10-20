@@ -24,6 +24,7 @@ pub mod resolve;
 pub mod scripts;
 pub mod site;
 pub mod span;
+pub mod stub;
 pub mod walk;
 pub mod whitelist;
 pub mod workspace;

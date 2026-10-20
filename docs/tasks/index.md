@@ -14,9 +14,8 @@ surface (`010`) and test running (`018`) are all done and their files deleted.
 
 ## Phase 4 — Bridge and templates
 
-| # | Task | Depends on |
-| --- | --- | --- |
-| 017 | [Type checker integration](017-type-integration.md) | — · experimental |
+**Complete.** The live bridge (`014`), the Jinja surface (`015`) and type
+checker integration (`017`) are done and their files deleted.
 
 ## Phase 5 — Distribution and upstream
 
@@ -30,8 +29,9 @@ surface (`010`) and test running (`018`) are all done and their files deleted.
 The live bridge (`014`) is done and its file deleted: Custom Field, Property
 Setter, UI-created DocTypes and the site's scripts all reach the index. The
 Jinja surface (`015`) is done too: grammar, includes, expressions, `doc` in
-print formats, globals and diagnostics. Phase 4 has `017` left, which is
-independent and experimental.
+print formats, globals and diagnostics. So is `017`: the cast action, and a
+generated `document.pyi` that pyright reads through `stubPath`. What is left is
+phase 5: `016` is mostly done, and `019` waits on real use.
 
 What phase 3 left behind:
 

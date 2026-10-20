@@ -1018,6 +1018,9 @@ fn severity(config: &Config, code: &str) -> Option<DiagnosticSeverity> {
         "unknown-doc-event" => config.diagnostics.unknown_doc_event,
         "unknown-doctype" => config.diagnostics.unknown_doctype,
         "unknown-field" => config.diagnostics.unknown_field,
+        // With the stub active pyright reports `doc.x`, from real types and
+        // more accurately; saying it twice helps nobody (spec 24).
+        "unknown-attribute" if config.types.stub => Level::Off,
         "unknown-attribute" => config.diagnostics.unknown_attribute,
         "translation-dynamic" => config.diagnostics.translation_dynamic,
         "unknown-form-event" => config.diagnostics.unknown_form_event,
