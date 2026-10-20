@@ -1,6 +1,6 @@
 {
   "name": "frappe-lsp",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "frappe-lsp for Claude Code: Frappe DocTypes, fields, hooks and templates as code intelligence, and frappe-lsp's checks after every edit inside a bench",
   "author": { "name": "Sabu Siyad", "email": "hello@ssiyad.com" },
   "homepage": "https://github.com/ssiyad/frappe-language-server",
