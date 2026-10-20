@@ -51,10 +51,9 @@ rediscovered:
   any name frappe reads that a table lacks, and CI runs it weekly against
   frappe's `develop`. Its first run found 23 hooks and four events missing,
   and the `Document` member check, added after, six attributes.
-- **No benchmarks.** `cargo bench` has nothing to run; the budgets in
-  [31](../specs/31-performance.md) are asserted by tests that skip without a
-  bench, and `cargo xtask stress` reports latencies without tracking them over
-  time.
+- **Benchmarks are not gated.** `cargo bench -p frappe-lsp` measures every
+  budget of [31](../specs/31-performance.md) and criterion tracks the history,
+  but only on a developer's machine: a shared CI runner would time the runner.
 - **CI has no real bench.** CI drives the fixture bench through
   `cargo xtask stress` on every push, but `cargo xtask smoke` and the full
   stress run over `frappe` and `erpnext` still need a developer's bench, so the

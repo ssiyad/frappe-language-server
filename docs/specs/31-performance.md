@@ -131,7 +131,33 @@ than one that stays silent.
 
 ## Measurement
 
-Criterion benchmarks for index build, completion, and reference lookup, over a
-committed synthetic bench plus an optional real ERPNext clone in CI. Budget
-regressions fail the build. Numbers above are targets to validate, not measured
-results — no implementation exists yet.
+`cargo bench -p frappe-lsp` runs one criterion benchmark per budget row,
+against the reference bench when there is one and the fixture bench otherwise;
+criterion keeps the history and reports a change against the last run. On the
+eight-app reference bench, release build:
+
+| Operation | Target | Ceiling | Measured |
+| --- | --- | --- | --- |
+| Cold index, no cache | 2 s | 5 s | 1.70 s |
+| Warm start from cache | 200 ms | 500 ms | 290–440 ms |
+| Incremental re-index, one DocType JSON | 5 ms | 20 ms | 10 ms |
+| Completion, resolved anchor | 20 ms | 50 ms | 5.2 ms |
+| Hover | 10 ms | 30 ms | 6.5 ms |
+| Definition | 10 ms | 30 ms | 3.8 ms |
+| References, workspace-wide | 100 ms | 300 ms | 4.2 ms |
+| Diagnostics after `didChange` | 100 ms | 250 ms | 12 ms |
+
+The request rows measure the server's own work on `sales_order.py`; the stress
+drive of [32](32-testing.md) measures them as an editor sees them, protocol
+included. Warm start is over its target and inside its ceiling.
+
+The re-index row is measured with the reference table built, as the server
+holds it, and the first run found a save costing 65 ms: it rebuilt the schema
+rows of every DocType linking to the saved one, and nearly every DocType links
+to `User`. Those rows only change when a DocType appears or goes. Files naming a
+DocType are re-read only when its shape changes — a field added, removed or
+retyped, the DocType created, deleted or made a child — which a re-save of the
+same schema never does.
+
+Nothing fails the build on a regression yet: CI has no real bench, and timings
+on a shared runner would fail on the runner rather than on the code.

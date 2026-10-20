@@ -34,3 +34,11 @@ tracing-subscriber.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+# The budgets of spec 31, against the reference bench when there is one.
+[[bench]]
+name = "budgets"
+harness = false

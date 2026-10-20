@@ -95,7 +95,7 @@ weekly against frappe's `develop`.
 ```
 cargo test              # unit, golden, integration
 cargo insta review      # inspect snapshot diffs
-cargo bench             # budgets from [31]        — no benches yet
+cargo bench -p frappe-lsp   # one benchmark per budget of [31]
 cargo xtask smoke       # real bench, against tests/smoke-allowlist.toml
 ```
 

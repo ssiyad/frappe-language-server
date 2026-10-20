@@ -17,6 +17,8 @@ frappe-syntax = { path = "crates/frappe-syntax", version = "0.1.0" }
 # 3.0.0 is a squatted release whose whole source is `compile_error!`; 2.0.1 is
 # the real latest. `serde` is an optional dependency here, not a feature.
 bincode = { version = "2.0.1", features = ["std", "serde"] }
+# Benchmarks for the budgets of spec 31; no plots, no rayon of its own.
+criterion = { version = "0.8", default-features = false }
 insta = "1.48"
 notify = "8.2"
 rayon = "1.12"
