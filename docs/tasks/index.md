@@ -49,8 +49,8 @@ rediscovered:
   hook registry and form events cannot be generated whole: a hook's schema is a
   judgement. Drift is caught instead — `cargo xtask codegen --check` fails on
   any name frappe reads that a table lacks, and CI runs it weekly against
-  frappe's `develop`. Its first run found 23 hooks and four events missing.
-  `Document` members are not checked yet.
+  frappe's `develop`. Its first run found 23 hooks and four events missing,
+  and the `Document` member check, added after, six attributes.
 - **No benchmarks.** `cargo bench` has nothing to run; the budgets in
   [31](../specs/31-performance.md) are asserted by tests that skip without a
   bench, and `cargo xtask stress` reports latencies without tracking them over

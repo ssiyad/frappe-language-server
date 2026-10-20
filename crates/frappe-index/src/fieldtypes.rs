@@ -270,11 +270,14 @@ pub fn is_implicit(fieldname: &str, is_child: bool) -> bool {
 /// [23](../../../docs/specs/23-diagnostics.md) forbids.
 ///
 /// Vendored from `Document` and `BaseDocument` in `frappe/model/document.py`
-/// and `frappe/model/base_document.py` at frappe `5a94ce8576`. Names that are also
+/// and `frappe/model/base_document.py` at frappe `5a94ce8576`, and checked by
+/// `cargo xtask codegen --check` against `c7a96ecc99`. Names that are also
 /// implicit fields are excluded: those are fields first.
-pub const DOCUMENT_MEMBERS: [&str; 165] = [
+pub const DOCUMENT_MEMBERS: [&str; 171] = [
     "_DOCTYPE_NAME",
+    "_action",
     "_cancel",
+    "_doc_before_save",
     "_evaluate_virtual_field_options",
     "_extract_images_from_text_editor",
     "_fix_numeric_types",
@@ -284,13 +287,16 @@ pub const DOCUMENT_MEMBERS: [&str; 165] = [
     "_handle_hash_conflict",
     "_handle_permission_failure",
     "_init_child",
+    "_link_value_cache",
     "_load_child_table_from_db",
     "_non_computed_table_fieldnames",
+    "_original_modified",
     "_parent_doc",
     "_precision",
     "_prefetch_link_values",
     "_rename",
     "_restore_masked_fields_from_db",
+    "_return_value",
     "_sanitize_content",
     "_save",
     "_save_passwords",
@@ -305,6 +311,7 @@ pub const DOCUMENT_MEMBERS: [&str; 165] = [
     "_validate_length",
     "_validate_links",
     "_validate_mandatory",
+    "_validate_min_max_value",
     "_validate_non_negative",
     "_validate_selects",
     "_validate_update_after_submit",

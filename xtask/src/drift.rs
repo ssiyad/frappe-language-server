@@ -44,7 +44,101 @@ pub fn run(frappe: &Path) -> std::io::Result<usize> {
     let known: BTreeSet<&str> = generated::FORM_LIFECYCLE_EVENTS.iter().copied().collect();
     missing += report("form event", &triggered, &known);
 
+    let members = document_members(&[
+        (package.join("model/base_document.py"), "BaseDocument"),
+        (package.join("model/document.py"), "Document"),
+    ]);
+    let known: BTreeSet<&str> = frappe_index::fieldtypes::DOCUMENT_MEMBERS
+        .iter()
+        .copied()
+        .collect();
+    missing += report("Document member", &members, &known);
+
     Ok(missing)
+}
+
+/// What `doc.<name>` reaches on every document: the methods, properties and
+/// class attributes of `Document` and `BaseDocument`, and what their methods
+/// assign to `self`. A name that is also an implicit field is a field first.
+fn document_members(classes: &[(std::path::PathBuf, &str)]) -> BTreeSet<String> {
+    let mut parser = frappe_syntax::Language::Python
+        .parser()
+        .expect("the Python grammar");
+    let mut found = BTreeSet::new();
+    for (path, class) in classes {
+        let Ok(source) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        let Some(tree) = parser.parse(&source, None) else {
+            continue;
+        };
+        let text = |node: tree_sitter::Node<'_>| source[node.byte_range()].to_string();
+        let root = tree.root_node();
+        let mut cursor = root.walk();
+        let Some(body) = root
+            .named_children(&mut cursor)
+            .find(|node| {
+                node.kind() == "class_definition"
+                    && node
+                        .child_by_field_name("name")
+                        .is_some_and(|name| text(name) == *class)
+            })
+            .and_then(|node| node.child_by_field_name("body"))
+        else {
+            continue;
+        };
+
+        let mut stack = vec![body];
+        while let Some(node) = stack.pop() {
+            let mut inner = node.walk();
+            stack.extend(node.named_children(&mut inner));
+            let name = match node.kind() {
+                // `def name` directly in the class, decorated or not.
+                "function_definition"
+                    if node.parent().is_some_and(|parent| {
+                        parent.id() == body.id()
+                            || parent.kind() == "decorated_definition"
+                                && parent.parent().is_some_and(|outer| outer.id() == body.id())
+                    }) =>
+                {
+                    node.child_by_field_name("name").map(text)
+                }
+                // `name = …` in the class body, and `self.name = …` anywhere in it.
+                "assignment" => {
+                    node.child_by_field_name("left")
+                        .and_then(|left| match left.kind() {
+                            "identifier"
+                                if node
+                                    .parent()
+                                    .and_then(|parent| parent.parent())
+                                    .is_some_and(|outer| outer.id() == body.id()) =>
+                            {
+                                Some(text(left))
+                            }
+                            "attribute"
+                                if left
+                                    .child_by_field_name("object")
+                                    .is_some_and(|object| text(object) == "self") =>
+                            {
+                                left.child_by_field_name("attribute").map(text)
+                            }
+                            _ => None,
+                        })
+                }
+                _ => None,
+            };
+            if let Some(name) = name.filter(|name| {
+                // Every `__` name is a member to the index already: dunders,
+                // and `self.__x`, which Python mangles out of reach.
+                !name.starts_with("__")
+                    && !frappe_index::fieldtypes::is_implicit(name, false)
+                    && !frappe_index::fieldtypes::is_implicit(name, true)
+            }) {
+                found.insert(name);
+            }
+        }
+    }
+    found
 }
 
 /// Every name frappe reads as a hook. No single source is the list: the

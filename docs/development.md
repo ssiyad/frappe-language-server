@@ -84,7 +84,7 @@ file. Rationale in [31](specs/31-performance.md).
 but what its value names is a judgement. Drift is detected, though.
 `cargo xtask codegen --check [FRAPPE]` scrapes what a `frappe` checkout reads —
 hook names from five sources, doc events from `run_method`, form events from
-`trigger` — and fails on any name a table lacks. Its first run found 23 hooks,
+`trigger`, and `Document` members from the classes themselves — and fails on any name a table lacks. Its first run found 23 hooks,
 three doc events and one form event missing, each a false positive or a dead
 path waiting for an app that used it ([23](specs/23-diagnostics.md)). Add the
 name with its schema, and run the check again. `.github/workflows/drift.yml` runs it

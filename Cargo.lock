@@ -2062,6 +2062,7 @@ dependencies = [
  "serde_json",
  "toml",
  "tower-lsp-server",
+ "tree-sitter",
 ]
 
 [[package]]
