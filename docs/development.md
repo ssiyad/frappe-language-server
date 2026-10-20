@@ -92,7 +92,7 @@ weekly against frappe's `develop`.
 
 ## Testing
 
-```
+```sh
 cargo test              # unit, golden, integration
 cargo insta review      # inspect snapshot diffs
 cargo bench -p frappe-lsp   # one benchmark per budget of [31]
