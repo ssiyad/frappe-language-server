@@ -1,0 +1,11 @@
+{
+  "frappe-lsp": {
+    "command": "frappe-lsp",
+    "extensionToLanguage": {
+      ".py": "python",
+      ".js": "javascript",
+      ".json": "json",
+      ".html": "html"
+    }
+  }
+}
