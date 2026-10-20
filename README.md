@@ -67,9 +67,11 @@ In Neovim, this repository is a plugin: install it with your plugin manager,
 call `require('frappe_lsp').setup()`, and run `:FrappeLspInstall` for the
 binary. It is also a [pi](https://pi.dev) package: `pi install` it, and the
 agent gets Frappe's schema and references as tools, and frappe-lsp's checks on
-every file it edits. For other editors, point the LSP client at the `frappe-lsp` command
+every file it edits. In Claude Code, `claude plugin install` it and the LSP
+tool navigates the bench, with the checks pushed into the session after each
+edit. For other editors, point the LSP client at the `frappe-lsp` command
 for Python, JavaScript, JSON and HTML files. [docs/editors.md](docs/editors.md)
-has Neovim, Helix, and what any other client needs.
+has Neovim, Claude Code, VS Code, and what any other client needs.
 
 Open a file in any app of a bench. The first index of a bench with `frappe`,
 `erpnext` and six more apps takes about two seconds. Later starts read a cache.

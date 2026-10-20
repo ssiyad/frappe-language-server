@@ -69,43 +69,27 @@ tells the agent when to reach for the tools.
 The binary is found through `FRAPPE_LSP`, then `PATH`, then the copy
 `:FrappeLspInstall` puts under Neovim's data directory.
 
-## Helix
+## Claude Code
 
-In `~/.config/helix/languages.toml`. Keep the servers you already use, and add
-`frappe-lsp` after them. The names below are examples:
+This repository is also a [Claude Code](https://claude.com/claude-code) plugin.
+Add this repository as a marketplace and install from it:
 
-```toml
-[language-server.frappe-lsp]
-command = "frappe-lsp"
-
-[[language]]
-name = "python"
-language-servers = ["pyright", "ruff", "frappe-lsp"]
-
-[[language]]
-name = "javascript"
-language-servers = ["typescript-language-server", "frappe-lsp"]
-
-[[language]]
-name = "html"
-language-servers = ["vscode-html-language-server", "frappe-lsp"]
+```sh
+claude plugin marketplace add ssiyad/frappe-language-server
+claude plugin install frappe-lsp@frappe-lsp
 ```
 
-Helix has no code lens support, so tests do not run from the editor.
+The plugin declares frappe-lsp as the language server for Python, JavaScript,
+JSON and HTML files. Claude Code starts it when a handled file is first edited,
+and its LSP tool answers definition, hover, references, document symbols and
+workspace symbols against the bench. Diagnostics are pushed into the session
+after each edit, so a misspelt fieldname is caught on the turn it is written.
+A skill shipped with the plugin tells the agent when to use the LSP tool and
+the `frappe-lsp/describe` and `frappe-lsp/references` methods.
 
-## Zed
-
-Zed starts a language server only through an extension, so this repository
-carries one in `editors/zed`. With Rust installed through rustup, run
-`zed: install dev extension` from the command palette and pick that directory;
-Zed builds it. It runs `frappe-lsp` from your `PATH` for Python, JavaScript,
-HTML and JSON, beside the servers Zed already runs for them. If you list a
-language's `language_servers` yourself, keep `"..."` in the list or add
-`"frappe-lsp"` to it.
-
-Zed has no client-side command for test lenses, so they show and do nothing.
-This extension compiles; it is not exercised by the test suite the way the
-Neovim and pi routes are.
+The plugin has no download step, so `frappe-lsp` must be on the `PATH` of the
+terminal that runs Claude Code. An error in `/plugin` says when it is not.
+Files outside an app directory get no checks: put code under `apps/`.
 
 ## VS Code
 
