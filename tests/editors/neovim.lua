@@ -47,9 +47,11 @@ local T = erpnext and {
   test_file = 'apps/library/library/library/doctype/library_member/test_library_member.py',
 }
 
--- The plugin in this repository, as lazy.nvim or vim.pack would load it.
+-- The plugin in this repository, as lazy.nvim or vim.pack would load it. The
+-- server starts through the launcher users get, pointed at the binary under
+-- test instead of a download.
 vim.opt.runtimepath:prepend(repo)
-vim.g.frappe_lsp_cmd = binary
+vim.env.FRAPPE_LSP = binary
 require('frappe_lsp').setup()
 
 local failed = 0
@@ -204,6 +206,8 @@ check('a lens resolves to a bench command', vim.tbl_contains(argv, 'run-tests'),
 check('the runTest handler is registered', type(vim.lsp.commands['frappe-lsp.runTest']) == 'function')
 check('the commands exist', vim.fn.exists(':FrappeLspStatus') == 2 and vim.fn.exists(':FrappeLspInstall') == 2)
 
+local launcher = vim.fn.fnamemodify(repo .. '/bin/frappe-lsp', ':p')
+check('the server starts through the launcher', client.config.cmd[1] == launcher, client.config.cmd[1])
 check('the server is still running', not client:is_stopped())
 print(failed == 0 and 'neovim: all checks passed' or ('neovim: ' .. failed .. ' failed'))
 vim.cmd((failed == 0 and 'qall!' or 'cquit! 1'))

@@ -69,10 +69,16 @@ export class FrappeLsp {
 	private async boot(): Promise<void> {
 		const child = spawn(this.binary, ["--log-level", "warn"], {
 			cwd: this.bench,
-			stdio: ["pipe", "pipe", "ignore"],
+			stdio: ["pipe", "pipe", "pipe"],
 		});
 		this.process = child;
 		child.stdout!.on("data", (chunk: Buffer) => this.receive(chunk));
+		// The tail of stderr says why a start failed, such as a download the
+		// launcher could not make.
+		let log = "";
+		child.stderr!.on("data", (chunk: Buffer) => {
+			log = (log + chunk.toString()).slice(-2_000);
+		});
 		const gone = (why: string) => {
 			for (const [, waiting] of this.pending) {
 				clearTimeout(waiting.timer);
@@ -83,7 +89,10 @@ export class FrappeLsp {
 			this.ready = undefined;
 		};
 		child.on("error", (error) => gone(`frappe-lsp did not start: ${error.message}`));
-		child.on("exit", (code) => gone(`frappe-lsp exited (${code})`));
+		child.on("exit", (code) => {
+			const why = log.trim().split("\n").pop();
+			gone(`frappe-lsp exited (${code})${why ? `: ${why}` : ""}`);
+		});
 
 		await this.request("initialize", {
 			processId: process.pid,

@@ -10,7 +10,8 @@ local install = require('frappe_lsp.install')
 local M = {}
 
 local defaults = {
-  -- The server command. Unset: an installed release, else `frappe-lsp` on PATH.
+  -- The server command. Unset: the release this plugin pins, downloaded on
+  -- first use.
   cmd = nil,
   -- Show test lenses and keep them current.
   codelens = true,
@@ -51,25 +52,17 @@ local function codelens(bufnr)
 end
 
 local function commands()
-  vim.api.nvim_create_user_command('FrappeLspInstall', function(args)
-    vim.notify('frappe-lsp: downloading ' .. (args.args ~= '' and args.args or 'the latest release') .. '…')
-    install.install(args.args, function(err, tag)
+  -- The download happens by itself on the first bench file. This does it now,
+  -- for a machine about to go offline.
+  vim.api.nvim_create_user_command('FrappeLspInstall', function()
+    install.ensure(function(err, path)
       if err then
         vim.notify('frappe-lsp: ' .. err, vim.log.levels.ERROR)
-        return
+      else
+        vim.notify('frappe-lsp: ' .. path)
       end
-      -- Start again on the new binary, unless the command is pinned elsewhere.
-      if not vim.g.frappe_lsp_cmd then
-        vim.lsp.config('frappe_lsp', { cmd = { install.path() } })
-        for _, running in ipairs(vim.lsp.get_clients({ name = 'frappe_lsp' })) do
-          running:stop()
-        end
-        vim.lsp.enable('frappe_lsp', false)
-        vim.lsp.enable('frappe_lsp')
-      end
-      vim.notify(('frappe-lsp %s installed at %s'):format(tag, install.path()))
     end)
-  end, { nargs = '?', desc = 'Install a frappe-lsp release, the latest by default' })
+  end, { desc = 'Download the frappe-lsp release this plugin pins' })
 
   vim.api.nvim_create_user_command('FrappeLspStatus', function()
     local frappe = client(0)
@@ -92,6 +85,7 @@ end
 function M.setup(opts)
   local options = vim.tbl_deep_extend('force', defaults, opts or {})
   if options.cmd then
+    install.custom = true
     vim.lsp.config('frappe_lsp', { cmd = type(options.cmd) == 'table' and options.cmd or { options.cmd } })
   end
 

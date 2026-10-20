@@ -1,11 +1,14 @@
 {
   "name": "frappe-lsp",
-  "owner": { "name": "Sabu Siyad", "email": "hello@ssiyad.com" },
+  "owner": {
+    "name": "Sabu Siyad",
+    "email": "hello@ssiyad.com"
+  },
   "description": "frappe-lsp, the language server for Frappe Framework apps",
   "plugins": [
     {
       "name": "frappe-lsp",
-      "source": "./claude",
+      "source": "./",
       "description": "Frappe DocTypes, fields, hooks and templates as code intelligence, and frappe-lsp's checks after every edit inside a bench",
       "category": "development"
     }

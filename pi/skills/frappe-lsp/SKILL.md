@@ -39,8 +39,9 @@ never fires, a hook or patch that resolves nowhere, a concatenated translation
 string. Fix what it reports before moving on; it does not report anything on
 correct code. `frappe_check` checks a file you did not edit.
 
-## When a tool says frappe-lsp is not installed
+## When a tool says frappe-lsp did not start
 
-Tell the user. It is a single binary from
-https://github.com/ssiyad/frappe-language-server/releases, found on `PATH` or
-through the `FRAPPE_LSP` environment variable.
+The package downloads the server from
+https://github.com/ssiyad/frappe-language-server/releases on first use. Tell
+the user the error: the usual causes are no network, or no `curl` or `wget`.
+`FRAPPE_LSP` can name a binary they already have.

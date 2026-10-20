@@ -40,8 +40,9 @@ unknown DocType or field, a form handler that never fires, a hook or patch that
 resolves nowhere, a concatenated translation string. Fix what it reports before
 moving on; it does not report on correct code.
 
-## When the LSP tool says the server is missing
+## When the LSP tool says the server did not start
 
-Tell the user. frappe-lsp is a single binary from
-https://github.com/ssiyad/frappe-language-server/releases, and Claude Code
-needs it on the `PATH` of the shell `claude` starts from.
+The plugin downloads the server from
+https://github.com/ssiyad/frappe-language-server/releases on first use. Tell
+the user the error: the usual causes are no network, or no `curl` or `wget`.
+`FRAPPE_LSP` can name a binary they already have.

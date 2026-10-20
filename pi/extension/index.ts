@@ -6,9 +6,7 @@
 // references as tools, and reports frappe-lsp's findings on every file the
 // agent edits inside a bench.
 
-import { existsSync } from "node:fs";
-import { homedir } from "node:os";
-import { delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { Type } from "@earendil-works/pi-ai";
@@ -16,21 +14,11 @@ import { defineTool, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { type Diagnostic, FrappeLsp, findBench, languageOf } from "./client.ts";
 
-/** frappe-lsp: $FRAPPE_LSP, else on PATH, else where :FrappeLspInstall puts it. */
-function binary(): string | undefined {
-	if (process.env.FRAPPE_LSP) return process.env.FRAPPE_LSP;
-	for (const dir of (process.env.PATH ?? "").split(delimiter)) {
-		if (dir && existsSync(join(dir, "frappe-lsp"))) return join(dir, "frappe-lsp");
-	}
-	const data = process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
-	const installed = join(data, "nvim", "frappe-lsp", "frappe-lsp");
-	return existsSync(installed) ? installed : undefined;
-}
-
-const INSTALL_HINT =
-	"frappe-lsp is not installed: download a release from " +
-	"https://github.com/ssiyad/frappe-language-server/releases and put it on PATH, " +
-	"or set FRAPPE_LSP to its path.";
+/**
+ * The launcher in this package. It downloads the release the package pins on
+ * first use, so pi needs no frappe-lsp of its own; $FRAPPE_LSP overrides it.
+ */
+const LAUNCHER = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", "frappe-lsp");
 
 /** Fieldtypes that lay a form out and hold no value. */
 const LAYOUT = new Set(["Section Break", "Column Break", "Tab Break", "HTML", "Button", "Fold", "Heading"]);
@@ -44,9 +32,7 @@ export default function (pi: ExtensionAPI) {
 		if (!bench) throw new Error(`${path} is not inside a Frappe bench (no sites/apps.txt above it)`);
 		let server = servers.get(bench);
 		if (!server) {
-			const command = binary();
-			if (!command) throw new Error(INSTALL_HINT);
-			server = new FrappeLsp(command, bench);
+			server = new FrappeLsp(LAUNCHER, bench);
 			servers.set(bench, server);
 		}
 		await server.start();
@@ -201,7 +187,7 @@ export default function (pi: ExtensionAPI) {
 	// Start the server as the session opens in a bench, so the index is warm by
 	// the first question rather than built during it.
 	pi.on("session_start", async (_event, ctx) => {
-		if (findBench(ctx.cwd) && binary()) serverFor(ctx.cwd).catch(() => undefined);
+		if (findBench(ctx.cwd)) serverFor(ctx.cwd).catch(() => undefined);
 	});
 
 	// Every file the agent edits in a bench is checked. Quiet when clean: a
@@ -211,7 +197,7 @@ export default function (pi: ExtensionAPI) {
 		const written = event.input.path;
 		if (typeof written !== "string") return;
 		const path = isAbsolute(written) ? written : resolve(ctx.cwd, written);
-		if (!languageOf(path) || !findBench(path) || !binary()) return;
+		if (!languageOf(path) || !findBench(path)) return;
 		try {
 			const server = await serverFor(dirname(path));
 			const diagnostics = await server.check(path);
