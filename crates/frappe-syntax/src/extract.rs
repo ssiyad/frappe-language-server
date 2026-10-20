@@ -36,6 +36,9 @@ pub struct Context<'a> {
     /// `ManufactureEntry` beside the `Document` subclass — and their `self` is
     /// not a document at all.
     pub self_class: Option<&'a str>,
+    /// The DocType a print format renders: what `doc` is in its template
+    /// ([13](../../../docs/specs/13-surface-jinja.md)).
+    pub doc_doctype: Option<&'a str>,
 }
 
 /// Every recognized shape in a parsed buffer, in source order.
@@ -54,6 +57,7 @@ pub fn extract(language: Language, tree: &Tree, source: &str, context: Context<'
                 &imports,
                 context.self_doctype,
                 context.self_class,
+                context.doc_doctype,
             );
             Extractor {
                 language,
@@ -906,6 +910,7 @@ mod tests {
                 frm_doctype: None,
                 self_doctype,
                 self_class: None,
+                doc_doctype: None,
             },
         )
     }

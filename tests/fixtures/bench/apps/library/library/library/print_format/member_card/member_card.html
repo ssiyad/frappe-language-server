@@ -1,0 +1,8 @@
+<div class="member-card">
+	<h2>{{ doc.member_name }}</h2> {# expect: clean, a field of the DocType the print format renders #}
+	<p>{{ _("Email") }}: {{ doc.email_id }}</p>
+	{% for loan in doc.loans %}
+		<p>{{ loan.book_title }}</p>
+	{% endfor %}
+	<p>{{ doc.get("membership_tier") }}</p> {# expect: unknown-field #}
+</div>

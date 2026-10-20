@@ -70,9 +70,20 @@ from now on.
 
 ## Anchoring `doc`
 
-`doc` is in scope for Print Formats and Web Forms, where the DocType is known
-from the containing record. For `www/` pages and generic templates it is not —
-those yield `Anchor::Unknown` and offer nothing. Do not guess.
+A print format template, `<module>/print_format/<name>/<name>.html`, renders
+the DocType its `<name>.json` names in `doc_type`, so `doc` there is bound to
+that DocType for the whole file: `doc.` completes its fields, a field hovers
+and goes to its JSON, and `doc.get("x")` is checked like any other field
+claim. Five of erpnext's voucher templates read `print_heading` or
+`select_print_heading` on DocTypes that have neither, copied from one template
+to the next; smoke records them.
+
+Not covered: a print format whose HTML lives in the JSON's `html` field —
+editing it means editing a JSON string, which is done in the site's form
+editor rather than a text editor — and web forms, which carry no template of
+their own in `frappe` or `erpnext`. `www/` pages and generic templates have no
+DocType at all: `doc` there yields `Anchor::Unknown` and offers nothing. Do not
+guess.
 
 ## Whitelisted globals
 

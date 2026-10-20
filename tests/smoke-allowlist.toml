@@ -125,6 +125,41 @@ count = 2
 reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
+file = "apps/erpnext/erpnext/accounts/print_format/bank_and_cash_payment_voucher/bank_and_cash_payment_voucher.html"
+code = "unknown-field"
+message = "`Payment Entry` has no field `select_print_heading`"
+count = 2
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/print_format/journal_auditing_voucher/journal_auditing_voucher.html"
+code = "unknown-field"
+message = "`Journal Entry` has no field `print_heading`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/print_format/payment_receipt_voucher/payment_receipt_voucher.html"
+code = "unknown-field"
+message = "`Journal Entry` has no field `print_heading`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/print_format/purchase_auditing_voucher/purchase_auditing_voucher.html"
+code = "unknown-field"
+message = "`Purchase Invoice` has no field `print_heading`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
+
+[[allow]]
+file = "apps/erpnext/erpnext/accounts/print_format/sales_auditing_voucher/sales_auditing_voucher.html"
+code = "unknown-field"
+message = "`Sales Invoice` has no field `print_heading`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
+
+[[allow]]
 file = "apps/erpnext/erpnext/accounts/report/customer_ledger_summary/customer_ledger_summary.py"
 code = "translation-literal"
 message = "translations are extracted statically, so a concatenation is never translated"

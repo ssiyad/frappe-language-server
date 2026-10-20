@@ -384,6 +384,7 @@ fn self_binds_to_the_controllers_doctype() {
             frm_doctype: None,
             self_doctype: Some("Library Member"),
             self_class: None,
+            doc_doctype: None,
         },
     );
     let found = resolve_all(index(), &matches);

@@ -25,7 +25,7 @@ the filesystem, and is measured against a real bench and driven from Neovim.
 Phase 3 is complete. Diagnostics publish: the checks decided by a vendored
 table or a parse failure are on, and so are the absence checks — `doc.x` alone
 stays off, because a Frappe document is an open Python object. `cargo xtask
-smoke` measures this over `frappe` and `erpnext` on every run: 7 597 files, 192
+smoke` measures this over `frappe` and `erpnext` on every run: 7 935 files, 197
 findings, each one checked against the source and allowlisted with a reason.
 References and symbols answer from a reverse occurrence table, built after the
 index publishes and cached with it. Test lenses run a scope from the file it

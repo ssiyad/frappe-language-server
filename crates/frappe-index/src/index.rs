@@ -217,6 +217,9 @@ pub struct Index {
     doctypes: BTreeMap<String, DocType>,
     sources: BTreeMap<String, Vec<Source>>,
     fixtures: BTreeMap<PathBuf, LayerTwo>,
+    /// Print format templates, by file, with the DocType each renders: what
+    /// `doc` is inside them ([13](../../../docs/specs/13-surface-jinja.md)).
+    print_formats: BTreeMap<PathBuf, String>,
     site: Option<LayerThree>,
     modules: BTreeMap<PathBuf, python::Module>,
     hook_reads: BTreeSet<String>,
@@ -278,6 +281,7 @@ impl Index {
             doctypes: BTreeMap::new(),
             sources: BTreeMap::new(),
             fixtures: BTreeMap::new(),
+            print_formats: BTreeMap::new(),
             site: None,
             modules: BTreeMap::new(),
             packages: Vec::new(),
@@ -331,6 +335,7 @@ impl Index {
             doctypes: BTreeMap::new(),
             sources: BTreeMap::new(),
             fixtures: BTreeMap::new(),
+            print_formats: BTreeMap::new(),
             site: None,
             modules: BTreeMap::new(),
             packages,
@@ -345,6 +350,7 @@ impl Index {
         // not ([31](../../../docs/specs/31-performance.md)).
         let mut raws = index.parse_doctypes();
         index.read_fixtures();
+        index.read_print_formats();
         index.read_python();
 
         let names: Vec<String> = index.sources.keys().cloned().collect();
@@ -1487,6 +1493,49 @@ impl Index {
         self.hooks.get(app)
     }
 
+    /// The DocType a print format template renders, when `path` is one.
+    #[must_use]
+    pub fn print_format_doctype(&self, path: &Path) -> Option<&str> {
+        self.print_formats.get(path).map(String::as_str)
+    }
+
+    /// Every `<module>/print_format/<name>/<name>.html` beside its JSON. Only
+    /// the modules' own directories are listed, never the whole tree.
+    fn read_print_formats(&mut self) {
+        let directories: Vec<PathBuf> = self
+            .workspace
+            .apps
+            .iter()
+            .flat_map(|app| app.modules.iter())
+            .filter_map(|module| module.directory.as_ref())
+            .map(|directory| directory.join("print_format"))
+            .collect();
+        for directory in directories {
+            let Ok(entries) = std::fs::read_dir(&directory) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                self.read_print_format(&entry.path());
+            }
+        }
+    }
+
+    /// One print format's directory: its template and the DocType it renders.
+    fn read_print_format(&mut self, directory: &Path) {
+        let Some(stem) = directory.file_name().and_then(|name| name.to_str()) else {
+            return;
+        };
+        let template = directory.join(format!("{stem}.html"));
+        self.print_formats.remove(&template);
+        let doctype = std::fs::read_to_string(directory.join(format!("{stem}.json")))
+            .ok()
+            .and_then(|json| serde_json::from_str::<serde_json::Value>(&json).ok())
+            .and_then(|record| record.get("doc_type")?.as_str().map(str::to_string));
+        if let Some(doctype) = doctype.filter(|_| template.is_file()) {
+            self.print_formats.insert(template, doctype);
+        }
+    }
+
     /// Take a live site's customizations as Layer 3.
     ///
     /// The records arrive in the shape a fixtures file holds them, so they go
@@ -1840,6 +1889,7 @@ impl Index {
             self_class: controller
                 .and_then(|doctype| doctype.controller.as_ref())
                 .map(|controller| controller.class_name.as_str()),
+            doc_doctype: self.print_format_doctype(path),
         };
 
         let matches = frappe_syntax::extract(language, &tree, source, context);
@@ -2040,6 +2090,18 @@ impl Index {
     pub fn reindex(&mut self, path: &Path) -> Reindexed {
         let mut affected: BTreeSet<String> = BTreeSet::new();
         let mut known = false;
+
+        // A print format's template or JSON changed: which DocType its `doc`
+        // is may have too.
+        if let Some(directory) = path.parent()
+            && directory.parent().is_some_and(|parent| {
+                parent
+                    .file_name()
+                    .is_some_and(|name| name == "print_format")
+            })
+        {
+            self.read_print_format(directory);
+        }
 
         let problems = self.problems.len();
         self.problems.retain(|problem| problem.path != path);

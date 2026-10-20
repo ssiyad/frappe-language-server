@@ -135,8 +135,22 @@ pub(crate) fn python_scopes(
     imports: &Imports,
     self_doctype: Option<&str>,
     self_class: Option<&str>,
+    doc_doctype: Option<&str>,
 ) -> Scopes {
     let mut scopes = Scopes::default();
+    // A print format's `doc`, for the whole template. Any binding a function
+    // makes for itself is a smaller scope and wins inside it.
+    if let Some(doctype) = doc_doctype {
+        let span: Span = root.into();
+        scopes.scopes.push(Scope {
+            span,
+            bound: vec![Scoped {
+                name: "doc".to_string(),
+                span,
+                binding: Binding::DocType(doctype.to_string()),
+            }],
+        });
+    }
     let mut stack = vec![root];
     let mut cursor = root.walk();
     while let Some(node) = stack.pop() {
@@ -489,7 +503,7 @@ mod tests {
         fn scopes(&self, self_doctype: Option<&str>) -> Scopes {
             let root = self.buffer.tree().root_node();
             let imports = Imports::collect(root, &self.source);
-            python_scopes(root, &self.source, &imports, self_doctype, None)
+            python_scopes(root, &self.source, &imports, self_doctype, None, None)
         }
 
         /// Byte offset just past the first occurrence of `needle`.

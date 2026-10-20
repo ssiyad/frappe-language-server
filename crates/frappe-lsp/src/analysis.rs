@@ -232,6 +232,7 @@ pub fn context_for<'a>(index: &'a Index, path: Option<&std::path::Path>) -> Cont
         self_class: controller
             .and_then(|doctype| doctype.controller.as_ref())
             .map(|controller| controller.class_name.as_str()),
+        doc_doctype: path.and_then(|path| index.print_format_doctype(path)),
     }
 }
 

@@ -50,8 +50,8 @@ name the index merely cannot find is not, until absence is knowable enough to
 be quiet on correct code.
 
 The absence checks are on, `doc.x` excepted. `cargo xtask smoke` measures this
-on every run rather than by hand: over `frappe` and `erpnext` — 7 597 files
-— the shipping defaults produce 192 findings, every one of them
+on every run rather than by hand: over `frappe` and `erpnext` — 7 935 files,
+templates included — the shipping defaults produce 197 findings, every one of them
 checked against the source and recorded with a reason in
 `tests/smoke-allowlist.toml`. Anything else fails the job.
 

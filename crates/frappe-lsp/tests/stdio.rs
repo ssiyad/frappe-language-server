@@ -1020,6 +1020,60 @@ fn a_get_doc_call_offers_a_cast_to_its_controller() {
 }
 
 #[test]
+fn doc_in_a_print_format_is_the_doctype_it_renders() {
+    // Spec 13: the print format's JSON names the DocType, and `doc` in its
+    // template is a document of it.
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+    settled(&mut session, 10);
+
+    let path = bench.join("apps/library/library/library/print_format/member_card/member_card.html");
+    let uri = format!("file://{}", path.display());
+    let text = std::fs::read_to_string(&path).expect("the fixture");
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {"uri": uri, "languageId": "html", "version": 1, "text": text}}),
+    );
+    let at = |line: u32, character: u32| json!({"textDocument": {"uri": uri}, "position": {"line": line, "character": character}});
+
+    // `doc.` completes the DocType's fields.
+    let completion = session.request(3300, "textDocument/completion", at(1, 13));
+    let labels: Vec<&str> = completion["result"]["items"]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item["label"].as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    assert!(labels.contains(&"member_name"), "{completion}");
+
+    let hover = session.request(3301, "textDocument/hover", at(1, 15));
+    let rendered = hover["result"]["contents"]["value"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(rendered.contains("member_name"), "{hover}");
+
+    let definition = session.request(3302, "textDocument/definition", at(1, 15));
+    let target = definition["result"][0]["targetUri"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        target.ends_with("library_member/library_member.json"),
+        "{definition}"
+    );
+
+    session.request(3400, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
 fn completion_offers_the_fields_of_the_resolved_doctype() {
     let source = "import frappe\nfrappe.get_all(\"Library Member\", fields=[\"|\"])\n";
     let (text, position) = cursor(source);

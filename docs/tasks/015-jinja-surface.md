@@ -18,9 +18,6 @@ DocTypes and fields named in templates.
 
 ## Scope
 
-- `doc` anchoring where the DocType is known — print formats and web forms,
-  whose HTML lives in a DocType JSON field rather than a file. `Unknown`
-  elsewhere — no guessing.
 - Whitelisted Jinja globals plus `jinja` hook additions: completion only, no
   diagnostics until the vendored global list is proven exact.
 
@@ -28,4 +25,6 @@ DocTypes and fields named in templates.
 ## Done when
 
 Template includes navigate across apps, and `{{ doc.field }}` completes in a
-print format. Zero diagnostics on `frappe` and `erpnext` templates.
+print format. Zero diagnostics on `frappe` and `erpnext` templates. Met, except
+that erpnext's voucher templates carry five real dead references, which smoke
+records ([13](../specs/13-surface-jinja.md)); what is left is the globals.

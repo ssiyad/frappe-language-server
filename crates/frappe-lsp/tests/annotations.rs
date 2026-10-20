@@ -49,9 +49,9 @@ fn annotations(source: &str) -> Vec<(u32, String)> {
 fn annotated(bench: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = frappe_index::walk::Walk::new(bench.join("apps"))
         .filter(|path| {
-            path.extension()
-                .is_some_and(|extension| extension == "py" || extension == "js")
-                || path.file_name().is_some_and(|name| name == "patches.txt")
+            path.extension().is_some_and(|extension| {
+                extension == "py" || extension == "js" || extension == "html"
+            }) || path.file_name().is_some_and(|name| name == "patches.txt")
         })
         .filter(|path| std::fs::read_to_string(path).is_ok_and(|source| source.contains("expect:")))
         .collect();
