@@ -1295,9 +1295,10 @@ impl LanguageServer for Backend {
         &self,
         params: WorkspaceSymbolParams,
     ) -> Result<Option<WorkspaceSymbolResponse>> {
+        let encoding = self.state.read_or_recover().support.position_encoding;
         let index = self.index.read_or_recover();
         Ok(Some(WorkspaceSymbolResponse::Nested(
-            symbols::workspace_symbols(&index, &params.query),
+            symbols::workspace_symbols(&index, &params.query, encoding),
         )))
     }
 

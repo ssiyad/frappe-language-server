@@ -2724,6 +2724,26 @@ fn workspace_symbols_are_fuzzy_and_exclude_fields() {
         .collect();
     assert!(names.contains(&"Library Member"), "{names:?}");
 
+    // Every location has a range: a bare URI needs `workspaceSymbol/resolve`,
+    // which this client did not advertise, and Claude Code fails without it.
+    let response = session.request(102, "workspace/symbol", json!({"query": "summary"}));
+    let symbols = response["result"].as_array().expect("symbols");
+    assert!(!symbols.is_empty(), "no symbols for `summary`");
+    for symbol in symbols {
+        assert!(
+            symbol["location"]["range"]["start"]["line"].is_u64(),
+            "{symbol}"
+        );
+    }
+    let method = symbols
+        .iter()
+        .find(|symbol| symbol["name"] == "library.api.get_member_summary")
+        .expect("the whitelisted method");
+    assert!(
+        method["location"]["range"]["start"]["line"].as_u64() > Some(0),
+        "a method lands on its name, not the top of the file: {method}"
+    );
+
     // Fields are not workspace symbols — 100k of them would drown the rest.
     let response = session.request(101, "workspace/symbol", json!({"query": "member_name"}));
     let symbols = response["result"].as_array().expect("symbols");

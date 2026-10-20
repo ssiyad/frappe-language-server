@@ -5,10 +5,13 @@
 //! reverse occurrence table, the merged DocType, and the artifact lists from
 //! discovery. Nothing here reads the filesystem.
 
+use std::path::Path;
+
+use frappe_index::Range as ByteRange;
 use frappe_index::occurrences::Key;
 use frappe_index::{Index, resolve::Target};
 use tower_lsp_server::ls_types::{
-    DocumentSymbol, Location, Range, SymbolKind, SymbolTag, WorkspaceSymbol,
+    DocumentSymbol, Location, OneOf, Range, SymbolKind, SymbolTag, WorkspaceSymbol,
 };
 
 use crate::analysis::Found;
@@ -222,10 +225,19 @@ const CAP: usize = 200;
 ///
 /// Fields are deliberately absent: 100 000 of them would drown every other
 /// result, and they are reachable through their DocType.
+///
+/// Every location carries a range. A URI alone is legal only for a client
+/// that advertises `workspaceSymbol/resolve`, and Claude Code, which does not,
+/// fails on it. A file target starts at the top; a method is converted after
+/// the cap, so a query reads at most [`CAP`] files.
 #[must_use]
-pub fn workspace_symbols(index: &Index, query: &str) -> Vec<WorkspaceSymbol> {
+pub fn workspace_symbols(
+    index: &Index,
+    query: &str,
+    encoding: frappe_syntax::PositionEncoding,
+) -> Vec<WorkspaceSymbol> {
     let query = query.to_lowercase();
-    let mut found = Vec::new();
+    let mut found: Vec<(_, WorkspaceSymbol, Option<(&Path, ByteRange)>)> = Vec::new();
 
     for doctype in index.doctypes() {
         if !fuzzy(&doctype.name.to_lowercase(), &query) {
@@ -244,11 +256,10 @@ pub fn workspace_symbols(index: &Index, query: &str) -> Vec<WorkspaceSymbol> {
                     Some(module) => format!("{} · {module}", doctype.app),
                     None => doctype.app.to_string(),
                 }),
-                location: tower_lsp_server::ls_types::OneOf::Right(
-                    tower_lsp_server::ls_types::WorkspaceLocation { uri },
-                ),
+                location: top_of(uri),
                 data: None,
             },
+            None,
         ));
     }
 
@@ -267,11 +278,10 @@ pub fn workspace_symbols(index: &Index, query: &str) -> Vec<WorkspaceSymbol> {
                 kind: SymbolKind::METHOD,
                 tags: None,
                 container_name: method.owner.clone(),
-                location: tower_lsp_server::ls_types::OneOf::Right(
-                    tower_lsp_server::ls_types::WorkspaceLocation { uri },
-                ),
+                location: top_of(uri),
                 data: None,
             },
+            Some((method.path.as_path(), method.name_range)),
         ));
     }
 
@@ -291,11 +301,10 @@ pub fn workspace_symbols(index: &Index, query: &str) -> Vec<WorkspaceSymbol> {
                         kind: SymbolKind::OBJECT,
                         tags: None,
                         container_name: Some(format!("{} · {kind}", app.name)),
-                        location: tower_lsp_server::ls_types::OneOf::Right(
-                            tower_lsp_server::ls_types::WorkspaceLocation { uri },
-                        ),
+                        location: top_of(uri),
                         data: None,
                     },
+                    None,
                 ));
             }
         }
@@ -303,7 +312,28 @@ pub fn workspace_symbols(index: &Index, query: &str) -> Vec<WorkspaceSymbol> {
 
     found.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.name.cmp(&b.1.name)));
     found.truncate(CAP);
-    found.into_iter().map(|(_, symbol)| symbol).collect()
+    found
+        .into_iter()
+        .map(|(_, mut symbol, name)| {
+            if let Some((path, span)) = name
+                && let Ok(text) = std::fs::read_to_string(path)
+                && let OneOf::Left(location) = &mut symbol.location
+            {
+                location.range = LineIndex::new(&text, encoding).range(span);
+            }
+            symbol
+        })
+        .collect()
+}
+
+/// The start of a file: a valid range in every position encoding.
+fn top_of(
+    uri: tower_lsp_server::ls_types::Uri,
+) -> OneOf<Location, tower_lsp_server::ls_types::WorkspaceLocation> {
+    OneOf::Left(Location {
+        uri,
+        range: Range::default(),
+    })
 }
 
 /// Subsequence match, the shape every editor's symbol box expects: `sinv`

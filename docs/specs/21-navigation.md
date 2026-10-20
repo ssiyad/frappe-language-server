@@ -89,5 +89,11 @@ Query matches DocTypes, whitelisted methods, reports, pages, and web forms.
 Fuzzy, case-insensitive, capped at 200 results. `containerName` is
 `<app> · <module>`.
 
+Every `location` MUST carry a range. LSP 3.17 allows a URI alone only for a
+client that advertises `workspaceSymbol/resolve`, and Claude Code fails on one.
+A DocType, report, page or web form points at the top of its file. A method
+points at its name, converted after the cap, so one query reads at most 200
+files.
+
 Fields are **not** workspace symbols — 100k+ entries would drown every other
 result. They are reachable through their DocType.
