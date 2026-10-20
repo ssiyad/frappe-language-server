@@ -513,6 +513,11 @@ impl Backend {
             // The conflict pair is published only now, because until the build
             // lands there is no conflict to publish.
             publish_conflicts(&client, &index, &state).await;
+            // Files opened while the index was building were checked against
+            // the partial one, which holds the absence checks back. A client
+            // that opens a file to start the server, as Claude Code does on
+            // its first edit, would otherwise never hear about it.
+            publish_open(&client, &index, &state).await;
 
             // The reverse occurrence table costs about as much as the build
             // itself, so it runs after the index is already answering
@@ -557,6 +562,34 @@ impl Backend {
     /// futures, so this is checked at compile time rather than by review.
     fn write<T>(&self, f: impl FnOnce(&mut State) -> T) -> T {
         f(&mut self.state.write_or_recover())
+    }
+}
+
+/// Re-check every open buffer against the index as it is now.
+async fn publish_open(client: &Client, index: &Arc<RwLock<Index>>, state: &Arc<RwLock<State>>) {
+    let computed: Vec<(Uri, Vec<Diagnostic>)> = {
+        let index = index.read_or_recover();
+        let state = state.read_or_recover();
+        state
+            .buffers
+            .uris()
+            .into_iter()
+            .filter_map(|uri| {
+                let path = uri.to_file_path()?.into_owned();
+                let buffer = state.buffers.get(&uri)?;
+                let found = diagnostics::for_buffer(
+                    &index,
+                    &state.config,
+                    &path,
+                    &buffer.text(),
+                    state.support.position_encoding,
+                );
+                Some((uri, found))
+            })
+            .collect()
+    };
+    for (uri, diagnostics) in computed {
+        client.publish_diagnostics(uri, diagnostics, None).await;
     }
 }
 
@@ -853,25 +886,32 @@ impl LanguageServer for Backend {
         let index = Arc::clone(&self.index);
         let config = self.write(|state| state.config.clone());
         let client = self.client.clone();
+        let state = Arc::clone(&self.state);
         tokio::spawn(async move {
-            let reindexing = tokio::task::spawn_blocking(move || {
-                {
-                    let mut guard = index.write_or_recover();
-                    let reindexed = guard.reindex(&path);
-                    if reindexed.known {
-                        tracing::debug!(
-                            path = %path.display(),
-                            doctypes = ?reindexed.doctypes,
-                            "re-indexed"
-                        );
+            let reindexing = tokio::task::spawn_blocking({
+                let index = Arc::clone(&index);
+                move || {
+                    {
+                        let mut guard = index.write_or_recover();
+                        let reindexed = guard.reindex(&path);
+                        if reindexed.known {
+                            tracing::debug!(
+                                path = %path.display(),
+                                doctypes = ?reindexed.doctypes,
+                                "re-indexed"
+                            );
+                        }
                     }
+                    // A new `get_doc("X")`, or a renamed controller, changes it.
+                    crate::stub::refresh(&index, &config)
                 }
-                // A new `get_doc("X")`, or a renamed controller, changes it.
-                crate::stub::refresh(&index, &config)
             });
             if let Ok(Some(message)) = reindexing.await {
                 client.log_message(MessageType::WARNING, message).await;
             }
+            // A saved DocType JSON changes what every other open file
+            // resolves to, not only itself.
+            publish_open(&client, &index, &state).await;
         });
     }
 
@@ -955,6 +995,7 @@ impl LanguageServer for Backend {
             // A DocType added or removed changes who conflicts with whom, and
             // the other side of the pair is usually not open.
             publish_conflicts(&client, &index, &state).await;
+            publish_open(&client, &index, &state).await;
         });
     }
 

@@ -568,6 +568,54 @@ fn the_type_stub_is_written_and_follows_a_new_call() {
 }
 
 #[test]
+fn a_file_opened_while_the_index_builds_gets_its_findings_once_it_is_built() {
+    // Claude Code starts the server by opening the file it just wrote; the
+    // index is partial then, and the absence checks are held back. The
+    // finding has to arrive when the build lands, without another edit.
+    let bench = fixture_bench();
+    let mut session = Session::start();
+    let mut params = initialize_params();
+    params["rootUri"] = json!(format!("file://{}", bench.display()));
+    session.request(1, "initialize", params);
+    session.notify("initialized", json!({}));
+
+    let uri = format!(
+        "file://{}",
+        bench.join("apps/library/library/early_probe.py").display()
+    );
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {"uri": uri, "languageId": "python", "version": 1,
+               "text": "import frappe\nx = frappe.db.get_value(\"Library Member\", \"m\", \"member_nme\")\n"}}),
+    );
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    loop {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the finding never arrived"
+        );
+        let message = session.receive();
+        let published = message["method"] == "textDocument/publishDiagnostics"
+            && message["params"]["uri"] == json!(uri);
+        let found = message["params"]["diagnostics"]
+            .as_array()
+            .is_some_and(|items| {
+                items
+                    .iter()
+                    .any(|item| item["code"] == "frappe-lsp/unknown-field")
+            });
+        if published && found {
+            break;
+        }
+    }
+
+    session.request(90, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
 fn saving_a_doctype_patches_the_graph_without_a_rebuild() {
     let bench = std::env::temp_dir().join(format!("frappe-lsp-save-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&bench);
