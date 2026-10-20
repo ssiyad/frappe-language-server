@@ -1,0 +1,157 @@
+#!/bin/sh
+# Runs frappe-lsp, downloading the release this checkout pins on first use.
+#
+#   bin/frappe-lsp [server arguments]   run the server
+#   bin/frappe-lsp --install            download if needed, print the path
+#   bin/frappe-lsp --which              print the path, fail if not downloaded
+#
+# The Neovim, pi and Claude Code plugins all start the server through this
+# file, so none of them needs a binary on PATH. The version is the one in
+# package.json next to it: a plugin always runs the server it was released
+# with. FRAPPE_LSP names another binary, for a local build.
+#
+# Stdout belongs to the LSP session, so everything here reports on stderr.
+
+set -eu
+
+repository=ssiyad/frappe-language-server
+
+main() {
+	tag=$(version)
+	data=${XDG_DATA_HOME:-$HOME/.local/share}/frappe-lsp
+	# Every plugin shares this, so a version is downloaded once per machine.
+	binary=${FRAPPE_LSP:-$data/$tag/frappe-lsp}
+
+	case "${1:-}" in
+	--which)
+		[ -x "$binary" ] || exit 1
+		echo "$binary"
+		;;
+	--install)
+		[ -x "$binary" ] || install "$binary"
+		echo "$binary"
+		;;
+	*)
+		[ -x "$binary" ] || install "$binary" || binary=$(fallback)
+		exec "$binary" "$@"
+		;;
+	esac
+}
+
+version() {
+	manifest="$(root)/package.json"
+	found=$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' "$manifest" | head -n 1)
+	[ -n "$found" ] || fail "no version in $manifest"
+	echo "$found"
+}
+
+# Download, check against SHA256SUMS, unpack, and move into place last, so a
+# failed or concurrent download never leaves a broken binary behind. Called
+# as `install || ...`, where `set -e` is off, so every step checks itself.
+install() {
+	if ! target=$(target); then
+		echo "frappe-lsp: no release for $(uname -s) $(uname -m); build it with cargo and set FRAPPE_LSP" >&2
+		return 1
+	fi
+	echo "frappe-lsp: downloading $tag for $target" >&2
+	work=$(mktemp -d) || return 1
+	# `exec` skips an EXIT trap, so the success path removes it too.
+	trap 'rm -rf "$work"' EXIT
+	unpack "$target" && place "$1"
+	status=$?
+	rm -rf "$work"
+	return $status
+}
+
+unpack() {
+	name="frappe-lsp-$tag-$1"
+	base="https://github.com/$repository/releases/download/$tag"
+	fetch "$base/$name.tar.gz" "$work/$name.tar.gz" &&
+		fetch "$base/SHA256SUMS" "$work/SHA256SUMS" || return 1
+	if ! (cd "$work" && grep " $name.tar.gz\$" SHA256SUMS > expected && checksum expected); then
+		echo "frappe-lsp: $name.tar.gz does not match SHA256SUMS" >&2
+		return 1
+	fi
+	tar xzf "$work/$name.tar.gz" -C "$work" && mv "$work/$name/frappe-lsp" "$work/frappe-lsp"
+}
+
+place() {
+	mkdir -p "$(dirname "$1")" &&
+		cp "$work/frappe-lsp" "$1.$$" &&
+		chmod +x "$1.$$" &&
+		mv -f "$1.$$" "$1" || return 1
+	echo "frappe-lsp: installed $1" >&2
+}
+
+# Offline, or the release is not published yet: run what there is.
+fallback() {
+	newest=$(ls -1t "$data"/*/frappe-lsp 2>/dev/null | head -n 1)
+	if [ -n "$newest" ] && [ -x "$newest" ]; then
+		echo "frappe-lsp: running $newest instead" >&2
+		echo "$newest"
+		return
+	fi
+	on_path=$(command -v frappe-lsp || true)
+	if [ -n "$on_path" ] && [ "$(resolve "$on_path")" != "$(resolve "$0")" ]; then
+		echo "frappe-lsp: running $on_path instead" >&2
+		echo "$on_path"
+		return
+	fi
+	fail "could not download frappe-lsp $tag, and none is installed"
+}
+
+target() {
+	case "$(uname -m)" in
+	x86_64 | amd64) arch=x86_64 ;;
+	aarch64 | arm64) arch=aarch64 ;;
+	*) return 1 ;;
+	esac
+	case "$(uname -s)" in
+	Linux) echo "$arch-unknown-linux-musl" ;;
+	Darwin) echo "$arch-apple-darwin" ;;
+	*) return 1 ;;
+	esac
+}
+
+fetch() {
+	if command -v curl >/dev/null 2>&1; then
+		curl --fail --silent --show-error --location --output "$2" "$1" >&2
+	elif command -v wget >/dev/null 2>&1; then
+		wget -q -O "$2" "$1" >&2
+	else
+		echo "frappe-lsp: curl or wget is needed to download frappe-lsp" >&2
+		return 1
+	fi
+}
+
+checksum() {
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum -c "$1" >/dev/null
+	else
+		shasum -a 256 -c "$1" >/dev/null
+	fi
+}
+
+# The repository root, following symlinks to this file.
+root() {
+	dirname "$(dirname "$(resolve "$0")")"
+}
+
+resolve() {
+	path=$1
+	while [ -L "$path" ]; do
+		link=$(readlink "$path")
+		case "$link" in
+		/*) path=$link ;;
+		*) path=$(dirname "$path")/$link ;;
+		esac
+	done
+	echo "$(cd "$(dirname "$path")" && pwd)/$(basename "$path")"
+}
+
+fail() {
+	echo "frappe-lsp: $1" >&2
+	exit 1
+}
+
+main "$@"
