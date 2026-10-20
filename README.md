@@ -1,100 +1,196 @@
 # frappe-lsp
 
-A language server for [Frappe Framework](https://docs.frappe.io/framework) apps.
+[![CI](https://github.com/ssiyad/frappe-language-server/actions/workflows/ci.yml/badge.svg)](https://github.com/ssiyad/frappe-language-server/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ssiyad/frappe-language-server)](https://github.com/ssiyad/frappe-language-server/releases/latest)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
-Frappe connects its parts with strings. `frappe.get_doc("Sales Invoice")`,
-`doc_events`, `frappe.ui.form.on("Task")` and every `hooks.py` path name things
-that only exist at runtime, so an editor cannot follow them. frappe-lsp indexes
-the bench and turns those strings into links.
+**Go to definition, completion and checks for [Frappe](https://frappe.io/framework) apps, in any editor.**
 
-## What it does
+Frappe connects its parts with strings: `frappe.get_doc("Sales Invoice")`,
+`doc_events`, `frappe.ui.form.on("Task")`, the paths in `hooks.py`. Your
+editor cannot follow a string, so you use grep. frappe-lsp reads your bench
+and makes those strings work like code.
 
-- **Go to definition** from a DocType name to its controller, from a fieldname
-  to its field in the DocType JSON, and from a dotted path in `hooks.py` or
-  `frappe.call` to the function.
-- **Hover** on a DocType, a field, a hook or a path: what it is and which app
-  defines it.
-- **Completion** of DocType names, fieldnames, hook keys, doc events and
-  scheduler frequencies, also on a line you have not finished typing.
-- **References** to a DocType or a field across Python, JavaScript, DocType
-  JSON, `hooks.py` and fixtures.
-- **Diagnostics** for names that do not exist: an unknown DocType, a misspelled
-  field, a hook frappe never reads, a patch that does not resolve. Each check
-  is measured against `frappe` and `erpnext`, and the defaults stay quiet on
-  correct code.
-- **Test lenses** on test classes and methods. A click runs
-  `bench run-tests` for that scope in the editor's terminal.
-- **Outlines** of DocType JSON, `hooks.py` and `patches.txt`.
-
-It works on Python, JavaScript, DocType JSON and Jinja templates, in every
-installed app of the bench, with no configuration. In a template, `include`
-and `extends` paths go to the file, and `frappe.*` calls work as in Python.
-
-## What it does not do
-
-It is not a Python or JavaScript language server. Keep pyright, ruff and
-typescript-language-server for types, imports, formatting and renames, and run
-frappe-lsp beside them. It does not edit files, rename fields across a bench,
-or write to a site. The one thing it starts is a test run, and only when you
-click a lens. The full list is in [00](docs/specs/00-overview.md).
-
-## Install
-
-Tagged releases carry one binary per platform — Linux and macOS, x86_64 and
-aarch64 — with a `SHA256SUMS` file. The Linux builds are static. Download the
-archive for your platform from the
-[releases page](https://github.com/ssiyad/frappe-language-server/releases),
-check it against `SHA256SUMS`, and put `frappe-lsp` on your `PATH`.
-
-To build it instead, you need Rust 1.95 or later. From a checkout:
-
-```sh
-cargo install --locked --path crates/frappe-lsp
+```python
+def close(name):
+    invoice = frappe.get_doc("Sales Invoce", name)
+    #                         ^^^^^^^^^^^^ no DocType named `Sales Invoce`
+    customer = frappe.db.get_value("Sales Invoice", name, "custmer")
+    #                                                     ^^^^^^^^^ `Sales Invoice` has no field `custmer`
 ```
 
-Or straight from the repository:
+## Features
+
+- **Go to definition.** Jump from a DocType name to its controller, from a
+  fieldname to the DocType JSON, and from a `hooks.py` path to the function.
+- **Completion.** DocType names, fieldnames, hook keys, doc events,
+  whitelisted methods and Jinja globals. It also works on a line you have not
+  finished.
+- **Hover.** See what a DocType, field, hook or path is, and which app
+  defines it.
+- **Find references.** Find every use of a DocType or a field in Python,
+  JavaScript, DocType JSON, `hooks.py` and fixtures.
+- **Checks.** Find unknown DocTypes, misspelled fields, hooks that never run and
+  patches that do not resolve. Each check is tested on all of `frappe` and
+  `erpnext`, so it stays quiet on correct code.
+- **Test lenses.** Click "Run test" or "Run class" above a test to run
+  `bench run-tests` for it in the editor's terminal.
+- **Outlines.** See the structure of DocType JSON, `hooks.py` and
+  `patches.txt`.
+
+It works in Python, JavaScript, DocType JSON and Jinja templates, in every app
+of the bench. It needs no configuration.
+
+## Quick start
+
+frappe-lsp is one binary that speaks LSP. Pick your editor below, then open
+any file inside a bench.
+
+### Neovim
+
+You need Neovim 0.11 or later. Add the plugin with lazy.nvim:
+
+```lua
+{
+  'ssiyad/frappe-language-server',
+  config = function()
+    require('frappe_lsp').setup()
+  end,
+}
+```
+
+Then run `:FrappeLspInstall` once. It downloads the binary for your platform
+and checks its checksum. Run it again to update.
+
+### VS Code
+
+1. Install the [Simple LSP Client](https://marketplace.visualstudio.com/items?itemName=wdomitrz.simple-lsp-client)
+   extension.
+2. [Install the binary](#install-the-binary).
+3. Add this to your `settings.json`:
+
+```json
+{
+  "simpleLspClient.servers": {
+    "frappe-lsp": {
+      "cmd": ["frappe-lsp"],
+      "filetypes": ["python", "javascript", "json", "html", "jinja", "jinja-html"]
+    }
+  }
+}
+```
+
+### Claude Code
+
+[Install the binary](#install-the-binary), then add the plugin:
+
+```sh
+claude plugin marketplace add ssiyad/frappe-language-server
+claude plugin install frappe-lsp@frappe-lsp
+```
+
+Claude can then navigate the bench, and it sees the checks after each edit.
+
+### pi
+
+[Install the binary](#install-the-binary), then add the package:
+
+```sh
+pi install git:github.com/ssiyad/frappe-language-server
+```
+
+The agent gets tools for DocType schemas and references. Each file it edits
+is checked on that turn.
+
+### Other editors
+
+Register a stdio language server with the command `frappe-lsp` for Python,
+JavaScript, JSON and HTML files. [docs/editors.md](docs/editors.md) has the
+details for every editor.
+
+## Install the binary
+
+The Neovim plugin installs the binary for you. For other editors, get it in
+one of these ways.
+
+**Download a release.** Each [release](https://github.com/ssiyad/frappe-language-server/releases/latest)
+has an archive for Linux and macOS, x86_64 and aarch64. The Linux binaries are
+static, so they run on any distribution.
+
+1. Download the archive for your platform and `SHA256SUMS`.
+2. Check the archive. On macOS, use `shasum -a 256` instead of `sha256sum`.
+
+   ```sh
+   sha256sum -c --ignore-missing SHA256SUMS
+   ```
+
+3. Unpack it, and move `frappe-lsp` to a directory on your `PATH`.
+
+   ```sh
+   tar xzf frappe-lsp-*.tar.gz
+   mv frappe-lsp-*/frappe-lsp ~/.local/bin/
+   ```
+
+**Build from source.** You need Rust 1.95 or later.
 
 ```sh
 cargo install --locked --git https://github.com/ssiyad/frappe-language-server frappe-lsp
 ```
 
-The result is one binary, `frappe-lsp`, that links nothing beyond the C
-library.
+## Configuration
 
-## Set up your editor
+The defaults work on any bench. To change something, add a `.frappe-lsp.toml`
+to the bench root. For example, to turn off one check:
 
-In Neovim, this repository is a plugin: install it with your plugin manager,
-call `require('frappe_lsp').setup()`, and run `:FrappeLspInstall` for the
-binary. It is also a [pi](https://pi.dev) package: `pi install` it, and the
-agent gets Frappe's schema and references as tools, and frappe-lsp's checks on
-every file it edits. In Claude Code, `claude plugin install` it and the LSP
-tool navigates the bench, with the checks pushed into the session after each
-edit. For other editors, point the LSP client at the `frappe-lsp` command
-for Python, JavaScript, JSON and HTML files. [docs/editors.md](docs/editors.md)
-has Neovim, Claude Code, VS Code, and what any other client needs.
+```toml
+[diagnostics]
+unknown-form-event = "off"
+```
 
-Open a file in any app of a bench. The first index of a bench with `frappe`,
-`erpnext` and six more apps takes about two seconds. Later starts read a cache.
+To silence one line, add a `frappe-lsp: ignore` comment to it.
 
-## When something is wrong
+frappe-lsp writes an index cache to `.frappe-lsp/` in the bench root. Add that
+directory to your `.gitignore`.
 
-Ask the server for `frappe-lsp/indexStatus` first, as
-[docs/editors.md](docs/editors.md#when-something-is-wrong) shows. Attach its
-answer and the server log to a bug report.
+[docs/editors.md](docs/editors.md) also shows how to get
+[typed documents in pyright](docs/editors.md#typed-documents-in-pyright) and
+how to [read a live site](docs/editors.md#reading-a-live-site).
+[30](docs/specs/30-configuration.md) lists every key.
 
-## Status
+## FAQ
 
-The index, navigation, completion, references, diagnostics and test lenses are
-done. A live site can be read too, and the bridge is off by default: its Custom
-Fields, Property Setters, DocTypes created through the UI, and Client and
-Server Scripts ([05](docs/specs/05-live-bridge.md)). The
-[roadmap](docs/roadmap.md) has the rest.
+**Does it replace pyright, ruff or the TypeScript server?**
+No. frappe-lsp only knows about Frappe. Keep your Python and JavaScript
+servers for types, imports, formatting and renames, and run frappe-lsp next to
+them.
 
-## Development
+**Does it change my files or my site?**
+It reads your bench and never writes to a site. It changes your code only
+when you apply one of its code actions, and it runs something only when you
+click a test lens.
 
-[docs/development.md](docs/development.md) covers the toolchain, the test
-suites, and the checks that run against a real bench.
+**How fast is it?**
+On a bench with `frappe`, `erpnext` and six more apps, the first index takes
+about 2 seconds. Later starts read the cache in under half a second. Most
+requests answer in less than a millisecond.
+
+**Which Frappe versions does it support?**
+It reads the version from the bench. It does not assume one. It is tested on
+the `develop` branch of `frappe` and `erpnext`.
+
+**Something is wrong. What do I do?**
+In Neovim, run `:FrappeLspStatus`. It shows what the server found in your
+bench. [docs/editors.md](docs/editors.md#when-something-is-wrong) shows how to
+get the log. Attach both to a
+[bug report](https://github.com/ssiyad/frappe-language-server/issues).
+
+## Contributing
+
+Bug reports and pull requests are welcome.
+[docs/development.md](docs/development.md) explains how to build, test and
+release. The design is in [docs/specs](docs/specs/index.md), and the
+[roadmap](docs/roadmap.md) shows what comes next.
 
 ## License
 
-GPL-3.0. See [LICENSE](LICENSE).
+[GPL-3.0](LICENSE)

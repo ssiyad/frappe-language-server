@@ -7,17 +7,23 @@ CI. MSRV is the current stable minus two releases.
 
 ## Layout
 
-```
+```text
 crates/
-  frappe-lsp/      binary — protocol handlers          [02]
-  frappe-index/    discovery, metadata graph, cache    [03] [04]
-  frappe-syntax/   grammars, queries, extraction       [06]
-  frappe-bridge/   live site client                    [05]
+  frappe-lsp/      binary — protocol handlers, benches  [02] [31]
+  frappe-index/    discovery, metadata graph, cache     [03] [04]
+  frappe-syntax/   grammars, queries, extraction        [06]
+  frappe-bridge/   live site client                     [05]
+lua/ lsp/          Neovim plugin
+pi/                pi package: extension and skill
+claude/            Claude Code plugin: skill
+.claude-plugin/    Claude Code marketplace and plugin manifest
 docs/
   specs/           normative design
-  tasks/           pending and in-progress work only
-tests/fixtures/    fixture bench                       [32]
-xtask/             constant generation, benchmarks     [31]
+  tasks/           open work only
+tests/
+  fixtures/        fixture bench                        [32]
+  editors/         Neovim end-to-end check
+xtask/             drift check, smoke, stress, stub     [31] [32]
 ```
 
 ## Workflow
@@ -75,20 +81,20 @@ source is `compile_error!`; it is a squat, not an upgrade.
 ## Vendored constants
 
 Fieldtypes, `Document` members, hook names, form and doc events, scheduler
-frequencies and Jinja globals are generated from a `frappe` checkout by
-`cargo xtask codegen`, and committed with the source commit hash. CI re-runs
-generation against `develop` and fails on a diff. Never hand-edit the generated
-file. Rationale in [31](specs/31-performance.md).
+frequencies and Jinja globals are tables written by hand. They cannot be
+generated whole: a hook's name can be scraped, but what its value names is a
+judgement. Rationale in [31](specs/31-performance.md).
 
-**Not yet true.** Generation is still by hand: a hook's name can be scraped,
-but what its value names is a judgement. Drift is detected, though.
-`cargo xtask codegen --check [FRAPPE]` scrapes what a `frappe` checkout reads —
-hook names from five sources, doc events from `run_method`, form events from
-`trigger`, and `Document` members from the classes themselves — and fails on any name a table lacks. Its first run found 23 hooks,
-three doc events and one form event missing, each a false positive or a dead
-path waiting for an app that used it ([23](specs/23-diagnostics.md)). Add the
-name with its schema, and run the check again. `.github/workflows/drift.yml` runs it
-weekly against frappe's `develop`.
+Drift is detected instead. `cargo xtask codegen --check [FRAPPE]` scrapes what
+a `frappe` checkout reads: hook names from five sources, doc events from
+`run_method`, form events from `trigger`, and `Document` members from the
+classes. It fails on any name a table lacks. Add the name with its schema, and
+run the check again. `.github/workflows/drift.yml` runs it weekly against
+frappe's `develop`.
+
+Its first run found 23 hooks, three doc events and one form event missing.
+Each one was a false positive, or a dead path waiting for an app that used it
+([23](specs/23-diagnostics.md)).
 
 ## Testing
 
@@ -97,6 +103,8 @@ cargo test              # unit, golden, integration
 cargo insta review      # inspect snapshot diffs
 cargo bench -p frappe-lsp   # one benchmark per budget of [31]
 cargo xtask smoke       # real bench, against tests/smoke-allowlist.toml
+cargo xtask stress      # real bench, driven like an editor
+nvim --clean --headless -l tests/editors/neovim.lua [BENCH]
 ```
 
 Tests that need a real bench skip when there is none, and read one from
@@ -109,11 +117,16 @@ any finding not in `tests/smoke-allowlist.toml`; `--write` regenerates that file
 and the reasons in it are reviewed by hand before committing. What is on the
 list and why: [32](specs/32-testing.md).
 
+`tests/editors/neovim.lua` drives the release binary from stock Neovim over
+the reference bench, or over `tests/fixtures/bench` when you name it.
+`FRAPPE_LSP` points it at another binary.
+
 Levels and what belongs in each: [32](specs/32-testing.md).
 
 ## Conventions
 
-- Conventional Commits; scope is the crate (`index`, `syntax`, `bridge`, `lsp`).
+- Conventional Commits with no scope, and a summary that names the change:
+  `fix: a wide character before a Jinja global`.
 - Comments explain why, never what. Spec references over restated prose:
   `// Layer 3 evicts without a rebuild — see specs/04`.
 - `unwrap`/`expect` only where a panic is genuinely unreachable, with the reason
@@ -130,8 +143,13 @@ Levels and what belongs in each: [32](specs/32-testing.md).
 
 ## Releasing
 
-1. Set `version` in the workspace `Cargo.toml`, and commit.
-2. Tag the commit `<version>` (or `v<version>`) and push the tag.
+1. Run `cargo xtask stress` against a real bench. CI only drives the fixture
+   bench.
+2. Set the new version in four places: `version` in the workspace
+   `Cargo.toml`, the three `version` pins under `[workspace.dependencies]`,
+   `package.json` and `claude/.claude-plugin/plugin.json`.
+3. Build, so `Cargo.lock` follows, and commit as `chore: release <version>`.
+4. Tag the commit `<version>` and push the commit and the tag.
 
 `.github/workflows/release.yml` refuses a tag that does not match the version,
 then builds and publishes Linux (static) and macOS binaries for x86_64 and
@@ -143,10 +161,5 @@ without publishing, run the workflow by hand:
 gh workflow run release.yml --ref master
 ```
 
-Run `cargo xtask stress` against a real bench before tagging: CI only drives
-the fixture bench.
-
-## Ignore
-
-Add `.frappe-lsp/` to `.gitignore` — the index cache
-([31](specs/31-performance.md)) is written into the bench root.
+A macOS arm64 job is sometimes cancelled because GitHub has no runner for it.
+Run `gh run rerun <id> --failed` to try that job again.

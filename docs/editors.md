@@ -1,8 +1,9 @@
 # Editor setup
 
-frappe-lsp speaks LSP over stdio. Any editor with an LSP client can run it, and
-no extension is needed. Run it beside your Python and JavaScript servers, not
-instead of them ([00](specs/00-overview.md)).
+frappe-lsp speaks LSP over stdio, so any editor with an LSP client can run it.
+Neovim, pi and Claude Code load it through plugins in this repository. VS Code
+needs a generic client extension. Run it beside your Python and JavaScript
+servers, not instead of them ([00](specs/00-overview.md)).
 
 The server finds the bench by itself. It walks up from the root the editor
 sends until it finds a bench, so an app's own checkout under `apps/` works as a
@@ -63,7 +64,7 @@ tools: `frappe_doctype` (a DocType's fields, controller and JSON),
 `frappe_find` (DocTypes, whitelisted methods, reports and pages by name) and
 `frappe_check` (frappe-lsp's checks on a file). Every file the agent edits or
 writes in the bench is checked too, and any problem is appended to that edit's
-result, so a misspelt fieldname is caught on the turn it is written. A skill
+result, so a misspelled fieldname is caught on the turn it is written. A skill
 tells the agent when to reach for the tools.
 
 The binary is found through `FRAPPE_LSP`, then `PATH`, then the copy
@@ -83,7 +84,7 @@ The plugin declares frappe-lsp as the language server for Python, JavaScript,
 JSON and HTML files. Claude Code starts it when a handled file is first edited,
 and its LSP tool answers definition, hover, references, document symbols and
 workspace symbols against the bench. Diagnostics are pushed into the session
-after each edit, so a misspelt fieldname is caught on the turn it is written.
+after each edit, so a misspelled fieldname is caught on the turn it is written.
 A skill shipped with the plugin tells the agent when to use the LSP tool and
 the `frappe-lsp/describe` and `frappe-lsp/references` methods.
 
@@ -144,6 +145,35 @@ One line can opt out with a comment on it or on the line above:
 `frappe-lsp: ignore` for every check, or `frappe-lsp: ignore <code>` for one
 ([23](specs/23-diagnostics.md)).
 
+The index cache is written to `.frappe-lsp/` in the bench root
+([31](specs/31-performance.md)). Add it to `.gitignore`.
+
+## Reading a live site
+
+Custom Fields, Property Setters, DocTypes made in the UI, and Client and
+Server Scripts live in a site's database, not in the bench. The bridge reads
+them, and it is off by default ([05](specs/05-live-bridge.md)). To turn it on:
+
+1. Add the site to `.frappe-lsp.toml`:
+
+   ```toml
+   [bridge]
+   enabled = true
+   site = "mysite.localhost"
+   ```
+
+2. Give the server an API key in its environment: `FRAPPE_API_KEY` and
+   `FRAPPE_API_SECRET`, or `FRAPPE_LSP_TOKEN` as `<key>:<secret>`.
+
+Instead of the environment, `bridge.token_command` can name a command that
+prints `<key>:<secret>`. Set it in `$XDG_CONFIG_HOME/frappe-lsp/config.toml`.
+The server ignores it in a `.frappe-lsp.toml`, because that file is often
+committed.
+
+The server reads the site once, after the index is built. Send
+`frappe-lsp/refreshBridge` to read it again, or set `bridge.refresh_interval`
+in seconds. The bridge only reads: it sends `GET` requests and nothing else.
+
 ## Typed documents in pyright
 
 Pyright types `frappe.get_doc("Sales Invoice", name)` as `Document`, so every
@@ -163,7 +193,7 @@ bench and keeps it current. Point pyright at it in `pyrightconfig.json`, or the
 ```
 
 `get_doc`, `new_doc` and the rest then return the controller class, so a
-misspelt field is a pyright error. It costs pyright time: a controller file
+misspelled field is a pyright error. It costs pyright time: a controller file
 checks in about 5 s instead of 3 on an eight-app bench
 ([24](specs/24-type-integration.md)). Without the stub, the "Cast to …" code
 action on a `get_doc` call types that one call.

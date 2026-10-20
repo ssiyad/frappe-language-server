@@ -91,8 +91,8 @@ is read a second time, from `/api/v2/doctype/<name>/meta`, which is the DocType
 JSON shape with every field and goes through the same reader. It joins the
 graph only when no installed app defines the same name: a file in the bench is
 what the code runs against. It has no file, so definition goes nowhere and
-hover names the site. Client and Server Scripts are not read at all — the
-virtual document surface below is untouched.
+hover names the site. Client and Server Scripts are read in the same sync and
+written to files ([In-DB scripts](#in-db-scripts)).
 
 Paged, and bounded per DocType. Results are cached with the index but always
 tagged Layer 3 so they can be evicted without a rebuild.

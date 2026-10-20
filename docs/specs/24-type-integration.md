@@ -152,7 +152,7 @@ inserting `typing.cast` and the controller import. The import goes under
 import each other, and a runtime import made only for a type is a circular
 import waiting to happen. An existing `from typing import` line is extended and
 an existing `TYPE_CHECKING` block reused. Checked with pyright against
-erpnext's `SalesInvoice`: real fields resolve, a misspelt one is reported, and
+erpnext's `SalesInvoice`: real fields resolve, a misspelled one is reported, and
 no import is left unused. A bare annotation
 (`doc: SalesInvoice = frappe.get_doc(...)`) is **not** valid — `Document` is not
 assignable to a subclass — so `cast` is the only correct single-site form.

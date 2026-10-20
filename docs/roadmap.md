@@ -80,7 +80,14 @@ DocTypes' `options`, `hooks.py` and fixtures in 18.7 ms
 **Done when** that check stays clean ([32](specs/32-testing.md)) with every
 check carrying both a positive and a negative case. Met.
 
-## Phase 4 — Bridge and templates
+## Phase 4 — Bridge and templates ✅
+
+Live site layer, Custom Field and Property Setter resolution, in-DB scripts as
+virtual documents, Jinja surface. Type checker integration
+([24](specs/24-type-integration.md)) rides along as an opt-in experiment — it
+depends only on phase 2 and blocks nothing.
+
+**Done when** a field added through Customize Form completes without a restart.
 
 The bridge reads. Custom Field and Property Setter from a live site merge as
 Layer 3 and evict without a rebuild, confidence moves `Static` → `Full` →
@@ -94,13 +101,6 @@ calls and `doc` in a print format resolve and complete, the globals complete,
 and the checks run on them. With `types.stub` on, a generated `document.pyi`
 makes pyright type `frappe.get_doc("Sales Invoice", …)` as `SalesInvoice`
 ([24](specs/24-type-integration.md)). Phase 4 is done.
-
-Live site layer, Custom Field and Property Setter resolution, in-DB scripts as
-virtual documents, Jinja surface. Type checker integration
-([24](specs/24-type-integration.md)) rides along as an opt-in experiment — it
-depends only on phase 2 and blocks nothing.
-
-**Done when** a field added through Customize Form completes without a restart.
 
 ### Hardening
 
