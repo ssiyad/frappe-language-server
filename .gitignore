@@ -2,6 +2,3 @@
 
 # Index cache, written into the bench root — specs/31-performance.md
 .frappe-lsp/
-
-# Zed builds the dev extension here.
-/editors/zed/target
