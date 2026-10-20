@@ -168,9 +168,13 @@ impl Backend {
 
         // `frappe.db.get_va|` → the namespace `frappe.db`, typed `get_va`.
         let before = &text[..offset];
+        // Past the whole character that ends the token, which may be wider
+        // than one byte.
         let start = before
-            .rfind(|c: char| !(c.is_alphanumeric() || c == '_' || c == '.'))
-            .map_or(0, |at| at + 1);
+            .char_indices()
+            .rev()
+            .find(|(_, c)| !(c.is_alphanumeric() || *c == '_' || *c == '.'))
+            .map_or(0, |(at, c)| at + c.len_utf8());
         let token = &before[start..];
         let (namespace, typed) = token.rsplit_once('.').unwrap_or(("", token));
         let globals = index.jinja_globals();

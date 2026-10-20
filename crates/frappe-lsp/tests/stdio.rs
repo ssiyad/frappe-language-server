@@ -1151,7 +1151,7 @@ fn doc_in_a_print_format_is_the_doctype_it_renders() {
 fn a_template_completes_the_globals_the_jinja_hook_adds() {
     // `library.jinja_helpers` is a module in the hook, so every function in
     // it is a global; `format_isbn` is named on its own.
-    let source = "<p>{{ mem }}</p>\n<p>{{ format_ }}</p>\n";
+    let source = "<p>{{ mem }}</p>\n<p>{{ format_ }}</p>\n<p>🙂{{🙂format_ }}</p>\n";
     let bench = fixture_bench();
     let mut session = Session::start();
     let mut params = initialize_params();
@@ -1188,6 +1188,9 @@ fn a_template_completes_the_globals_the_jinja_hook_adds() {
     };
     assert!(labels(&mut session, 3500, 0, 9).contains(&"member_url".to_string()));
     assert!(labels(&mut session, 3501, 1, 13).contains(&"format_isbn".to_string()));
+    // A wide character right before the name: the token starts after all of
+    // it, not one byte in. UTF-16 columns: `<p>🙂{{🙂` is 9 units.
+    assert!(labels(&mut session, 3502, 2, 16).contains(&"format_isbn".to_string()));
 
     session.request(3600, "shutdown", json!(null));
     session.notify("exit", json!(null));
