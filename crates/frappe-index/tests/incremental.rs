@@ -490,3 +490,26 @@ fn the_revision_moves_only_when_the_index_can_have_changed() {
     index.reindex(&sandbox.path("apps/library/library/api.py"));
     assert_ne!(index.revision(), before, "a file in an app");
 }
+
+#[test]
+fn every_single_edit_keeps_the_occurrence_table_equal_to_a_rescan() {
+    // The server re-indexes with the table built, and a save rebuilds only the
+    // rows of the DocTypes it touched and of those linking to them. That has
+    // to be exactly what a full scan would hold, references and the type
+    // stub's constructor set alike.
+    for edit in EVERY_EDIT {
+        let sandbox = Sandbox::new(&format!("occurrences-{edit:?}"));
+        let mut index = Index::build(&sandbox.root);
+        index.scan_occurrences();
+
+        let touched = edit.apply(&sandbox, 1);
+        index.reindex(&touched);
+        let mut rebuilt = Index::build(&sandbox.root);
+        rebuilt.scan_occurrences();
+
+        assert!(
+            index.occurrences() == rebuilt.occurrences(),
+            "{edit:?}: the incremental occurrence table diverged from a rescan"
+        );
+    }
+}

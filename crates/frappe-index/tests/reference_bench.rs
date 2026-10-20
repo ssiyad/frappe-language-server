@@ -273,6 +273,10 @@ fn frappes_own_whitelisted_methods_resolve_as_whitelisted() {
 fn re_indexing_one_doctype_json_stays_inside_the_incremental_budget() {
     bench_or_skip!(bench);
     let mut index = frappe_index::Index::build(&bench);
+    // As the server holds it: with the reference table, which a save also
+    // patches. Without it this measured a third of the work, and missed that
+    // a save cost 65 ms.
+    index.scan_occurrences();
 
     let path = index
         .doctype("User")
@@ -305,10 +309,12 @@ fn re_indexing_one_doctype_json_stays_inside_the_incremental_budget() {
         samples[samples.len() / 2]
     );
     assert_eq!(outcome.doctypes, ["User"]);
-    // 20 ms is the ceiling in spec 31.
+    // 20 ms is the ceiling in spec 31, for the shipped binary; an unoptimized
+    // build is several times slower for reasons unrelated to the index.
+    let ceiling = if cfg!(debug_assertions) { 120 } else { 20 };
     assert!(
-        fastest.as_millis() < 20,
-        "re-index took {fastest:?} at its fastest of 9"
+        fastest.as_millis() < ceiling,
+        "re-index took {fastest:?} at its fastest of 9, ceiling {ceiling} ms"
     );
 }
 

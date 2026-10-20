@@ -209,6 +209,9 @@ struct Source {
     package: Arc<Path>,
 }
 
+/// What other files' references to a DocType resolve through.
+type Shape = (bool, Vec<(String, String, Option<String>)>);
+
 /// One name a file mentions, where, and the constructor call it is the
 /// DocType of, if any.
 type Occurrence = (crate::occurrences::Key, Range, Option<&'static str>);
@@ -1777,9 +1780,9 @@ impl Index {
             }
         }
 
-        self.schema_occurrences(&mut table);
-        self.hook_occurrences(&mut table);
-        self.fixture_occurrences(&mut table);
+        self.schema_occurrences(&mut table, None);
+        self.hook_occurrences(&mut table, None);
+        self.fixture_occurrences(&mut table, None);
         table.sort();
         table.scanned = true;
         table
@@ -1803,7 +1806,13 @@ impl Index {
     /// whatever it names. Both are keyed by file, so the fix is to forget the
     /// file and read it again — the table stays exactly what a full scan would
     /// have produced ([32](../../../docs/specs/32-testing.md) asserts it).
-    fn reindex_occurrences(&mut self, path: &Path, affected: &BTreeSet<String>) {
+    fn reindex_occurrences(
+        &mut self,
+        path: &Path,
+        affected: &BTreeSet<String>,
+        reshaped: &BTreeSet<String>,
+        appeared_or_gone: &BTreeSet<String>,
+    ) {
         if !self.occurrences.scanned {
             return;
         }
@@ -1821,16 +1830,117 @@ impl Index {
         }
 
         // A DocType JSON's own rows are derived from the merged graph rather
-        // than from the file, so they are rebuilt for every name it touched.
-        for name in affected {
+        // than from the file, so they are rebuilt for every name it touched —
+        // and, when one appeared or went, for every DocType linking to it,
+        // whose Link row exists only while its target does. Rebuilding all of
+        // them on every save cost 65 ms on the reference bench, three times
+        // spec 31's ceiling: nearly every DocType links to `User`.
+        let touched: BTreeSet<String> = self
+            .doctypes
+            .values()
+            .filter(|doctype| {
+                affected.contains(&doctype.name)
+                    || doctype.fields.iter().any(|field| {
+                        field
+                            .options
+                            .as_deref()
+                            .is_some_and(|options| appeared_or_gone.contains(options))
+                    })
+            })
+            .map(|doctype| doctype.name.clone())
+            .collect();
+        for name in &touched {
             if let Some(doctype) = self.doctypes.get(name) {
                 self.occurrences.forget(&doctype.path);
             }
         }
         let mut table = std::mem::take(&mut self.occurrences);
-        self.schema_occurrences(&mut table);
+        self.schema_occurrences(&mut table, Some(&touched));
+        // The saved file's rows that come from a reader other than the source
+        // scan: a `hooks.py`'s map keys, a fixtures file's records. Forgetting
+        // the file dropped them, and a full scan would have them.
+        self.hook_occurrences(&mut table, Some(path));
+        self.fixture_occurrences(&mut table, Some(path));
+        self.rescan_naming(&mut table, path, reshaped);
         table.sort();
         self.occurrences = table;
+    }
+
+    /// What other files' references resolve through: whether the DocType
+    /// exists, whether it is a child, and its fields with their types and
+    /// options. A save that leaves this alone leaves every other file alone.
+    fn shape(&self, name: &str) -> Option<Shape> {
+        let doctype = self.doctypes.get(name)?;
+        Some((
+            doctype.is_child,
+            doctype
+                .fields
+                .iter()
+                .map(|field| {
+                    (
+                        self.interner.resolve(field.fieldname).to_string(),
+                        self.interner.resolve(field.fieldtype).to_string(),
+                        field.options.clone(),
+                    )
+                })
+                .collect(),
+        ))
+    }
+
+    /// Re-read every source file naming a DocType whose shape changed: a
+    /// reference that resolved may no longer, and one that did not may now.
+    /// Only on a change of shape — a re-save of the same schema costs nothing.
+    fn rescan_naming(
+        &self,
+        table: &mut crate::occurrences::Occurrences,
+        saved: &Path,
+        reshaped: &BTreeSet<String>,
+    ) {
+        if reshaped.is_empty() {
+            return;
+        }
+        let mut files = table.files_naming(reshaped);
+        files.extend(
+            reshaped
+                .iter()
+                .filter_map(|name| self.doctypes.get(name)?.controller.as_ref())
+                .map(|controller| controller.path.clone()),
+        );
+        files.retain(|file| {
+            file.as_path() != saved
+                && file.extension().is_some_and(|extension| {
+                    extension == "py" || extension == "js" || extension == "html"
+                })
+        });
+        let found: Vec<(PathBuf, Vec<Occurrence>)> = files
+            .into_par_iter()
+            .map(|file| {
+                let found = std::fs::read_to_string(&file)
+                    .ok()
+                    .and_then(|source| {
+                        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            self.occurrences_in(&file, &source)
+                        }))
+                        .ok()
+                    })
+                    .unwrap_or_default();
+                (file, found)
+            })
+            .collect();
+        for (file, keys) in found {
+            table.forget(&file);
+            let owned: Arc<Path> = Arc::from(file.as_path());
+            for (key, range, constructed) in keys {
+                if let (Some(call), crate::occurrences::Key::DocType(name)) = (constructed, &key) {
+                    table.construct(&owned, call, name);
+                }
+                table.insert(key, &owned, range);
+            }
+            // A `hooks.py` also holds the map keys only the hooks reader sees.
+            if file.file_name().is_some_and(|name| name == "hooks.py") {
+                self.hook_occurrences(table, Some(&file));
+            }
+        }
     }
 
     /// DocType names used as hook map keys.
@@ -1840,7 +1950,7 @@ impl Index {
     /// schemas written `Map<DocTypeName, …>` in
     /// [12](../../../docs/specs/12-surface-hooks.md) are walked, which is the
     /// same rule the diagnostics use.
-    fn hook_occurrences(&self, table: &mut crate::occurrences::Occurrences) {
+    fn hook_occurrences(&self, table: &mut crate::occurrences::Occurrences, only: Option<&Path>) {
         use crate::occurrences::Key;
         use frappe_syntax::generated::Schema;
         use frappe_syntax::hooks::Value;
@@ -1850,6 +1960,7 @@ impl Index {
             .apps
             .iter()
             .map(|app| app.package.join("hooks.py"))
+            .filter(|path| only.is_none_or(|only| only == path))
             .collect();
 
         let mut found: Vec<(String, PathBuf, Range)> = Vec::new();
@@ -1894,11 +2005,19 @@ impl Index {
 
     /// DocType names a Layer-2 fixtures file targets — spec 21 counts fixtures
     /// as a surface, and a Custom Field is how half a bench's schema arrives.
-    fn fixture_occurrences(&self, table: &mut crate::occurrences::Occurrences) {
+    fn fixture_occurrences(
+        &self,
+        table: &mut crate::occurrences::Occurrences,
+        only: Option<&Path>,
+    ) {
         use crate::occurrences::Key;
 
         let mut found: Vec<(Key, PathBuf, Range)> = Vec::new();
-        for (path, layer) in &self.fixtures {
+        for (path, layer) in self
+            .fixtures
+            .iter()
+            .filter(|(path, _)| only.is_none_or(|only| only == path.as_path()))
+        {
             for record in &layer.fixture.custom_fields {
                 found.push((
                     Key::DocType(record.doctype.clone()),
@@ -1983,11 +2102,19 @@ impl Index {
 
     /// The occurrences the schema itself holds: a `Link` naming a DocType, a
     /// `fetch_from` naming a field, the field declarations themselves.
-    fn schema_occurrences(&self, table: &mut crate::occurrences::Occurrences) {
+    fn schema_occurrences(
+        &self,
+        table: &mut crate::occurrences::Occurrences,
+        only: Option<&BTreeSet<String>>,
+    ) {
         use crate::occurrences::Key;
 
         let mut found: Vec<(Key, PathBuf, Range)> = Vec::new();
-        for doctype in self.doctypes.values() {
+        for doctype in self
+            .doctypes
+            .values()
+            .filter(|doctype| only.is_none_or(|names| names.contains(&doctype.name)))
+        {
             let path: PathBuf = doctype.path.to_path_buf();
             for field in &doctype.fields {
                 let Some(range) = field.ranges.options else {
@@ -2219,12 +2346,27 @@ impl Index {
             self.reindex_doctype(path, &package, order, &app, &mut affected);
         }
 
+        let before: BTreeMap<String, Option<Shape>> = affected
+            .iter()
+            .map(|name| (name.clone(), self.shape(name)))
+            .collect();
         let mut raws = BTreeMap::new();
         for name in &affected {
             self.assemble(name, &mut raws);
         }
         self.sort_reports();
-        self.reindex_occurrences(path, &affected);
+        let mut reshaped = BTreeSet::new();
+        let mut appeared_or_gone = BTreeSet::new();
+        for (name, shape) in before {
+            let after = self.shape(&name);
+            if shape.is_some() != after.is_some() {
+                appeared_or_gone.insert(name.clone());
+            }
+            if shape != after {
+                reshaped.insert(name);
+            }
+        }
+        self.reindex_occurrences(path, &affected, &reshaped, &appeared_or_gone);
 
         Reindexed {
             doctypes: affected.into_iter().collect(),

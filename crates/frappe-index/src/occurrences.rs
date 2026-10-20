@@ -91,6 +91,18 @@ impl Occurrences {
             .collect()
     }
 
+    /// Every file with a site naming one of `doctypes` or a field of one.
+    #[must_use]
+    pub fn files_naming(&self, doctypes: &BTreeSet<String>) -> BTreeSet<PathBuf> {
+        self.sites
+            .iter()
+            .filter(|(key, _)| match key {
+                Key::DocType(name) | Key::Field(name, _) => doctypes.contains(name),
+            })
+            .flat_map(|(_, sites)| sites.iter().map(|site| site.path.to_path_buf()))
+            .collect()
+    }
+
     /// Drop everything one file contributed.
     pub fn forget(&mut self, path: &Path) {
         self.constructed.remove(path);
