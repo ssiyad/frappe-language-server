@@ -951,7 +951,7 @@ fn malformed(index: &Index, path: &Path) -> Vec<Finding> {
 
 /// Checks that assert something is *not* there, which only an index complete
 /// enough to know may make — spec 23's confidence table.
-const ABSENCE_CHECKS: [&str; 14] = [
+const ABSENCE_CHECKS: [&str; 16] = [
     "dangling-depends-on",
     "dangling-dynamic-link",
     "missing-asset",
@@ -966,6 +966,8 @@ const ABSENCE_CHECKS: [&str; 14] = [
     "unknown-meta-field",
     "unknown-required-app",
     "unresolvable-fetch-from",
+    "unresolvable-patch",
+    "unresolvable-path",
 ];
 
 /// Shapes whose DocType argument must be a Single.
@@ -1312,6 +1314,29 @@ mod tests {
             frappe_syntax::PositionEncoding::Utf16,
         );
         assert!(found.is_empty(), "{found:?}");
+    }
+
+    #[test]
+    fn a_partial_index_resolves_no_path_yet() {
+        // A path into a module the build has not reached yet is not a path
+        // that names nothing: `hooks.py` opened first got one warning per line.
+        let partial = Index::partial();
+        for (file, source) in [
+            (
+                "hooks.py",
+                "doc_events = {\"*\": {\"on_update\": \"x.api.notify\"}}\n",
+            ),
+            ("patches.txt", "x.patches.v1_0.backfill\n"),
+        ] {
+            let found = for_buffer(
+                &partial,
+                &Config::default(),
+                &Path::new("/bench/apps/x/x").join(file),
+                source,
+                frappe_syntax::PositionEncoding::Utf16,
+            );
+            assert!(found.is_empty(), "{file}: {found:?}");
+        }
     }
 
     #[test]

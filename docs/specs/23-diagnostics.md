@@ -25,6 +25,11 @@ gated on the index being complete enough to know.
 Presence checks — a wrong event name, an invalid cron expression — are never
 gated, because no amount of extra metadata could make them valid.
 
+A dotted path that does not resolve is an absence check: the module may not be
+read yet. `unresolvable-path` and `unresolvable-patch` are gated with the rest.
+Ungated, a `hooks.py` opened at startup got one warning per path until the
+build finished.
+
 ### Version gating
 
 Separately, any check that asserts invalidity from a **vendored list** (hook
