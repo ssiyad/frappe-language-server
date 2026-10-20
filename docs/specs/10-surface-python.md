@@ -14,11 +14,11 @@ literal; anything else yields `Anchor::Unknown`.
 | `frappe.get_cached_doc(D, name)`, `frappe.new_doc(D)`, `frappe.get_last_doc(D)` | Bind a local per [06](06-analysis-pipeline.md) |
 | `frappe.get_all(D, …)`, `frappe.get_list(D, …)` | Kwargs below |
 | `frappe.db.get_all(D, …)`, `frappe.db.get_list(D, …)` | |
-| `frappe.db.get_value(D, filters, F)`, `frappe.db.get_values(...)` | 3rd arg may be `F` or `list[F]` |
+| `frappe.db.get_value(D, filters, F)`, `frappe.db.get_values(...)`, `frappe.get_value(...)` | 3rd arg may be `F` or `list[F]`. `frappe.get_value` is an alias of `frappe.db.get_value` |
 | `frappe.db.set_value(D, name, F, value)` | 3rd arg may be `{F: value}` |
 | `frappe.db.exists(D, …)`, `frappe.db.count(D, …)`, `frappe.db.delete(D, …)` | |
 | `frappe.db.get_single_value(D, F)`, `frappe.db.set_single_value(D, F, v)` | Single DocTypes only |
-| `frappe.get_value(D, …)`, `frappe.get_cached_value(D, name, F)` | |
+| `frappe.get_cached_value(D, name, F)` | |
 | `frappe.get_meta(D)`, `frappe.get_single(D)` | |
 | `frappe.delete_doc(D, name)`, `frappe.rename_doc(D, old, new)` | |
 | `frappe.has_permission(D, …)` | |

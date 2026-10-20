@@ -846,6 +846,13 @@ count = 1
 reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
+file = "apps/erpnext/erpnext/selling/doctype/quotation/mapper.py"
+code = "unknown-field"
+message = "`Customer` has no field `crm_deal`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
+
+[[allow]]
 file = "apps/erpnext/erpnext/selling/doctype/quotation/quotation.js"
 code = "translation-literal"
 message = "translations are extracted statically, so a concatenation is never translated"

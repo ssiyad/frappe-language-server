@@ -42,6 +42,13 @@ def member_email(member: str) -> str | None:
 	return frappe.db.get_value("Libary Member", member, "email_id")  # expect: unknown-doctype
 
 
+def member_email_alias(member: str) -> str | None:
+	# `frappe.get_value` is an alias of `frappe.db.get_value`: the third
+	# argument names fields the same way.
+	frappe.get_value("Library Member", member, "email_id")  # expect: clean
+	return frappe.get_value("Library Member", member, "emial_id")  # expect: unknown-field
+
+
 def member_emails(member: str) -> list[str]:
 	return frappe.get_all(
 		"Library Member",

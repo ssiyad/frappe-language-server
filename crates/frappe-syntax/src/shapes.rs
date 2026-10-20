@@ -126,7 +126,9 @@ pub(crate) const PYTHON: &[Shape] = &[
     Shape::new("frappe.db.delete", &[DocType]).with_kwargs(),
     Shape::new("frappe.db.get_single_value", &[DocType, Field]),
     Shape::new("frappe.db.set_single_value", &[DocType, Field, Ignore]),
-    Shape::new("frappe.get_value", &[DocType]).with_kwargs(),
+    // An alias: `frappe.get_value(*args, **kwargs)` returns
+    // `frappe.db.get_value(*args, **kwargs)`.
+    Shape::new("frappe.get_value", &[DocType, Filters, Fields]).with_kwargs(),
     Shape::new("frappe.get_cached_value", &[DocType, Ignore, Fields]),
     Shape::new("frappe.get_meta", &[DocType]),
     Shape::new("frappe.get_hooks", &[HookKey]),

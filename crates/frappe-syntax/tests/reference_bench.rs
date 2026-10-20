@@ -142,12 +142,14 @@ fn extraction_over_frappe_is_stable_and_finds_every_pattern() {
     // Templates joined the walk with spec 13: 223 files, 391 matches and 404
     // slots, 382 of them unknown, mostly `_()` in markup.
     assert_eq!(totals.matches, 22_107, "match count moved");
-    assert_eq!(totals.slots, 29_618, "slot count moved");
+    // 37 slots joined when `frappe.get_value` took `frappe.db.get_value`'s
+    // shape: the fields of frappe's 32 calls, 34 of them anchored.
+    assert_eq!(totals.slots, 29_655, "slot count moved");
     // 1 325 slots moved from anchored to unknown when `frm` inside
     // `frappe.ui.form.on(D, …)` became a binding the resolver settles: `D`
     // may be a child, whose block runs on its parent's form (specs/11).
-    assert_eq!(totals.anchored, 16_629, "anchored slot count moved");
-    assert_eq!(totals.unknown, 12_989, "unknown slot count moved");
+    assert_eq!(totals.anchored, 16_663, "anchored slot count moved");
+    assert_eq!(totals.unknown, 12_992, "unknown slot count moved");
 
     // A pattern that never fires on the reference corpus is a pattern nothing
     // is testing at scale.
