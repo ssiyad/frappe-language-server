@@ -93,6 +93,42 @@ language-servers = ["vscode-html-language-server", "frappe-lsp"]
 
 Helix has no code lens support, so tests do not run from the editor.
 
+## Zed
+
+Zed starts a language server only through an extension, so this repository
+carries one in `editors/zed`. With Rust installed through rustup, run
+`zed: install dev extension` from the command palette and pick that directory;
+Zed builds it. It runs `frappe-lsp` from your `PATH` for Python, JavaScript,
+HTML and JSON, beside the servers Zed already runs for them. If you list a
+language's `language_servers` yourself, keep `"..."` in the list or add
+`"frappe-lsp"` to it.
+
+Zed has no client-side command for test lenses, so they show and do nothing.
+This extension compiles; it is not exercised by the test suite the way the
+Neovim and pi routes are.
+
+## VS Code
+
+VS Code also needs an extension to start a language server. Any generic client
+works; with [Simple LSP Client](https://marketplace.visualstudio.com/items?itemName=wdomitrz.simple-lsp-client),
+in `settings.json`:
+
+```json
+{
+  "simpleLspClient.servers": {
+    "frappe-lsp": {
+      "cmd": ["frappe-lsp"],
+      "filetypes": ["python", "javascript", "json", "html", "jinja", "jinja-html"]
+    }
+  }
+}
+```
+
+It runs beside the Python and JavaScript servers you already have. Open the
+bench, or an app inside it, as the workspace folder: the server starts there and
+walks up to the bench. Test lenses do nothing, because a generic client has no
+handler for `frappe-lsp.runTest`. This setup is not exercised by the test suite.
+
 ## Other editors
 
 Register a stdio server with the command `frappe-lsp` for Python, JavaScript,

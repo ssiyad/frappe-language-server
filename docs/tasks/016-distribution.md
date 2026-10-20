@@ -22,8 +22,9 @@ passes `tests/editors/neovim.lua` against the reference bench.
 - Run the aarch64 Linux and both macOS archives on their platforms; CI only
   runs `--version` on two of them.
 - The `--git` install path checked against a tag.
-- Setup for Zed and VS Code. VS Code needs an extension or a generic client,
-  which [00](../specs/00-overview.md) keeps out of scope for now.
+- Run the Zed extension in `editors/zed` and the VS Code setup in
+  `docs/editors.md` in those editors; both are written and compile or parse,
+  and neither has been run.
 
 ## Done when
 
