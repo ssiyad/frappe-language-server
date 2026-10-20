@@ -112,6 +112,9 @@ It runs beside the Python and JavaScript servers you already have. Open the
 bench, or an app inside it, as the workspace folder: the server starts there and
 walks up to the bench. Test lenses do nothing, because a generic client has no
 handler for `frappe-lsp.runTest`. This setup is not exercised by the test suite.
+It was checked by hand on VS Code 1.142 with Simple LSP Client 0.1.22: hover,
+definition, references, completion in a form script and diagnostics all answer.
+With more than one target, definition opens a peek view.
 
 ## Other editors
 

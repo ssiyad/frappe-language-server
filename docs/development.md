@@ -135,8 +135,16 @@ Levels and what belongs in each: [32](specs/32-testing.md).
 
 `.github/workflows/release.yml` refuses a tag that does not match the version,
 then builds and publishes Linux (static) and macOS binaries for x86_64 and
-aarch64 with their checksums. Run `cargo xtask stress` against a real bench
-before tagging: CI only drives the fixture bench.
+aarch64 with their checksums. Each archive is unpacked and driven through
+`tests/editors/neovim.lua` on its own platform first. To check the build
+without publishing, run the workflow by hand:
+
+```sh
+gh workflow run release.yml --ref master
+```
+
+Run `cargo xtask stress` against a real bench before tagging: CI only drives
+the fixture bench.
 
 ## Ignore
 
