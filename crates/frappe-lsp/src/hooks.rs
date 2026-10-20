@@ -330,7 +330,7 @@ fn map_key(text: &str, span: Span, schema: Schema, depth: Depth, doctype: Option
         },
         (Schema::Scheduler, Depth::Inner) => HookTarget::Cron {
             expression: text.to_string(),
-            valid: generated::is_cron(text),
+            valid: frappe_syntax::cron::is_cron(text),
         },
         (Schema::MapPathToPath, _) => HookTarget::Path {
             dotted: text.to_string(),

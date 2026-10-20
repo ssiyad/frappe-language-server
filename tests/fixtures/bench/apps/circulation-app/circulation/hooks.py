@@ -50,6 +50,12 @@ scheduler_events = {
 	"cron": {
 		"0 25 * * *": ["circulation.api.sweep_loans"],  # expect: invalid-cron
 		"*/15 * * * *": ["circulation.api.sweep_loans"],  # expect: clean
+		# croniter's extensions: a seconds field, names and specials. expect: clean
+		"* * * * * 0/30": ["circulation.api.sweep_loans"],  # expect: clean
+		"0 9 * * mon-fri": ["circulation.api.sweep_loans"],  # expect: clean
+		"0 0 L * *": ["circulation.api.sweep_loans"],  # expect: clean
+		"@hourly": ["circulation.api.sweep_loans"],  # expect: clean
+		"0 0 * * mon-fry": ["circulation.api.sweep_loans"],  # expect: invalid-cron
 	},
 }
 

@@ -336,7 +336,7 @@ pub fn hook_markdown(index: &Index, target: &crate::hooks::HookTarget) -> Option
                 format!("`{expression}` — cron expression")
             } else {
                 format!(
-                    "`{expression}`\n\nNot a valid 5-field cron expression. The scheduler raises on this at sync time, far from here."
+                    "`{expression}`\n\nNot a cron expression croniter accepts. The scheduler raises on this at sync time, far from here."
                 )
             }
         }

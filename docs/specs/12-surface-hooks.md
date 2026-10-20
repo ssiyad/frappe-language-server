@@ -99,9 +99,12 @@ Checks:
 Keys: `all`, `hourly`, `daily`, `weekly`, `monthly`, `yearly`, `annual`, their
 `_long` variants, `hourly_maintenance`, `daily_maintenance`, and `cron`.
 
-Under `cron`, keys are cron expressions — validate with the same 5-field syntax
-`croniter` accepts. An invalid expression raises at scheduler sync time, far from
-the edit.
+Under `cron`, keys are cron expressions — validate with the syntax `croniter`
+accepts: five fields, a sixth for seconds and a seventh for the year, day and
+month names, `L`, `nW`, `?`, `d#n`, `R`, and the `@hourly` family. Where
+supported `croniter` releases disagree (`15W` is refused by 6.0 and taken by
+6.2), the expression passes. An invalid expression raises at scheduler sync
+time, far from the edit.
 
 ## Cross-hook effects
 

@@ -18,6 +18,7 @@
 #![warn(missing_docs)]
 
 pub mod buffer;
+pub mod cron;
 pub mod extract;
 pub mod generated;
 pub mod handlers;

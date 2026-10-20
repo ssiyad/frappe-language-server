@@ -409,48 +409,6 @@ pub fn is_frequency(name: &str) -> bool {
     SCHEDULER_FREQUENCIES.binary_search(&name).is_ok()
 }
 
-/// Whether a 5-field cron expression is one `croniter` would accept.
-///
-/// Deliberately shallow: ranges, steps and lists are checked for shape and
-/// bounds, names for membership. An expression this rejects is one the
-/// scheduler would refuse at sync time, far from the edit — spec 12.
-#[must_use]
-pub fn is_cron(expression: &str) -> bool {
-    let fields: Vec<&str> = expression.split_whitespace().collect();
-    if fields.len() != 5 {
-        return false;
-    }
-    const BOUNDS: [(u32, u32); 5] = [(0, 59), (0, 23), (1, 31), (1, 12), (0, 7)];
-    fields
-        .iter()
-        .zip(BOUNDS)
-        .all(|(field, bounds)| cron_field(field, bounds))
-}
-
-fn cron_field(field: &str, (low, high): (u32, u32)) -> bool {
-    field.split(',').all(|part| {
-        let (range, step) = match part.split_once('/') {
-            Some((range, step)) => (range, step.parse::<u32>().ok().filter(|s| *s > 0)),
-            None => (part, Some(1)),
-        };
-        if step.is_none() {
-            return false;
-        }
-        if range == "*" {
-            return true;
-        }
-        let within = |value: &str| {
-            value
-                .parse::<u32>()
-                .is_ok_and(|number| number >= low && number <= high)
-        };
-        match range.split_once('-') {
-            Some((from, to)) => within(from) && within(to),
-            None => within(range),
-        }
-    })
-}
-
 #[cfg(test)]
 mod tests {
     #[test]
@@ -490,23 +448,6 @@ mod tests {
     fn submit_only_events_are_a_subset_of_doc_events() {
         for event in SUBMIT_ONLY_EVENTS {
             assert!(is_doc_event(event), "{event}");
-        }
-    }
-
-    #[test]
-    fn cron_accepts_what_the_scheduler_accepts() {
-        for good in ["0 3 * * *", "*/15 * * * *", "0 0 1 1 0", "5,20 1-4 * * mon"] {
-            let expected = !good.contains("mon");
-            assert_eq!(is_cron(good), expected, "{good}");
-        }
-        for bad in [
-            "0 25 * * *",
-            "* * * *",
-            "60 * * * *",
-            "0 0 32 * *",
-            "*/0 * * * *",
-        ] {
-            assert!(!is_cron(bad), "{bad}");
         }
     }
 

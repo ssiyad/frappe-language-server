@@ -278,7 +278,7 @@ fn hooks(index: &Index, source: &str, path: &Path) -> Vec<Finding> {
                     code: "invalid-cron",
                     span: located.span,
                     message: format!(
-                        "`{expression}` is not a valid 5-field cron expression; the scheduler raises on it at sync time"
+                        "`{expression}` is not a cron expression croniter accepts; the scheduler raises on it at sync time"
                     ),
                 });
             }
