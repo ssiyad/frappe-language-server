@@ -2,13 +2,18 @@ use std::process::ExitCode;
 
 use frappe_lsp::guard::Guarded;
 use frappe_lsp::server::{Backend, SERVER_NAME, VERSION};
-use frappe_lsp::{cli, logging};
+use frappe_lsp::{cli, command, logging};
 use tower_lsp_server::{LspService, Server};
 
 #[tokio::main]
 async fn main() -> ExitCode {
     let args = match cli::parse(std::env::args().skip(1)) {
         Ok(cli::Invocation::Serve(args)) => args,
+        Ok(cli::Invocation::Command(command)) => {
+            // A command's output is its answer; only warnings belong beside it.
+            logging::init(Some("warn"));
+            return command::run(command);
+        }
         Ok(cli::Invocation::Help) => {
             print!("{}", cli::HELP);
             return ExitCode::SUCCESS;

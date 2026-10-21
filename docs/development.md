@@ -73,8 +73,9 @@ cookie store, gzip and a blocking client the bridge never uses.
 since August 2023 and is pinned to `lsp-types` 0.94. The API is the same shape;
 `ls_types` replaces `lsp_types`, and `Uri` replaces `Url`.
 
-The command line is hand-rolled — `--log-level` and `--stdio` do not justify a
-parser dependency in a process whose entire interface is stdio.
+The command line is hand-rolled — `--log-level`, `--stdio` and three
+subcommands with one flag between them ([26](specs/26-command-line.md)) do not
+justify a parser dependency.
 
 `bincode` is pinned to 2.0.1. Version 3.0.0 exists on crates.io and its entire
 source is `compile_error!`; it is a squat, not an upgrade.
