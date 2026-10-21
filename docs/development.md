@@ -125,6 +125,9 @@ the reference bench, or over `tests/fixtures/bench` when you name it.
 
 Levels and what belongs in each: [32](specs/32-testing.md).
 
+`evals/` measures the Claude Code plugin with `claude plugin eval`: each case
+runs with and without it. [evals/README.md](../evals/README.md) has the setup.
+
 ## Conventions
 
 - Conventional Commits with no scope, and a summary that names the change:
