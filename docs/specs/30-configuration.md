@@ -17,7 +17,7 @@ bench MUST do something useful.
 
 ```toml
 [workspace]
-root = "auto"          # "auto" | absolute path
+root = "auto"          # "auto" (the bench above the workspace folder, 03) | absolute path
 apps = []              # [] = all discovered
 exclude = []           # glob patterns, added to the built-in exclusions
 

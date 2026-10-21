@@ -101,7 +101,7 @@ impl ConfigSources {
         // before the lower one can be located.
         sources.bench_root = configured_root(&sources.initialization_options)
             .or_else(|| configured_root(&sources.user_file))
-            .or_else(|| workspace_roots.first().cloned());
+            .or_else(|| workspace_roots.first().map(|root| detected_root(root)));
 
         if let Some(root) = &sources.bench_root {
             let path = root.join(BENCH_FILE);
@@ -220,6 +220,17 @@ fn configured_root(patch: &ConfigPatch) -> Option<PathBuf> {
     }
 }
 
+/// `root = "auto"`: the bench above the workspace folder. An editor opened on
+/// one app must still read the bench's file and cache beside the bench, not
+/// inside the app's repository ([03](../../../../docs/specs/03-workspace-model.md)).
+fn detected_root(start: &Path) -> PathBuf {
+    let detection = frappe_index::detect::detect(start);
+    detection
+        .bench_root()
+        .unwrap_or(&detection.root)
+        .to_path_buf()
+}
+
 fn user_config_path() -> Option<PathBuf> {
     let base = match std::env::var_os("XDG_CONFIG_HOME") {
         Some(value) if !value.is_empty() => PathBuf::from(value),
@@ -251,6 +262,30 @@ mod tests {
         assert!(!Config::from_patch(&patch).index.cache);
 
         std::fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn an_app_folder_resolves_to_the_bench_above_it() {
+        let bench = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .expect("repo root")
+            .join("tests/fixtures/bench");
+        let app = bench.join("apps/library");
+
+        let (sources, _) = ConfigSources::load(std::slice::from_ref(&app), None);
+        assert_eq!(sources.bench_root(), Some(bench.as_path()));
+    }
+
+    #[test]
+    fn a_folder_outside_any_bench_stays_the_root() {
+        let outside = std::env::temp_dir().join(format!("frappe-lsp-none-{}", std::process::id()));
+        std::fs::create_dir_all(&outside).expect("temp dir");
+
+        let (sources, _) = ConfigSources::load(std::slice::from_ref(&outside), None);
+        assert_eq!(sources.bench_root(), Some(outside.as_path()));
+
+        std::fs::remove_dir_all(&outside).expect("cleanup");
     }
 
     #[test]
