@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: hooks-paths
+tags: [press, natural]
+context:
+  scaffold_script: scaffold.sh

@@ -2,3 +2,9 @@
 
 # Index cache, written into the bench root — specs/31-performance.md
 .frappe-lsp/
+
+# Eval runs and the local bench path they clone from
+evals/results/
+evals/.bench
+evals/guided-*/
+evals/.server

@@ -1,0 +1,5 @@
+schema_version: "1.1"
+name: doctype-schema
+tags: [press, natural]
+context:
+  scaffold_script: scaffold.sh

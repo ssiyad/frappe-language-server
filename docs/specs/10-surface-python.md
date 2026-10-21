@@ -16,7 +16,7 @@ literal; anything else yields `Anchor::Unknown`.
 | `frappe.db.get_all(D, …)`, `frappe.db.get_list(D, …)` | |
 | `frappe.db.get_value(D, filters, F)`, `frappe.db.get_values(...)`, `frappe.get_value(...)` | 3rd arg may be `F` or `list[F]`. `frappe.get_value` is an alias of `frappe.db.get_value` |
 | `frappe.db.set_value(D, name, F, value)` | 3rd arg may be `{F: value}` |
-| `frappe.db.exists(D, …)`, `frappe.db.count(D, …)`, `frappe.db.delete(D, …)` | |
+| `frappe.db.exists(D, …)`, `frappe.db.count(D, …)`, `frappe.db.delete(D, …)` | 2nd arg is a name or a filter dict; the dict's keys are `F` |
 | `frappe.db.get_single_value(D, F)`, `frappe.db.set_single_value(D, F, v)` | Single DocTypes only |
 | `frappe.get_cached_value(D, name, F)` | |
 | `frappe.get_meta(D)`, `frappe.get_single(D)` | |
@@ -35,12 +35,14 @@ Resolved against the anchor of the enclosing call:
 | --- | --- |
 | `fields` | `[F, …]`, `"F"`, or `["count(name) as n"]` — aggregate strings are skipped |
 | `filters`, `or_filters` | `{F: v}`, `[[F, op, v], …]`, `[[D, F, op, v], …]` — the 4-tuple form re-anchors to its own `D` |
-| `pluck` | `F` |
+| `pluck` | `F`, only when the call passes no `fields` |
 | `order_by` | `"F asc"`, `"F desc"`, comma-separated |
 | `group_by` | `F` |
 
 Dotted (`"customer.name"`), backticked (`` "`tabItem`.name" ``) and
-function-wrapped entries are skipped rather than reported. Skipped means **no
+function-wrapped entries are skipped rather than reported. Beside `fields`,
+`pluck` reads a key of the selected rows (`frappe/model/db_query.py`), which
+an alias or a backticked entry may name, so it is skipped too. Skipped means **no
 position at all**, not an unresolved one: a position that exists is a position
 some later check can decide to report on.
 

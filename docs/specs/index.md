@@ -34,6 +34,7 @@ Normative design for frappe-lsp. Numbered for stable cross-referencing.
 | 23 | [Diagnostics](23-diagnostics.md) | Checks, confidence gating, quick fixes |
 | 24 | [Type checker integration](24-type-integration.md) | Generated overloads for pyright — experimental |
 | 25 | [Test running](25-test-runner.md) | Code lenses over `bench run-tests` |
+| 26 | [Command line](26-command-line.md) | `check`, `describe`, `references` for agents and scripts |
 
 ## Operations
 

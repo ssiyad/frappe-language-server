@@ -10,6 +10,7 @@ pub mod buffers;
 pub mod capabilities;
 pub mod cast;
 pub mod cli;
+pub mod command;
 pub mod completion;
 pub mod config;
 pub mod definition;

@@ -67,6 +67,11 @@ a `Link` target in schema JSON gets its own code because it is an Error.
 The last two are the app-level checks of [12](12-surface-hooks.md); they read
 `hooks.py` but describe the app, not a hook value.
 
+`missing-asset` stays silent for a file the app's `.gitignore` names: the
+app's build writes it, and a fresh checkout or worktree lacks it until then.
+Press's `email_css` points at a Tailwind output, `public/css/email.css`. Only
+literal patterns count; a glob leaves the asset reported.
+
 `unknown-hook` fires on a key that is in neither the vendored table nor the set
 an app reads back through `get_hooks` ([12](12-surface-hooks.md)), and never on
 a name Python convention marks as a constant — a leading underscore or ALL_CAPS

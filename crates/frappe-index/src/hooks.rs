@@ -192,15 +192,7 @@ impl Hooks {
 /// answer: navigation targets the app source it was built from.
 #[must_use]
 pub fn asset_path(package: &Path, app: &str, written: &str) -> Option<PathBuf> {
-    let relative = if let Some(rest) = written.strip_prefix("/assets/") {
-        // `/assets/<app>/js/x.js` reaches the package through the symlink.
-        let rest = rest.strip_prefix(app)?.trim_start_matches('/');
-        format!("public/{rest}")
-    } else if let Some(rest) = written.strip_prefix(&format!("{app}/")) {
-        rest.to_string()
-    } else {
-        written.to_string()
-    };
+    let relative = package_relative(app, written)?;
 
     let candidate = package.join(&relative);
     if candidate.is_file() {
@@ -226,9 +218,118 @@ pub fn asset_path(package: &Path, app: &str, written: &str) -> Option<PathBuf> {
     None
 }
 
+/// Whether the app's `.gitignore` names the file an asset path points at.
+///
+/// Such a file is written by the app's own build — press compiles
+/// `public/css/email.css` with Tailwind — so a fresh checkout lacks it until
+/// somebody builds. Only literal patterns are read: a glob this does not
+/// understand leaves the asset reported, never silenced.
+#[must_use]
+pub fn is_build_output(package: &Path, app: &str, written: &str) -> bool {
+    let Some(directory) = package.parent() else {
+        return false;
+    };
+    let Some(relative) = package_relative(app, written) else {
+        return false;
+    };
+    let Ok(target) = package
+        .join(relative)
+        .strip_prefix(directory)
+        .map(Path::to_path_buf)
+    else {
+        return false;
+    };
+    let Ok(ignore) = std::fs::read_to_string(directory.join(".gitignore")) else {
+        return false;
+    };
+    ignore.lines().any(|line| ignores(line.trim(), &target))
+}
+
+/// `/assets/<app>/x`, `<app>/x` and `x`, as a path below the package.
+fn package_relative(app: &str, written: &str) -> Option<String> {
+    if let Some(rest) = written.strip_prefix("/assets/") {
+        // `/assets/<app>/js/x.js` reaches the package through the symlink.
+        let rest = rest.strip_prefix(app)?.trim_start_matches('/');
+        Some(format!("public/{rest}"))
+    } else if let Some(rest) = written.strip_prefix(&format!("{app}/")) {
+        Some(rest.to_string())
+    } else {
+        Some(written.to_string())
+    }
+}
+
+/// One `.gitignore` line against a path relative to the file's directory.
+fn ignores(pattern: &str, target: &Path) -> bool {
+    if pattern.is_empty()
+        || pattern.starts_with('#')
+        || pattern.starts_with('!')
+        || pattern.contains(['*', '?', '[', '\\'])
+    {
+        return false;
+    }
+    let trimmed = pattern.trim_end_matches('/');
+    let anchored = trimmed.trim_start_matches('/');
+    if trimmed.contains('/') {
+        return target.starts_with(anchored);
+    }
+    target.components().any(|part| part.as_os_str() == anchored)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn app_with_gitignore(name: &str, ignore: &str) -> PathBuf {
+        let directory =
+            std::env::temp_dir().join(format!("frappe-lsp-{name}-{}", std::process::id()));
+        let package = directory.join("press");
+        std::fs::create_dir_all(package.join("public/css")).expect("temp app");
+        std::fs::write(directory.join(".gitignore"), ignore).expect("write .gitignore");
+        package
+    }
+
+    #[test]
+    fn an_asset_the_gitignore_names_is_a_build_output() {
+        let package = app_with_gitignore("built", "node_modules\npress/public/css/email.css\n");
+        assert!(is_build_output(
+            &package,
+            "press",
+            "/assets/press/css/email.css"
+        ));
+        assert!(!is_build_output(
+            &package,
+            "press",
+            "/assets/press/css/other.css"
+        ));
+        std::fs::remove_dir_all(package.parent().expect("app")).expect("cleanup");
+    }
+
+    #[test]
+    fn an_ignored_directory_covers_the_assets_below_it() {
+        let package = app_with_gitignore("dist", "/press/public/dist/\nbuild\n");
+        assert!(is_build_output(
+            &package,
+            "press",
+            "/assets/press/dist/js/app.js"
+        ));
+        assert!(is_build_output(
+            &package,
+            "press",
+            "press/public/build/x.css"
+        ));
+        std::fs::remove_dir_all(package.parent().expect("app")).expect("cleanup");
+    }
+
+    #[test]
+    fn globs_and_negations_never_silence_an_asset() {
+        let package = app_with_gitignore("glob", "*.css\n!press/public/css/email.css\n");
+        assert!(!is_build_output(
+            &package,
+            "press",
+            "/assets/press/css/email.css"
+        ));
+        std::fs::remove_dir_all(package.parent().expect("app")).expect("cleanup");
+    }
 
     fn hooks(source: &str) -> Hooks {
         let assignments = frappe_syntax::hooks::read(source).expect("the grammar loads");

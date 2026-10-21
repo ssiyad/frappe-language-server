@@ -584,7 +584,19 @@ impl<'a> Extractor<'a> {
             }
         }
         if shape.kwargs && self.language == Language::Python {
-            for (name, value) in read::keyword_arguments(arguments, self.source) {
+            let keywords = read::keyword_arguments(arguments, self.source);
+            let selects = keywords.iter().any(|(name, _)| *name == "fields")
+                || shape
+                    .args
+                    .iter()
+                    .take(positional.len())
+                    .any(|arg| *arg == Arg::Fields);
+            for (name, value) in keywords {
+                // With `fields`, `pluck` reads a key of the selected rows, which
+                // an alias or a `` `tabChild`.field `` names — not the DocType.
+                if name == "pluck" && selects {
+                    continue;
+                }
                 if let Some(arg) = shapes::kwarg(name) {
                     self.push_arg(value, arg, &anchor, &mut slots);
                 }
@@ -1010,7 +1022,46 @@ mod tests {
         let call = of(&found, "frappe.get_all")[0];
 
         let names: Vec<&str> = fields(call).into_iter().map(|(name, _)| name).collect();
-        assert_eq!(names, ["status", "member", "status", "name", "member"]);
+        // `pluck` beside `fields` names a selected key — the next two tests.
+        assert_eq!(names, ["status", "member", "status", "member"]);
+    }
+
+    #[test]
+    fn exists_count_and_delete_take_filters_second() {
+        let found = python(
+            "frappe.db.exists(\"Loan\", {\"member\": m, \"status\": \"Open\"})\n\
+             frappe.db.count(\"Loan\", [[\"status\", \"=\", \"Open\"]])\n\
+             frappe.db.delete(\"Loan\", {\"member\": m})\n\
+             frappe.db.exists(\"Loan\", name)\n\
+             frappe.db.exists(\"Loan\", \"LOAN-0001\")\n",
+        );
+        let names: Vec<&str> = found
+            .iter()
+            .flat_map(fields)
+            .map(|(name, _)| name)
+            .collect();
+
+        // A name, literal or not, is not a filter and yields nothing.
+        assert_eq!(names, ["member", "status", "status", "member"]);
+    }
+
+    #[test]
+    fn pluck_without_fields_names_a_field_of_the_doctype() {
+        let found = python("frappe.get_all(\"Loan\", pluck=\"status\")\n");
+        let call = of(&found, "frappe.get_all")[0];
+
+        assert_eq!(fields(call), [("status", &field("Loan", "status"))]);
+    }
+
+    #[test]
+    fn pluck_beside_fields_names_a_selected_key_not_a_field() {
+        // `frappe.get_all("Bench", fields=["`tabBench App`.app"], pluck="app")`
+        // returns each row's `app` key; Bench has no `app` field.
+        let found =
+            python("frappe.get_all(\"Loan\", fields=[\"`tabLoan Item`.book\"], pluck=\"book\")\n");
+        let call = of(&found, "frappe.get_all")[0];
+
+        assert!(fields(call).is_empty());
     }
 
     #[test]

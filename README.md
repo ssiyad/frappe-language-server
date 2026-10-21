@@ -37,6 +37,9 @@ def close(name):
   `bench run-tests` for it in the editor's terminal.
 - **Outlines.** See the structure of DocType JSON, `hooks.py` and
   `patches.txt`.
+- **Commands for agents and scripts.** `frappe-lsp check`, `describe` and
+  `references` give the same answers in a shell, for a coding agent, CI or a
+  pre-commit hook. See [From a shell](#from-a-shell).
 
 It works in Python, JavaScript, DocType JSON and Jinja templates, in every app
 of the bench. It needs no configuration.
@@ -70,6 +73,9 @@ claude plugin install frappe-lsp --marketplace ssiyad/frappe-language-server
 ```
 
 Claude can then navigate the bench, and it sees the checks after each edit.
+The plugin also puts `frappe-lsp` on Claude's `PATH`, and its skill has
+Claude run `frappe-lsp check` to review code and `frappe-lsp describe` before
+it writes fieldnames.
 
 ### pi
 
@@ -103,6 +109,23 @@ is checked on that turn.
 Register a stdio language server with the command `frappe-lsp` for Python,
 JavaScript, JSON and HTML files. [docs/editors.md](docs/editors.md) has the
 details for every editor.
+
+### From a shell
+
+The same binary answers one question and exits. Run it anywhere inside a
+bench:
+
+```sh
+frappe-lsp check apps/press/press/api        # files or directories
+frappe-lsp describe "Sales Invoice"          # a DocType's schema
+frappe-lsp references "Sales Invoice" customer
+```
+
+`check` prints `path:line:column: severity: message [code]` and exits 1 when it
+finds something, so it works in CI and in a pre-commit hook. Add `--json` to
+any command for machine-readable output. The commands share the editor's index
+cache, so a warm run takes a fraction of a second.
+[docs/specs/26-command-line.md](docs/specs/26-command-line.md) has the details.
 
 ## Install the binary
 

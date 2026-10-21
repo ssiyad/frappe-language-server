@@ -285,6 +285,42 @@ impl Backend {
         self.locate(uri, position, analysis::at_while_typing, f)
     }
 
+    /// References for the occurrence site under the cursor, when the file
+    /// has one there ([21](../../../docs/specs/21-navigation.md)).
+    fn references_from_site(
+        &self,
+        position: &TextDocumentPositionParams,
+        include: bool,
+    ) -> Option<(Option<Vec<Location>>, bool)> {
+        let index = self.index.read_or_recover();
+        let state = self.state.read_or_recover();
+        let buffer = state.buffers.get(&position.text_document.uri)?;
+        // Where analysis runs, it already found nothing under the cursor.
+        if analysis::supported(buffer.language()) {
+            return None;
+        }
+        let offset = buffer.offset(frappe_syntax::Position::new(
+            position.position.line,
+            position.position.character,
+        ));
+        let path = position.text_document.uri.to_file_path()?.into_owned();
+        // Only a DocType JSON or a fixture holds sites; any other file would
+        // wait out the scan for nothing.
+        let holds_sites = index.doctype_at(&path).is_some()
+            || path.components().any(|part| part.as_os_str() == "fixtures");
+        if !holds_sites {
+            return None;
+        }
+        let occurrences = index.occurrences();
+        // An unscanned table has no sites yet; wait for it, as analysis does.
+        if !occurrences.scanned {
+            return Some((Some(Vec::new()), false));
+        }
+        let key = occurrences.at(&path, u32::try_from(offset).ok()?)?;
+        let found = symbols::references_to(&index, key, include, state.support.position_encoding);
+        Some((Some(found), true))
+    }
+
     fn locate<T>(
         &self,
         uri: &Uri,
@@ -1242,6 +1278,9 @@ impl LanguageServer for Backend {
                     );
                     Some((found, ctx.index.occurrences().scanned))
                 });
+            // A DocType JSON or a fixture has no analysis of its own; the
+            // site the scan recorded under the cursor names the key instead.
+            let answer = answer.or_else(|| self.references_from_site(&position, include));
             match answer {
                 None | Some((None, _)) => return Ok(None),
                 Some((found, true)) => return Ok(found),

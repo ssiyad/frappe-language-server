@@ -17,7 +17,7 @@ bench MUST do something useful.
 
 ```toml
 [workspace]
-root = "auto"          # "auto" | absolute path
+root = "auto"          # "auto" (the bench above the workspace folder, 03) | absolute path
 apps = []              # [] = all discovered
 exclude = []           # glob patterns, added to the built-in exclusions
 
@@ -133,7 +133,9 @@ Client capabilities MUST be honoured, not assumed:
 | `frappe-lsp/references` | `{doctype, fieldname?}` → every site naming it, as path, line and text, by name rather than cursor; `ready: false` until the occurrence table exists |
 
 The last two are for programs rather than editors: hover is markdown for a
-person, and an agent needs the schema as data. Both only read.
+person, and an agent needs the schema as data. Both only read, and both are
+also commands for a client that cannot send custom methods
+([26](26-command-line.md)).
 
 ## Logging
 
