@@ -35,12 +35,14 @@ Resolved against the anchor of the enclosing call:
 | --- | --- |
 | `fields` | `[F, …]`, `"F"`, or `["count(name) as n"]` — aggregate strings are skipped |
 | `filters`, `or_filters` | `{F: v}`, `[[F, op, v], …]`, `[[D, F, op, v], …]` — the 4-tuple form re-anchors to its own `D` |
-| `pluck` | `F` |
+| `pluck` | `F`, only when the call passes no `fields` |
 | `order_by` | `"F asc"`, `"F desc"`, comma-separated |
 | `group_by` | `F` |
 
 Dotted (`"customer.name"`), backticked (`` "`tabItem`.name" ``) and
-function-wrapped entries are skipped rather than reported. Skipped means **no
+function-wrapped entries are skipped rather than reported. Beside `fields`,
+`pluck` reads a key of the selected rows (`frappe/model/db_query.py`), which
+an alias or a backticked entry may name, so it is skipped too. Skipped means **no
 position at all**, not an unresolved one: a position that exists is a position
 some later check can decide to report on.
 

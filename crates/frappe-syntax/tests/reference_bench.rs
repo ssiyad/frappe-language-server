@@ -144,12 +144,14 @@ fn extraction_over_frappe_is_stable_and_finds_every_pattern() {
     assert_eq!(totals.matches, 22_107, "match count moved");
     // 37 slots joined when `frappe.get_value` took `frappe.db.get_value`'s
     // shape: the fields of frappe's 32 calls, 34 of them anchored.
-    assert_eq!(totals.slots, 29_655, "slot count moved");
+    // 12 left when `pluck` beside `fields` stopped naming a field: it reads a
+    // key of the selected rows ([10](../../../docs/specs/10-surface-python.md)).
+    assert_eq!(totals.slots, 29_643, "slot count moved");
     // 1 325 slots moved from anchored to unknown when `frm` inside
     // `frappe.ui.form.on(D, …)` became a binding the resolver settles: `D`
     // may be a child, whose block runs on its parent's form (specs/11).
-    assert_eq!(totals.anchored, 16_663, "anchored slot count moved");
-    assert_eq!(totals.unknown, 12_992, "unknown slot count moved");
+    assert_eq!(totals.anchored, 16_654, "anchored slot count moved");
+    assert_eq!(totals.unknown, 12_989, "unknown slot count moved");
 
     // A pattern that never fires on the reference corpus is a pattern nothing
     // is testing at scale.
