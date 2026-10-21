@@ -2655,6 +2655,65 @@ fn field_references_do_not_cross_doctypes() {
 }
 
 #[test]
+fn field_references_start_from_the_doctype_json() {
+    // Spec 21: the declaration is a site, so a request from it answers too.
+    let (mut session, bench) = scanned_session();
+
+    let path =
+        bench.join("apps/library/library/library/doctype/library_member/library_member.json");
+    let uri = format!("file://{}", path.display());
+    let text = std::fs::read_to_string(&path).expect("readable");
+    session.notify(
+        "textDocument/didOpen",
+        json!({"textDocument": {
+            "uri": uri, "languageId": "json", "version": 1, "text": text
+        }}),
+    );
+
+    let line = text
+        .lines()
+        .position(|line| line.contains("\"fieldname\": \"member_name\""))
+        .expect("the declaration");
+    let character = text
+        .lines()
+        .nth(line)
+        .expect("the line")
+        .rfind("member_name")
+        .expect("the name");
+
+    let response = session.request(
+        100,
+        "textDocument/references",
+        json!({"textDocument": {"uri": uri},
+               "position": {"line": line, "character": character},
+               "context": {"includeDeclaration": true}}),
+    );
+    let locations = response["result"].as_array().expect("locations");
+    let files: std::collections::BTreeSet<String> = locations
+        .iter()
+        .filter_map(|location| location["uri"].as_str())
+        .map(|uri| uri.rsplit('/').next().unwrap_or(uri).to_string())
+        .collect();
+    assert!(files.contains("api.py"), "{files:?}");
+    assert!(files.contains("library_member.json"), "{files:?}");
+
+    // Whitespace between fields names nothing.
+    let blank = text.lines().position(str::is_empty).unwrap_or(0);
+    let response = session.request(
+        101,
+        "textDocument/references",
+        json!({"textDocument": {"uri": uri},
+               "position": {"line": blank, "character": 0},
+               "context": {"includeDeclaration": true}}),
+    );
+    assert!(response["result"].is_null(), "{response}");
+
+    session.request(200, "shutdown", json!(null));
+    session.notify("exit", json!(null));
+    session.finish();
+}
+
+#[test]
 fn a_doctype_json_outlines_into_sections() {
     let (mut session, bench) = scanned_session();
 

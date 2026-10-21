@@ -35,11 +35,21 @@ pub fn references(
         } => Key::Field(doctype.clone(), fieldname.clone()),
         _ => return None,
     };
+    Some(references_to(index, &key, include_declaration, encoding))
+}
 
+/// Every site of one key, as protocol locations.
+#[must_use]
+pub fn references_to(
+    index: &Index,
+    key: &Key,
+    include_declaration: bool,
+    encoding: frappe_syntax::PositionEncoding,
+) -> Vec<Location> {
     // Grouped by file, because the line index is per file: the sites arrive
     // sorted by path, so this is one pass and one index per file rather than
     // one per site.
-    let sites = index.occurrences().get(&key);
+    let sites = index.occurrences().get(key);
     let mut locations = Vec::with_capacity(sites.len());
     for group in sites.chunk_by(|a, b| a.path == b.path) {
         let path = &group[0].path;
@@ -67,7 +77,7 @@ pub fn references(
             },
         }));
     }
-    Some(locations)
+    locations
 }
 
 /// The outline of a DocType JSON, `hooks.py` or `patches.txt`.

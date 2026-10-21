@@ -65,7 +65,9 @@ the result wrong rather than merely short:
 | Fixtures | A Custom Field's `dt` and fieldname, a Property Setter's `doc_type` |
 
 A field's declaration is itself a reference: a list that omits where the field
-is defined sends the reader nowhere.
+is defined sends the reader nowhere. It is also a place to ask from: a request
+on a site the scan recorded — a fieldname or `options` in DocType JSON, a
+fixture — answers for that site's key, though no analysis covers the file.
 
 Field references are scoped to their DocType: `customer` on `Sales Invoice` MUST
 NOT return `customer` occurrences anchored to `Sales Order`. Occurrences whose

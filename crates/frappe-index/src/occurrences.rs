@@ -57,6 +57,20 @@ impl Occurrences {
         self.sites.get(key).map_or(&[], Vec::as_slice)
     }
 
+    /// The key of the site covering `offset` in `path`.
+    ///
+    /// Surfaces with no analysis of their own — a DocType JSON's fieldnames
+    /// and `options`, fixtures — are still sites, so a reference request
+    /// from one starts here.
+    #[must_use]
+    pub fn at(&self, path: &Path, offset: u32) -> Option<&Key> {
+        self.by_file.get(path)?.iter().find(|key| {
+            self.get(key).iter().any(|site| {
+                *site.path == *path && site.range.start <= offset && offset <= site.range.end
+            })
+        })
+    }
+
     /// Record one occurrence.
     pub fn insert(&mut self, key: Key, path: &Arc<Path>, range: Range) {
         let sites = self.sites.entry(key.clone()).or_default();
