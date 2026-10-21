@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "frappe-bridge"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "reqwest",
  "serde",
@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "frappe-index"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "bincode",
  "frappe-bridge",
@@ -382,7 +382,7 @@ dependencies = [
 
 [[package]]
 name = "frappe-lsp"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "criterion",
  "frappe-bridge",
@@ -404,7 +404,7 @@ dependencies = [
 
 [[package]]
 name = "frappe-syntax"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "ropey",
  "serde",
@@ -2254,7 +2254,7 @@ checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
 
 [[package]]
 name = "xtask"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "frappe-index",
  "frappe-lsp",

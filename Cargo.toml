@@ -3,16 +3,16 @@ resolver = "3"
 members = ["crates/*", "xtask"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 rust-version = "1.95"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/ssiyad/frappe-language-server"
 
 [workspace.dependencies]
-frappe-bridge = { path = "crates/frappe-bridge", version = "0.2.0" }
-frappe-index = { path = "crates/frappe-index", version = "0.2.0" }
-frappe-syntax = { path = "crates/frappe-syntax", version = "0.2.0" }
+frappe-bridge = { path = "crates/frappe-bridge", version = "0.2.1" }
+frappe-index = { path = "crates/frappe-index", version = "0.2.1" }
+frappe-syntax = { path = "crates/frappe-syntax", version = "0.2.1" }
 
 # 3.0.0 is a squatted release whose whole source is `compile_error!`; 2.0.1 is
 # the real latest. `serde` is an optional dependency here, not a feature.
