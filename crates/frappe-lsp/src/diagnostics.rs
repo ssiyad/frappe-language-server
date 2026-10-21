@@ -248,11 +248,15 @@ fn hooks(index: &Index, source: &str, path: &Path) -> Vec<Finding> {
                 }
             }
 
-            HookTarget::Asset { written, file } if file.is_none() => findings.push(Finding {
-                code: "missing-asset",
-                span: located.span,
-                message: format!("`{written}` is not a file in this app"),
-            }),
+            HookTarget::Asset { written, file }
+                if file.is_none() && !crate::hooks::is_build_output(index, path, written) =>
+            {
+                findings.push(Finding {
+                    code: "missing-asset",
+                    span: located.span,
+                    message: format!("`{written}` is not a file in this app"),
+                });
+            }
 
             HookTarget::App(name) if !index.apps().iter().any(|app| app.name == *name) => {
                 // Warning only: it may legitimately be installed elsewhere

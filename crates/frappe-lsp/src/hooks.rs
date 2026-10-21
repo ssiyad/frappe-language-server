@@ -400,6 +400,16 @@ fn interior(span: Span) -> Span {
     Span::new(span.start + 1, span.end.saturating_sub(1))
 }
 
+/// Whether an asset missing from `hooks.py`'s app is one the app's build
+/// writes ([12](../../../docs/specs/12-surface-hooks.md)).
+#[must_use]
+pub fn is_build_output(index: &Index, path: &Path, written: &str) -> bool {
+    match (package_of(index, path), app_of(index, path)) {
+        (Some(package), Some(app)) => frappe_index::hooks::is_build_output(&package, &app, written),
+        _ => false,
+    }
+}
+
 fn package_of(index: &Index, path: &Path) -> Option<PathBuf> {
     index
         .apps()
