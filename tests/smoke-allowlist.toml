@@ -566,6 +566,13 @@ count = 1
 reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
 
 [[allow]]
+file = "apps/erpnext/erpnext/patches/v13_0/add_bin_unique_constraint.py"
+code = "unknown-field"
+message = "`Purchase Order` has no field `is_old_subcontracting_flow`"
+count = 1
+reason = "a fieldname written as a string, in a position frappe queries, that no schema declares: either a dead reference that silently returns nothing, or a Custom Field or runtime attribute that code creates and only a live site can show, which is what Static confidence means"
+
+[[allow]]
 file = "apps/erpnext/erpnext/patches/v13_0/delete_old_purchase_reports.py"
 code = "unknown-field"
 message = "`Desktop Icon` has no field `_report`"

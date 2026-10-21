@@ -1027,6 +1027,25 @@ mod tests {
     }
 
     #[test]
+    fn exists_count_and_delete_take_filters_second() {
+        let found = python(
+            "frappe.db.exists(\"Loan\", {\"member\": m, \"status\": \"Open\"})\n\
+             frappe.db.count(\"Loan\", [[\"status\", \"=\", \"Open\"]])\n\
+             frappe.db.delete(\"Loan\", {\"member\": m})\n\
+             frappe.db.exists(\"Loan\", name)\n\
+             frappe.db.exists(\"Loan\", \"LOAN-0001\")\n",
+        );
+        let names: Vec<&str> = found
+            .iter()
+            .flat_map(fields)
+            .map(|(name, _)| name)
+            .collect();
+
+        // A name, literal or not, is not a filter and yields nothing.
+        assert_eq!(names, ["member", "status", "status", "member"]);
+    }
+
+    #[test]
     fn pluck_without_fields_names_a_field_of_the_doctype() {
         let found = python("frappe.get_all(\"Loan\", pluck=\"status\")\n");
         let call = of(&found, "frappe.get_all")[0];

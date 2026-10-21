@@ -16,7 +16,7 @@ literal; anything else yields `Anchor::Unknown`.
 | `frappe.db.get_all(D, …)`, `frappe.db.get_list(D, …)` | |
 | `frappe.db.get_value(D, filters, F)`, `frappe.db.get_values(...)`, `frappe.get_value(...)` | 3rd arg may be `F` or `list[F]`. `frappe.get_value` is an alias of `frappe.db.get_value` |
 | `frappe.db.set_value(D, name, F, value)` | 3rd arg may be `{F: value}` |
-| `frappe.db.exists(D, …)`, `frappe.db.count(D, …)`, `frappe.db.delete(D, …)` | |
+| `frappe.db.exists(D, …)`, `frappe.db.count(D, …)`, `frappe.db.delete(D, …)` | 2nd arg is a name or a filter dict; the dict's keys are `F` |
 | `frappe.db.get_single_value(D, F)`, `frappe.db.set_single_value(D, F, v)` | Single DocTypes only |
 | `frappe.get_cached_value(D, name, F)` | |
 | `frappe.get_meta(D)`, `frappe.get_single(D)` | |

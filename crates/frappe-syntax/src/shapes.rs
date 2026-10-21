@@ -121,9 +121,10 @@ pub(crate) const PYTHON: &[Shape] = &[
         "frappe.db.set_value",
         &[DocType, Ignore, FieldsOrMap, Ignore],
     ),
-    Shape::new("frappe.db.exists", &[DocType]).with_kwargs(),
-    Shape::new("frappe.db.count", &[DocType]).with_kwargs(),
-    Shape::new("frappe.db.delete", &[DocType]).with_kwargs(),
+    // The second argument is a name or a filter dict; a name yields no slot.
+    Shape::new("frappe.db.exists", &[DocType, Filters]).with_kwargs(),
+    Shape::new("frappe.db.count", &[DocType, Filters]).with_kwargs(),
+    Shape::new("frappe.db.delete", &[DocType, Filters]).with_kwargs(),
     Shape::new("frappe.db.get_single_value", &[DocType, Field]),
     Shape::new("frappe.db.set_single_value", &[DocType, Field, Ignore]),
     // An alias: `frappe.get_value(*args, **kwargs)` returns
