@@ -103,6 +103,11 @@ pub enum Binding {
     /// ([11](../../../docs/specs/11-surface-javascript.md)), and only the
     /// schema knows which DocType that is.
     Form(String),
+    /// The rows `frappe.get_all(D, …)` and its family return
+    /// ([08](../../../docs/specs/08-query-rows.md)).
+    Rows(String),
+    /// One of those rows. Its attributes are references, never findings.
+    Row(String),
 }
 
 impl Binding {
@@ -110,12 +115,13 @@ impl Binding {
     ///
     /// A `TableRow` or a `Form` yields `Unknown`: the child, or the parent, is
     /// a schema lookup, and a guess here would be exactly the false positive
-    /// [23](../../../docs/specs/23-diagnostics.md) forbids.
+    /// [23](../../../docs/specs/23-diagnostics.md) forbids. A list of rows has
+    /// no fields of its own.
     #[must_use]
     pub fn anchor(&self) -> Anchor {
         match self {
-            Self::DocType(name) => Anchor::DocType(name.clone()),
-            Self::TableRow { .. } | Self::Form(_) => Anchor::Unknown,
+            Self::DocType(name) | Self::Row(name) => Anchor::DocType(name.clone()),
+            Self::TableRow { .. } | Self::Form(_) | Self::Rows(_) => Anchor::Unknown,
         }
     }
 }

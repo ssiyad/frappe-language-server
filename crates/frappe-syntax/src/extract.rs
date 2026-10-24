@@ -169,6 +169,11 @@ impl<'a> Extractor<'a> {
         let Some(binding) = self.binding(read::text(object, self.source), node.start_byte()) else {
             return;
         };
+        // A row is a dict: `row.get("x")` reads a key, and the key may be an
+        // alias the query selected.
+        if matches!(binding, Binding::Rows(_) | Binding::Row(_)) {
+            return;
+        }
         let name = read::text(name, self.source);
         if let Some(method) = shapes::PYTHON_METHODS.iter().find(|m| m.name == name) {
             self.method_call(node, arguments, method, binding);
@@ -192,17 +197,18 @@ impl<'a> Extractor<'a> {
         ) else {
             return;
         };
-        if !read::is_name(object) {
-            return;
-        }
-        let Some(binding) = self.binding(read::text(object, self.source), node.start_byte()) else {
+        let Some(binding) = self.attribute_receiver(object, node.start_byte()) else {
             return;
         };
 
         let anchor = binding.anchor();
+        let pattern = match binding {
+            Binding::Row(_) => special::PY_ROW_ATTRIBUTE,
+            _ => special::PY_ATTRIBUTE,
+        };
         let fieldname = read::text(name, self.source).to_string();
         self.matches.push(Match {
-            pattern: special::PY_ATTRIBUTE,
+            pattern,
             span: node.into(),
             anchor: anchor.clone(),
             receiver: Some(binding),
@@ -213,6 +219,19 @@ impl<'a> Extractor<'a> {
                 anchor: field_anchor(&anchor, &fieldname),
             }],
         });
+    }
+
+    /// What the object of `<object>.<attr>` is bound to: a bound name, or
+    /// `x[<integer>]` on rows, which is one row.
+    fn attribute_receiver(&self, object: Node<'a>, offset: usize) -> Option<Binding> {
+        if read::is_name(object) {
+            return self.binding(read::text(object, self.source), offset);
+        }
+        let rows = crate::rows::indexed(object, self.source)?;
+        match self.binding(rows, offset)? {
+            Binding::Rows(doctype) => Some(Binding::Row(doctype)),
+            _ => None,
+        }
     }
 
     // --- JavaScript ----------------------------------------------------------
@@ -1145,6 +1164,32 @@ mod tests {
             of(&found, "doc.db_set")[0].slots[0].anchor,
             field("Sales Invoice", "status")
         );
+    }
+
+    #[test]
+    fn a_query_row_read_is_its_own_pattern_and_row_methods_match_nothing() {
+        let found = python(
+            "def last(site):\n\
+             \tupdates = frappe.get_all(\"Site Update\", fields=[\"status\"])\n\
+             \tupdates[0].deploy_type\n\
+             \tupdate = updates[0]\n\
+             \tupdate.status\n\
+             \tupdate.get(\"total\")\n",
+        );
+
+        let reads: Vec<&Anchor> = of(&found, "row.attribute")
+            .iter()
+            .map(|found| &found.slots[0].anchor)
+            .collect();
+        assert_eq!(
+            reads,
+            [
+                &field("Site Update", "deploy_type"),
+                &field("Site Update", "status")
+            ]
+        );
+        assert!(of(&found, "doc.attribute").is_empty(), "{found:?}");
+        assert!(of(&found, "doc.get").is_empty(), "{found:?}");
     }
 
     #[test]

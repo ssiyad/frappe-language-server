@@ -12,6 +12,7 @@ use tree_sitter::Node;
 use crate::language::Language;
 use crate::matches::{Binding, Span};
 use crate::read;
+use crate::rows;
 use crate::shapes;
 
 /// Per-file `from frappe import …` names —
@@ -125,6 +126,10 @@ enum Event {
     /// Any reassignment, of any shape, drops the binding for the rest of the
     /// scope — [06](../../../docs/specs/06-analysis-pipeline.md).
     Drop(String),
+    /// The first name becomes a row of the second, if that holds rows where
+    /// the statement starts — [08](../../../docs/specs/08-query-rows.md).
+    /// Settled in [`build`], which walks events in source order.
+    RowOf(String, String),
 }
 
 /// Build Python function scopes, then finish the table-iteration bindings whose
@@ -285,19 +290,13 @@ fn collect_python_events(
                     continue;
                 };
                 let after = node.end_byte();
-                let constructed = (node.kind() == "assignment" && left.kind() == "identifier")
+                let bound = (node.kind() == "assignment" && left.kind() == "identifier")
                     .then(|| node.child_by_field_name("right"))
                     .flatten()
-                    .and_then(|right| constructed_doctype(right, source, imports));
+                    .and_then(|right| assigned(read::text(left, source), right, source, imports));
 
-                match constructed {
-                    Some(doctype) => events.push((
-                        after,
-                        Event::Bind(
-                            read::text(left, source).to_string(),
-                            Binding::DocType(doctype),
-                        ),
-                    )),
+                match bound {
+                    Some(event) => events.push((after, event)),
                     None => events.extend(
                         assigned_names(left, source)
                             .into_iter()
@@ -321,6 +320,13 @@ fn collect_python_events(
                     ("identifier", Some(binding)) => events.push((
                         after,
                         Event::Bind(read::text(left, source).to_string(), binding),
+                    )),
+                    ("identifier", None) if read::is_name(right) => events.push((
+                        after,
+                        Event::RowOf(
+                            read::text(left, source).to_string(),
+                            read::text(right, source).to_string(),
+                        ),
                     )),
                     _ => events.extend(
                         assigned_names(left, source)
@@ -360,6 +366,19 @@ fn assigned_names(target: Node<'_>, source: &str) -> Vec<String> {
         // `self.x = …` and `items[0] = …` rebind an attribute, not a name.
         _ => Vec::new(),
     }
+}
+
+/// What `name = right` binds `name` to, as an event.
+fn assigned(name: &str, right: Node<'_>, source: &str, imports: &Imports) -> Option<Event> {
+    let name = name.to_string();
+    if let Some(doctype) = constructed_doctype(right, source, imports) {
+        return Some(Event::Bind(name, Binding::DocType(doctype)));
+    }
+    if let Some(rows) = rows::queried(right, source, imports) {
+        return Some(Event::Bind(name, rows));
+    }
+    let receiver = rows::indexed(right, source)?;
+    Some(Event::RowOf(name, receiver.to_string()))
 }
 
 /// The DocType a recognized constructor with a literal argument produces.
@@ -423,11 +442,19 @@ fn resolve_table_rows(scopes: &mut Scopes) {
                         match scopes.lookup(doctype, scoped.span.start) {
                             Some(Binding::DocType(name)) => Some(name.clone()),
                             // A row of a row is two joins deep; specs/06 stops
-                            // at one.
-                            Some(Binding::TableRow { .. } | Binding::Form(_)) | None => None,
+                            // at one. A query's rows carry no child tables.
+                            Some(
+                                Binding::TableRow { .. }
+                                | Binding::Form(_)
+                                | Binding::Rows(_)
+                                | Binding::Row(_),
+                            )
+                            | None => None,
                         },
                     )),
-                    Binding::DocType(_) | Binding::Form(_) => None,
+                    Binding::DocType(_) | Binding::Form(_) | Binding::Rows(_) | Binding::Row(_) => {
+                        None
+                    }
                 })
                 .collect::<Vec<_>>()
         })
@@ -462,8 +489,19 @@ fn build(span: Span, mut events: Vec<(usize, Event)>) -> Scope {
     let mut open: HashMap<String, usize> = HashMap::new();
 
     for (offset, event) in events {
+        // Read the receiver before this event closes anything: in `x = x[0]`
+        // the right side is the binding the statement replaces.
+        let event = match event {
+            Event::RowOf(name, receiver) => match open.get(&receiver).map(|at| &bound[*at].binding)
+            {
+                Some(Binding::Rows(doctype)) => Event::Bind(name, Binding::Row(doctype.clone())),
+                _ => Event::Drop(name),
+            },
+            other => other,
+        };
         let name = match &event {
             Event::Bind(name, _) | Event::Drop(name) => name.clone(),
+            Event::RowOf(..) => unreachable!("settled above"),
         };
         if let Some(index) = open.remove(&name) {
             bound[index].span.end = offset;
@@ -630,6 +668,68 @@ mod tests {
         let scopes = fixture.scopes(Some("Library Member"));
 
         assert_eq!(scopes.lookup("row", fixture.after("\t\trow.loan")), None);
+    }
+
+    #[test]
+    fn a_query_binds_rows_and_indexing_or_iterating_them_binds_a_row() {
+        let fixture = Fixture::new(
+            "def last(site):\n\
+             \tupdates = frappe.get_all(\"Site Update\", fields=[\"status\"])\n\
+             \tfirst = updates[0]\n\
+             \tfirst.status\n\
+             \tfor update in updates:\n\
+             \t\tupdate.status\n\
+             \tupdates = updates[0]\n\
+             \tupdates.status\n",
+        );
+        let scopes = fixture.scopes(None);
+        let row = Some(&Binding::Row("Site Update".to_string()));
+
+        assert_eq!(
+            scopes.lookup("updates", fixture.after("\tfirst = ")),
+            Some(&Binding::Rows("Site Update".to_string()))
+        );
+        assert_eq!(scopes.lookup("first", fixture.after("\tfirst.st")), row);
+        assert_eq!(scopes.lookup("update", fixture.after("\t\tupdate.st")), row);
+        // `x = x[0]` reads the rows it replaces.
+        assert_eq!(scopes.lookup("updates", fixture.after("\tupdates.st")), row);
+    }
+
+    #[test]
+    fn get_value_binds_a_row_only_as_a_dict() {
+        let fixture = Fixture::new(
+            "def read(name):\n\
+             \ta = frappe.db.get_value(\"Site Update\", name, [\"status\"], as_dict=True)\n\
+             \tb = frappe.db.get_value(\"Site Update\", name, [\"status\"])\n\
+             \treturn a, b\n",
+        );
+        let scopes = fixture.scopes(None);
+
+        assert_eq!(
+            scopes.lookup("a", fixture.after("\treturn a")),
+            Some(&Binding::Row("Site Update".to_string()))
+        );
+        assert_eq!(scopes.lookup("b", fixture.after("\treturn a")), None);
+    }
+
+    #[test]
+    fn plucked_or_listed_results_and_a_row_of_a_row_bind_nothing() {
+        let fixture = Fixture::new(
+            "def names():\n\
+             \ta = frappe.get_all(\"Site Update\", pluck=\"name\")\n\
+             \tb = frappe.get_all(\"Site Update\", as_list=True)\n\
+             \tc = frappe.get_all(\"Site Update\")[0]\n\
+             \td = frappe.get_all(\"Site Update\")\n\
+             \te = d[0]\n\
+             \tf = e[0]\n\
+             \treturn a, b, c, f\n",
+        );
+        let scopes = fixture.scopes(None);
+        let end = fixture.after("\treturn a");
+
+        for name in ["a", "b", "c", "f"] {
+            assert_eq!(scopes.lookup(name, end), None, "{name}");
+        }
     }
 
     #[test]

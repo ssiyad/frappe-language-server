@@ -201,6 +201,9 @@ pub(crate) mod special {
     pub(crate) const PY_WHITELIST: PatternId = PatternId("frappe.whitelist");
     /// Attribute access on a bound name: `doc.<attr>`.
     pub(crate) const PY_ATTRIBUTE: PatternId = PatternId("doc.attribute");
+    /// Attribute access on a query row: `row.<attr>`. A reference, never a
+    /// finding — [08](../../../docs/specs/08-query-rows.md).
+    pub(crate) const PY_ROW_ATTRIBUTE: PatternId = PatternId("row.attribute");
     /// `_( … )`.
     pub(crate) const PY_TRANSLATE: PatternId = PatternId("_");
 

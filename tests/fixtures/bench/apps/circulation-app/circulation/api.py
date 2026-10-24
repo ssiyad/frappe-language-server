@@ -138,3 +138,15 @@ def messages(name: str) -> list[str]:
 def member_tier(member: str) -> str | None:
 	# `circulation_tier` comes from circulation/custom/library_member.json.
 	return frappe.db.get_value("Library Member", member, "circulation_tier")  # expect: clean
+
+
+# --- Query rows --------------------------------------------------------------
+
+
+def first_member_email() -> str | None:
+	# A row holds what the query selected: a read is a reference, never a
+	# finding, even for an alias (specs/08).
+	members = frappe.get_all("Library Member", fields=["email_id", "count(name) as total"])
+	member = members[0]
+	print(member.total)  # expect: clean, an alias the query selected
+	return member.email_id  # expect: clean

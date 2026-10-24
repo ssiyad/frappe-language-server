@@ -141,18 +141,20 @@ fn extraction_over_frappe_is_stable_and_finds_every_pattern() {
     // change to tell the corpus from the change.
     // Templates joined the walk with spec 13: 223 files, 391 matches and 404
     // slots, 382 of them unknown, mostly `_()` in markup.
-    assert_eq!(totals.matches, 22_107, "match count moved");
+    // 470 joined with query rows (specs/08): a `row.attribute` match each, one
+    // anchored slot each, and nothing that matched before moved.
+    assert_eq!(totals.matches, 22_577, "match count moved");
     // 37 slots joined when `frappe.get_value` took `frappe.db.get_value`'s
     // shape: the fields of frappe's 32 calls, 34 of them anchored.
     // 12 left when `pluck` beside `fields` stopped naming a field: it reads a
     // key of the selected rows ([10](../../../docs/specs/10-surface-python.md)).
     // 598 joined when `frappe.db.exists`, `count` and `delete` took a filter
     // dict second, 561 of them anchored.
-    assert_eq!(totals.slots, 30_241, "slot count moved");
+    assert_eq!(totals.slots, 30_711, "slot count moved");
     // 1 325 slots moved from anchored to unknown when `frm` inside
     // `frappe.ui.form.on(D, …)` became a binding the resolver settles: `D`
     // may be a child, whose block runs on its parent's form (specs/11).
-    assert_eq!(totals.anchored, 17_215, "anchored slot count moved");
+    assert_eq!(totals.anchored, 17_685, "anchored slot count moved");
     assert_eq!(totals.unknown, 13_026, "unknown slot count moved");
 
     // A pattern that never fires on the reference corpus is a pattern nothing

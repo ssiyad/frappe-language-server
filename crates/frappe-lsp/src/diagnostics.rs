@@ -487,6 +487,13 @@ fn interior(span: frappe_syntax::Span, source: &str) -> frappe_syntax::Span {
 fn finding_for(index: &Index, resolved: &frappe_index::resolve::Resolved) -> Option<Finding> {
     use frappe_index::resolve::{FormEventKind, Target};
 
+    // A query row holds what the query selected, aliases included, so a read
+    // on one is a reference and never a claim
+    // ([08](../../../docs/specs/08-query-rows.md)).
+    if resolved.pattern.0 == "row.attribute" {
+        return None;
+    }
+
     Some(match &resolved.target {
         // `get_single_value` on a DocType that is not a Single reads the
         // `tabSingles` table for a name that is not in it, and returns `None`

@@ -235,6 +235,22 @@ mod tests {
     }
 
     #[test]
+    fn a_field_is_referenced_from_a_query_row() {
+        let found = references(&index(), "Library Member", Some("email_id"));
+        let read = found["sites"]
+            .as_array()
+            .expect("sites")
+            .iter()
+            .any(|site| {
+                site["path"]
+                    .as_str()
+                    .is_some_and(|path| path.ends_with("circulation/api.py"))
+                    && site["text"] == "return member.email_id  # expect: clean"
+            });
+        assert!(read, "{found}");
+    }
+
+    #[test]
     fn references_say_what_they_do_not_cover() {
         let found = references(&index(), "Library Member", Some("email_id"));
         assert_eq!(found["covers"], REFERENCES_COVER);

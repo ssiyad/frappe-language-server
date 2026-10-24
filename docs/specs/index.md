@@ -14,6 +14,7 @@ Normative design for frappe-lsp. Numbered for stable cross-referencing.
 | 05 | [Live bridge](05-live-bridge.md) | Optional site connection, credentials, degradation |
 | 06 | [Analysis pipeline](06-analysis-pipeline.md) | Grammars, recognition limits, local inference |
 | 07 | [Dotted paths](07-dotted-paths.md) | Path resolution, whitelist detection, patches |
+| 08 | [Query rows](08-query-rows.md) | Binding the rows `get_all` and its family return |
 
 ## Surfaces
 

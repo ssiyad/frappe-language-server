@@ -32,6 +32,7 @@ pub mod symbols;
 
 mod binding;
 mod read;
+mod rows;
 mod shapes;
 
 pub use buffer::{Buffer, Change, Position, PositionEncoding, Range};

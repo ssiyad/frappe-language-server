@@ -72,7 +72,8 @@ Rules:
 
 Anything beyond this — parameters, returns, class attributes, comprehension
 scoping — is out of scope. If it later proves necessary, it needs its own spec,
-not an extension of these rules.
+not an extension of these rules. [08](08-query-rows.md) is one: the rows a
+query returns.
 
 [24](24-type-integration.md) overlaps this for Python, and pyright's own literal
 narrowing is strictly better where its stub is active. These rules still stand:

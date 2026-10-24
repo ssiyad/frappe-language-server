@@ -152,9 +152,10 @@ pub fn resolve(index: &Index, found: &Match) -> Vec<Resolved> {
     // DocType its block names; the join is a schema lookup, which is this side
     // of the line.
     let receiver = found.receiver.as_ref().and_then(|binding| match binding {
-        Binding::DocType(name) => Some(name.clone()),
+        Binding::DocType(name) | Binding::Row(name) => Some(name.clone()),
         Binding::TableRow { doctype, fieldname } => child_doctype(index, doctype, fieldname),
         Binding::Form(name) => form_doctype(index, name),
+        Binding::Rows(_) => None,
     });
 
     // `doc.append(F, {…})`: the dict keys belong to the child DocType behind
