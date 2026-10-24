@@ -27,6 +27,17 @@ the Neovim plugin installs it with no build step.
 | --- | --- | --- |
 | 019 | [Upstream into Frappe](019-upstream.md) | — |
 
+## Phase 6 — Agent accuracy
+
+What measuring the agent tools on press left open: references miss the sites
+no surface reads, and agents seldom call the tools at all.
+
+| # | Task | Depends on |
+| --- | --- | --- |
+| 020 | [frappe-ui surface](020-frappe-ui-surface.md) | — |
+| 021 | [Checks on query rows](021-row-field-checks.md) | — |
+| 022 | [Point agents at the tools](022-agent-nudge.md) | — |
+
 ## Critical path
 
 The live bridge (`014`) is done and its file deleted: Custom Field, Property
