@@ -6,6 +6,8 @@
 // references as tools, and reports frappe-lsp's findings on every file the
 // agent edits inside a bench.
 
+import { execFile } from "node:child_process";
+import { statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,6 +25,14 @@ const LAUNCHER = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin"
 /** Fieldtypes that lay a form out and hold no value. */
 const LAYOUT = new Set(["Section Break", "Column Break", "Tab Break", "HTML", "Button", "Fold", "Heading"]);
 
+/** Findings a directory check lists before it only counts the rest. */
+const SHOWN_FINDINGS = 100;
+
+/** The parameter that names the bench when the session does not run in one. */
+const BENCH_PATH = Type.Optional(
+	Type.String({ description: "Any path inside the bench. Needed only when the working directory is not in one" }),
+);
+
 export default function (pi: ExtensionAPI) {
 	const servers = new Map<string, FrappeLsp>();
 
@@ -37,6 +47,37 @@ export default function (pi: ExtensionAPI) {
 		}
 		await server.start();
 		return server;
+	}
+
+	/**
+	 * The server for `path`, else for the working directory. A session that
+	 * runs outside every bench but has one server running asks that one.
+	 */
+	async function serverAt(cwd: string, path?: string): Promise<FrappeLsp> {
+		if (path) return serverFor(isAbsolute(path) ? path : resolve(cwd, path));
+		if (findBench(cwd) || servers.size !== 1) {
+			return serverFor(cwd).catch((error: Error) => {
+				throw new Error(`${error.message}. Pass \`path\`: any path inside the bench.`);
+			});
+		}
+		const [only] = servers.values();
+		await only.start();
+		return only;
+	}
+
+	/** `frappe-lsp check --json` over a directory, through the launcher. */
+	function checkDirectory(bench: string, directory: string): Promise<{ checked: number; findings: any[] }> {
+		return new Promise((done, fail) => {
+			const args = ["check", "--json", directory];
+			// It exits 1 when it finds something; only output that is not JSON is a failure.
+			execFile(LAUNCHER, args, { cwd: bench, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
+				try {
+					done(JSON.parse(stdout));
+				} catch {
+					fail(new Error(`frappe-lsp check failed: ${stderr.trim().split("\n").pop() ?? error?.message}`));
+				}
+			});
+		});
 	}
 
 	const text = (value: string, structured?: unknown) => ({
@@ -68,10 +109,11 @@ export default function (pi: ExtensionAPI) {
 				"Use it before writing code that names fields, instead of reading the JSON by hand.",
 			parameters: Type.Object({
 				doctype: Type.String({ description: "The DocType name, exactly, e.g. \"Sales Invoice\"" }),
+				path: BENCH_PATH,
 			}),
 			annotations: { readOnlyHint: true, openWorldHint: false },
 			async execute(_id, params, _signal, _update, ctx) {
-				const server = await serverFor(ctx.cwd);
+				const server = await serverAt(ctx.cwd, params.path);
 				const found = (await server.request("frappe-lsp/describe", { doctype: params.doctype })) as any;
 				if (!found.found) {
 					const similar = found.similar?.length ? ` Did you mean ${found.similar.join(", ")}?` : "";
@@ -117,15 +159,17 @@ export default function (pi: ExtensionAPI) {
 			parameters: Type.Object({
 				doctype: Type.String({ description: "The DocType name" }),
 				fieldname: Type.Optional(Type.String({ description: "A field of that DocType; omit for the DocType itself" })),
+				path: BENCH_PATH,
 			}),
 			annotations: { readOnlyHint: true, openWorldHint: false },
 			async execute(_id, params, _signal, _update, ctx) {
-				const server = await serverFor(ctx.cwd);
-				let found = (await server.request("frappe-lsp/references", params)) as any;
+				const server = await serverAt(ctx.cwd, params.path);
+				const asked = { doctype: params.doctype, fieldname: params.fieldname };
+				let found = (await server.request("frappe-lsp/references", asked)) as any;
 				// The table is built just after the index; give it the time it takes.
 				for (let tries = 0; !found.ready && tries < 150; tries++) {
 					await new Promise((done) => setTimeout(done, 200));
-					found = (await server.request("frappe-lsp/references", params)) as any;
+					found = (await server.request("frappe-lsp/references", asked)) as any;
 				}
 				if (!found.ready) return text("frappe-lsp is still building its reference table; try again shortly.");
 				const what = params.fieldname ? `${params.doctype}.${params.fieldname}` : params.doctype;
@@ -144,10 +188,13 @@ export default function (pi: ExtensionAPI) {
 			description:
 				"Find DocTypes, whitelisted methods, reports, pages and web forms in the bench by name " +
 				"(fuzzy), with the file each is defined in.",
-			parameters: Type.Object({ query: Type.String({ description: "Part of the name, e.g. \"sales inv\"" }) }),
+			parameters: Type.Object({
+				query: Type.String({ description: "Part of the name, e.g. \"sales inv\"" }),
+				path: BENCH_PATH,
+			}),
 			annotations: { readOnlyHint: true, openWorldHint: false },
 			async execute(_id, params, _signal, _update, ctx) {
-				const server = await serverFor(ctx.cwd);
+				const server = await serverAt(ctx.cwd, params.path);
 				const symbols = ((await server.request("workspace/symbol", { query: params.query })) as any[]) ?? [];
 				if (symbols.length === 0) return text(`Nothing in this bench matches "${params.query}".`, symbols);
 				const lines = symbols.slice(0, 50).map((symbol) => {
@@ -166,13 +213,17 @@ export default function (pi: ExtensionAPI) {
 			name: "frappe_check",
 			label: "Frappe check",
 			description:
-				"Run frappe-lsp's checks on a file in the bench: unknown DocTypes and fields, handlers that " +
-				"never fire, hooks and patches that resolve nowhere, translation mistakes. Files the agent edits " +
-				"are checked automatically; use this for other files.",
-			parameters: Type.Object({ path: Type.String({ description: "The file, absolute or relative to the working directory" }) }),
+				"Run frappe-lsp's checks on a file or a whole directory in the bench: unknown DocTypes and " +
+				"fields, handlers that never fire, hooks and patches that resolve nowhere, translation mistakes. " +
+				"Files the agent edits are checked automatically; use this to review or audit other code, such " +
+				"as an app's api/ folder or the files a diff touches.",
+			parameters: Type.Object({
+				path: Type.String({ description: "A file or directory, absolute or relative to the working directory" }),
+			}),
 			annotations: { readOnlyHint: true, openWorldHint: false },
 			async execute(_id, params, _signal, _update, ctx) {
 				const path = isAbsolute(params.path) ? params.path : resolve(ctx.cwd, params.path);
+				if (statSync(path, { throwIfNoEntry: false })?.isDirectory()) return checkTree(path);
 				if (!languageOf(path)) return text(`frappe-lsp does not read ${params.path}.`);
 				const server = await serverFor(dirname(path));
 				const diagnostics = await server.check(path);
@@ -183,6 +234,22 @@ export default function (pi: ExtensionAPI) {
 			},
 		}),
 	);
+
+	async function checkTree(directory: string) {
+		const bench = findBench(directory);
+		if (!bench) throw new Error(`${directory} is not inside a Frappe bench (no sites/apps.txt above it)`);
+		const report = await checkDirectory(bench, directory);
+		const where = shown(bench, directory);
+		if (report.findings.length === 0) return text(`frappe-lsp: no problems in ${report.checked} files under ${where}`, report);
+		const lines = report.findings.slice(0, SHOWN_FINDINGS).map((finding) => {
+			const code = String(finding.code ?? "").replace(/^frappe-lsp\//, "");
+			return `  ${finding.path}:${finding.line}:${finding.column} ${code}: ${finding.message}`;
+		});
+		const rest = report.findings.length - lines.length;
+		const more = rest > 0 ? `\n  (${rest} more; check a narrower directory to see them)` : "";
+		const count = `${report.findings.length} problem${report.findings.length === 1 ? "" : "s"}`;
+		return text(`frappe-lsp: ${count} in ${report.checked} files under ${where}\n${lines.join("\n")}${more}`, report);
+	}
 
 	// Start the server as the session opens in a bench, so the index is warm by
 	// the first question rather than built during it.
