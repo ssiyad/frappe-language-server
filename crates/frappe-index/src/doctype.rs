@@ -24,7 +24,8 @@ use crate::span::{self, Range};
 pub enum Layer {
     /// `<module>/doctype/<x>/<x>.json`.
     Schema = 1,
-    /// `<app>/fixtures/*.json` — Custom Field and Property Setter records.
+    /// `<app>/fixtures/*.json` and `<app>/<module>/custom/*.json` — Custom
+    /// Field and Property Setter records.
     Fixture = 2,
     /// The live site ([05](../../../docs/specs/05-live-bridge.md)). Never
     /// produced yet; the bridge lands with 014.

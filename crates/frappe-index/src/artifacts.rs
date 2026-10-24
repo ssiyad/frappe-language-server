@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
+use crate::fixtures;
 use crate::problem::Problem;
 use crate::scrub::scrub;
 use crate::walk::Walk;
@@ -71,8 +72,8 @@ pub struct Artifacts {
     pub hooks: Option<PathBuf>,
     /// `<package>/patches.txt`.
     pub patches: Option<PathBuf>,
-    /// `<package>/fixtures/*.json` — Layer 2 of
-    /// [04](../../../docs/specs/04-metadata-index.md).
+    /// `<package>/fixtures/*.json` and `<package>/<module>/custom/*.json` —
+    /// Layer 2 of [04](../../../docs/specs/04-metadata-index.md).
     pub fixtures: Vec<PathBuf>,
     /// DocTypes, Reports, Pages, Web Forms, Print Formats, Workspaces, …
     pub records: Vec<Record>,
@@ -125,7 +126,9 @@ pub fn scan(package: &Path) -> (Artifacts, Vec<Problem>) {
     for path in Walk::new(package) {
         let relative = path.strip_prefix(package).unwrap_or(&path);
 
-        if is_under(relative, "fixtures") && has_extension(&path, "json") {
+        if (is_under(relative, "fixtures") && has_extension(&path, "json"))
+            || fixtures::is_fixture(package, &path)
+        {
             artifacts.fixtures.push(path);
             continue;
         }

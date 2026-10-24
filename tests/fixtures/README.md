@@ -66,10 +66,12 @@ both files, installed once with a stale copy on disk is silence.
 | `library/fixtures/custom_field.json` | 2 | Adds `loyalty_points` to Library Member and `renewal_of` to Library Membership |
 | `library/fixtures/property_setter.json` | 2 | Overrides `email_id.reqd`, and a DocType-level `search_fields` (empty `field_name`) |
 | `circulation/fixtures/custom_field.json` | 2 | Custom Field `member_name` on Library Member — collides with a schema field |
+| `circulation/circulation/custom/library_member.json` | 2 | An exported customization: Custom Field `circulation_tier` on Library Member, and a Property Setter for its `default` |
 
 `library/api.py` reads `loyalty_points` through `frappe.db.get_value`. That
 call is only clean if Layer 2 was merged, so it is the load-bearing test that
-the merge happened at all.
+the merge happened at all. `circulation/api.py` reads `circulation_tier` the
+same way, for the customization file.
 
 ## Hooks an app invents
 

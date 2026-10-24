@@ -98,6 +98,7 @@ DocTypes below their module directory.
 | Web form / Print format / Workspace / Dashboard chart | `<module>/<kind>/<x>/<x>.json` | Fixture-shaped |
 | Any other exported record | `<module>/<kind>/<x>/<x>.json` | Same rule; `<kind>` is `scrub` of the record's own DocType |
 | Fixtures | `<app>/fixtures/*.json` | Layer 2 — [04](04-metadata-index.md) |
+| Customizations | `<module>/custom/*.json` | Layer 2 — [04](04-metadata-index.md) |
 | Templates | `<app>/templates/`, `<app>/**/templates/`, `<app>/www/` | [13](13-surface-jinja.md) |
 | Public assets | `<app>/public/js/**`, `*.bundle.js` | Targets of `app_include_js` |
 

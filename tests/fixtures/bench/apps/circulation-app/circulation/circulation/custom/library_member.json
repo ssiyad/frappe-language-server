@@ -1,0 +1,39 @@
+{
+ "custom_fields": [
+  {
+   "creation": "2026-01-14 09:12:44.201375",
+   "docstatus": 0,
+   "dt": "Library Member",
+   "fieldname": "circulation_tier",
+   "fieldtype": "Select",
+   "idx": 2,
+   "insert_after": "member_name",
+   "label": "Circulation Tier",
+   "modified": "2026-02-03 11:47:02.884913",
+   "module": "Circulation",
+   "name": "Library Member-circulation_tier",
+   "options": "Standard\nPremium",
+   "owner": "Administrator"
+  }
+ ],
+ "custom_perms": [],
+ "doctype": "Library Member",
+ "links": [],
+ "property_setters": [
+  {
+   "creation": "2026-01-14 09:12:44.201375",
+   "doc_type": "Library Member",
+   "docstatus": 0,
+   "doctype_or_field": "DocField",
+   "field_name": "circulation_tier",
+   "modified": "2026-02-03 11:47:02.884913",
+   "module": "Circulation",
+   "name": "Library Member-circulation_tier-default",
+   "owner": "Administrator",
+   "property": "default",
+   "property_type": "Text",
+   "value": "Standard"
+  }
+ ],
+ "sync_on_migrate": 1
+}

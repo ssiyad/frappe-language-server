@@ -130,3 +130,11 @@ def messages(name: str) -> list[str]:
 		_("Loan for " + name + " created"),  # expect: translation-literal
 		_(name),  # expect: translation-dynamic
 	]
+
+
+# --- Customizations ----------------------------------------------------------
+
+
+def member_tier(member: str) -> str | None:
+	# `circulation_tier` comes from circulation/custom/library_member.json.
+	return frappe.db.get_value("Library Member", member, "circulation_tier")  # expect: clean

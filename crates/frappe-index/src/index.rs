@@ -439,7 +439,8 @@ impl Index {
         raws
     }
 
-    /// Every `<app>/fixtures/*.json` — Layer 2.
+    /// Every `<app>/fixtures/*.json` and `<app>/<module>/custom/*.json` —
+    /// Layer 2.
     fn read_fixtures(&mut self) {
         let files: Vec<(usize, Arc<str>, PathBuf)> = self
             .workspace

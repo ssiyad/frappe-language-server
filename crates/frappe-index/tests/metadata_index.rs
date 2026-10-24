@@ -32,7 +32,7 @@ fn the_fixture_bench_indexes_to_its_readme() {
     // 10 DocType records, two of which share the name `Library Availability`.
     assert_eq!(status.doctypes, 9, "{:?}", status);
     assert_eq!(status.apps, 3);
-    assert_eq!(status.fields, 44);
+    assert_eq!(status.fields, 45);
     assert_eq!(status.controllers, 5);
     assert_eq!(status.whitelisted_methods, 5);
     assert_eq!(status.conflicts, 2);

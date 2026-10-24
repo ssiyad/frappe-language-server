@@ -115,11 +115,15 @@ Layers apply in ascending order. Within a layer, app order from
 | Layer | Source | Contributes |
 | --- | --- | --- |
 | 1 | `<module>/doctype/<x>/<x>.json` | DocTypes and their fields |
-| 2 | `<app>/fixtures/*.json` | Custom Field, Property Setter records |
+| 2 | `<app>/fixtures/*.json`, `<module>/custom/*.json` | Custom Field, Property Setter records |
 | 3 | Live site ([05](05-live-bridge.md)) | Same, plus DB-only DocTypes |
 
 Rules:
 
+- A `<module>/custom/<x>.json` is what Export Customizations writes: one object
+  whose `custom_fields` and `property_setters` hold the records. Every such file
+  counts, whatever its `sync_on_migrate`: Frappe also applies it when its app
+  is installed.
 - **Custom Field** appends a field to an existing DocType. Collision with an
   existing `fieldname` is a conflict diagnostic, not an override.
 - **Property Setter** overrides one property on a DocType or field. `doc_type` +
