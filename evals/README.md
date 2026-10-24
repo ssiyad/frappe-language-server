@@ -39,10 +39,26 @@ a tmpfs `/tmp`.
 bash evals/lib/guided.sh
 rsync -a --delete --exclude target --exclude .git --exclude evals/results ./ /tmp/frappe-lsp-plugin/
 cd /tmp/frappe-lsp-plugin
-TMPDIR=~/.cache/frappe-lsp-evals claude plugin eval . --scaffold --trust-plugin \
-  --allow-tools LSP ToolSearch Write Edit "Bash(frappe-lsp *)" \
+PATH="$PWD/bin:$PATH" TMPDIR=~/.cache/frappe-lsp-evals claude plugin eval . \
+  --scaffold --trust-plugin --no-publish \
+  --allow-tools LSP ToolSearch Skill Write Edit "Bash(frappe-lsp *)" \
   --judge-model sonnet --disallow-tools Agent --max-cost-usd 20 --tag natural
 ```
+
+The plugin works through its skill and the `frappe-lsp` command, and the
+eval grants neither unless asked:
+
+- `Skill` MUST be in `--allow-tools`. Without it the run refuses the skill,
+  the agent never learns the command exists, and the with-plugin arm measures
+  the LSP tool alone.
+- The plugin's `bin/` MUST be on `PATH`. An installed plugin has it there;
+  `claude plugin eval` loads the plugin inline and does not, so the skill's
+  `frappe-lsp` is not found. The scaffold exits when it is missing.
+
+`--no-publish` keeps the report local; by default it is uploaded to
+claude.ai. A `tool_used` grader counts a call the run refused, so a passing
+`used-cli` alone does not show the command ran: read the trace, kept with
+`--keep-temp`.
 
 `--disallow-tools Agent` keeps `dead-fields-api` from fanning out into
 subagents at $5–6 a run. The default Haiku judge failed a correct review, so

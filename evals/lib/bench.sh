@@ -14,6 +14,17 @@ if [ ! -f "$evals/.bench" ]; then
 fi
 sources=$(cat "$evals/.bench")
 
+# An installed plugin has its bin/ on the Bash PATH; `claude plugin eval`
+# loads it inline and does not add it, so the skill's `frappe-lsp` is not
+# found. The run inherits PATH from the eval, so the eval must set it. Any
+# other frappe-lsp on PATH, such as one under the real home, is not readable
+# from the sandbox.
+launcher=$(cd "$evals/../bin" && pwd)/frappe-lsp
+if [ "$(command -v frappe-lsp)" != "$launcher" ]; then
+	echo "Put $(dirname "$launcher") first on PATH: see evals/README.md" >&2
+	exit 1
+fi
+
 clone() {
 	git clone -q --shared --no-checkout "file://$sources/apps/$1" "apps/$1"
 	git -C "apps/$1" checkout -q "$2"
