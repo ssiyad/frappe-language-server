@@ -34,9 +34,10 @@ frappe-lsp references "Site Update" update_job   # one of its fields
 
 Prints `path:line: text` for every call, filter, Link, `fetch_from`, hook,
 fixture and template that names it, only for that DocType. An unknown DocType
-or field is said as such, with exit 1. Before a rename, also grep for attribute
-reads on rows of untyped results, such as `row.update_job` after
-`frappe.get_all`: no index can type those.
+or field is said as such, with exit 1. Start a rename here, then grep for what
+the list says it does not cover: code outside the app package, such as a
+frappe-ui dashboard's `fields` and `filters`, and attribute reads on a variable
+not tied to the DocType.
 
 ## Reviewing or auditing code
 

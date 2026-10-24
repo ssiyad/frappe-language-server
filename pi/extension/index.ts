@@ -155,7 +155,8 @@ export default function (pi: ExtensionAPI) {
 			description:
 				"Every place in the bench that names a DocType, or one of its fields: Python and JavaScript " +
 				"calls, DocType JSON (Link options, fetch_from), hooks.py, fixtures and templates. Finds uses " +
-				"grep cannot tell apart, such as `customer` on Sales Invoice rather than on Sales Order.",
+				"grep cannot tell apart, such as `customer` on Sales Invoice rather than on Sales Order. " +
+				"Each answer ends with what it does not cover; grep those before a rename.",
 			parameters: Type.Object({
 				doctype: Type.String({ description: "The DocType name" }),
 				fieldname: Type.Optional(Type.String({ description: "A field of that DocType; omit for the DocType itself" })),
