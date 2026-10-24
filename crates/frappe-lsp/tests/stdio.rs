@@ -2271,9 +2271,18 @@ fn the_broken_doctypes_report_exactly_what_the_fixture_documents() {
         codes.contains(&"frappe-lsp/duplicate-fieldname"),
         "{codes:?}"
     );
-    assert!(
-        codes.contains(&"frappe-lsp/field-order-mismatch"),
-        "{codes:?}"
+    // On the entry itself, not at the top of the file.
+    let mismatch = found
+        .iter()
+        .find(|d| d["code"] == "frappe-lsp/field-order-mismatch")
+        .unwrap_or_else(|| panic!("{codes:?}"));
+    let ghost_line = text
+        .lines()
+        .position(|line| line.trim() == "\"ghost_field\"," || line.trim() == "\"ghost_field\"")
+        .expect("ghost_field in field_order");
+    assert_eq!(
+        mismatch["range"]["start"]["line"], ghost_line,
+        "{mismatch:?}"
     );
     // `title_field` and `sort_field` both name fields that do not exist.
     assert_eq!(

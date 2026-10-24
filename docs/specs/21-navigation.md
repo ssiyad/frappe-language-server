@@ -54,15 +54,25 @@ Measured on that bench: 89 523 sites, 18 MiB of cache, and a `references`
 request on `Item` — 821 sites across 300 files — in 18.7 ms against a 100 ms
 target.
 
-Sites come from five surfaces, and each was added because leaving it out made
+Sites come from these surfaces, and each was added because leaving it out made
 the result wrong rather than merely short:
 
 | Surface | What contributes |
 | --- | --- |
 | Python, JavaScript | Every resolved DocType and field position |
-| DocType JSON | `Link` / `Table` / `Table MultiSelect` `options`, and each field's own declaration |
+| DocType JSON | `Link` / `Table` / `Table MultiSelect` `options`, each field's own declaration, and each `field_order` entry naming a declared field |
+| Controller | Each `fieldname: DF.<Type>` line in its `# begin: auto-generated types` block |
 | `hooks.py` | Map keys of the hooks written `Map<DocTypeName, …>` in [12](12-surface-hooks.md) |
 | Fixtures | A Custom Field's `dt` and fieldname, a Property Setter's `doc_type` |
+
+A rename that misses a `field_order` entry drops the field from the form, and
+one that misses the generated types leaves them stale, so both are sites. The
+generated block yields sites only, never findings: regenerating it is `bench`'s
+job, and a block behind its JSON is ordinary between saves.
+
+The answer to `frappe-lsp/references` ([30](30-configuration.md)) says what it
+cannot hold: code outside an app package, such as a frappe-ui dashboard, and
+attribute reads on a name [06](06-analysis-pipeline.md) does not bind.
 
 A field's declaration is itself a reference: a list that omits where the field
 is defined sends the reader nowhere. It is also a place to ask from: a request

@@ -197,6 +197,44 @@ mod tests {
     }
 
     #[test]
+    fn a_field_is_referenced_from_field_order_too() {
+        let found = references(&index(), "Library Member", Some("email_id"));
+        let json_lines: Vec<&str> = found["sites"]
+            .as_array()
+            .expect("sites")
+            .iter()
+            .filter(|site| {
+                site["path"]
+                    .as_str()
+                    .is_some_and(|path| path.ends_with("library_member.json"))
+            })
+            .filter_map(|site| site["text"].as_str())
+            .collect();
+        // The declaration, and the `field_order` entry.
+        assert!(
+            json_lines.contains(&"\"fieldname\": \"email_id\","),
+            "{json_lines:?}"
+        );
+        assert!(json_lines.contains(&"\"email_id\","), "{json_lines:?}");
+    }
+
+    #[test]
+    fn a_field_is_referenced_from_its_generated_type_annotation() {
+        let found = references(&index(), "Library Membership", Some("member"));
+        let annotated = found["sites"]
+            .as_array()
+            .expect("sites")
+            .iter()
+            .any(|site| {
+                site["path"]
+                    .as_str()
+                    .is_some_and(|path| path.ends_with("library_membership.py"))
+                    && site["text"] == "member: DF.Link"
+            });
+        assert!(annotated, "{found}");
+    }
+
+    #[test]
     fn references_say_what_they_do_not_cover() {
         let found = references(&index(), "Library Member", Some("email_id"));
         assert_eq!(found["covers"], REFERENCES_COVER);

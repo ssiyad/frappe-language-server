@@ -59,8 +59,8 @@ doctype Library Membership app=library module=Library child=false single=false s
   field currency type=Data layer=schema app=library source=apps/library/library/library/doctype/library_membership/library_membership.json range=575..676 label=Some("Currency") options=None default=Some("INR") reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
   field amount type=Currency layer=schema app=library source=apps/library/library/library/doctype/library_membership/library_membership.json range=680..786 label=Some("Amount") options=Some("currency") default=None reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
   field amended_from type=Link layer=schema app=library source=apps/library/library/library/doctype/library_membership/library_membership.json range=790..992 label=Some("Amended From") options=Some("Library Membership") default=None reqd=false hidden=false read_only=true unique=false virtual=false permlevel=0 depends_on=None fetch_from=None
-  controller apps/library/library/library/doctype/library_membership/library_membership.py class=LibraryMembership range=59..195
-    method on_submit whitelisted=false range=95..195
+  controller apps/library/library/library/doctype/library_membership/library_membership.py class=LibraryMembership range=59..550
+    method on_submit whitelisted=false range=450..550
 doctype Library Settings app=library module=Library child=false single=true submittable=false virtual=false tree=false autoname=None title_field=None sort_field=Some("creation") search_fields=None path=apps/library/library/library/doctype/library_settings/library_settings.json range=0..1228
   order loan_period max_loans enable_reminders notification_email
   field loan_period type=Int layer=schema app=library source=apps/library/library/library/doctype/library_settings/library_settings.json range=240..352 label=Some("Loan Period (Days)") options=None default=Some("14") reqd=false hidden=false read_only=false unique=false virtual=false permlevel=0 depends_on=None fetch_from=None

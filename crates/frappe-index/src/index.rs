@@ -719,6 +719,7 @@ impl Index {
             source: Some(Arc::clone(&winner.path)),
         };
 
+        let (field_order, field_order_ranges) = self.intern_order(&raw.field_order);
         let mut doctype = DocType {
             name: raw.name,
             module: raw.module,
@@ -740,11 +741,8 @@ impl Index {
                 .into_iter()
                 .map(|field| field.into_field(&mut self.interner, provenance.clone()))
                 .collect(),
-            field_order: raw
-                .field_order
-                .iter()
-                .map(|fieldname| self.interner.intern(fieldname))
-                .collect(),
+            field_order,
+            field_order_ranges,
             permissions: raw.permissions,
             links: raw.links,
             states: raw.states,
@@ -757,6 +755,23 @@ impl Index {
         self.merge_layer_two(&mut doctype);
         doctype.controller = self.controller_for(&doctype, &winner);
         self.doctypes.insert(doctype.name.clone(), doctype);
+    }
+
+    /// `field_order` interned, and the entries that have a range.
+    fn intern_order(
+        &mut self,
+        order: &[(String, Option<Range>)],
+    ) -> (Vec<Symbol>, Vec<(Symbol, Range)>) {
+        let symbols: Vec<Symbol> = order
+            .iter()
+            .map(|(fieldname, _)| self.interner.intern(fieldname))
+            .collect();
+        let ranges = symbols
+            .iter()
+            .zip(order)
+            .filter_map(|(symbol, (_, range))| Some((*symbol, (*range)?)))
+            .collect();
+        (symbols, ranges)
     }
 
     /// A DocType created through the UI, which only the live site defines.
@@ -776,6 +791,7 @@ impl Index {
             source: None,
         };
 
+        let (field_order, field_order_ranges) = self.intern_order(&raw.field_order);
         let mut doctype = DocType {
             name: raw.name,
             module: raw.module,
@@ -797,11 +813,8 @@ impl Index {
                 .into_iter()
                 .map(|field| field.into_field(&mut self.interner, provenance.clone()))
                 .collect(),
-            field_order: raw
-                .field_order
-                .iter()
-                .map(|fieldname| self.interner.intern(fieldname))
-                .collect(),
+            field_order,
+            field_order_ranges,
             permissions: raw.permissions,
             links: raw.links,
             states: raw.states,
@@ -2113,7 +2126,7 @@ impl Index {
         };
 
         let matches = frappe_syntax::extract(language, &tree, source, context);
-        crate::resolve::resolve_all(self, &matches)
+        let mut found: Vec<Occurrence> = crate::resolve::resolve_all(self, &matches)
             .into_iter()
             .filter_map(|resolved| {
                 let key = match resolved.target {
@@ -2136,7 +2149,22 @@ impl Index {
                     .flatten();
                 Some((key, Range::from(resolved.span), constructed))
             })
-            .collect()
+            .collect();
+
+        // A controller's generated types annotate its fields. Sites only: a
+        // stale block is `bench`'s to regenerate, not a finding.
+        if let Some(doctype) = controller {
+            for (fieldname, span) in frappe_syntax::annotations::generated_fields(source) {
+                if self.has_field(&doctype.name, fieldname) {
+                    found.push((
+                        Key::Field(doctype.name.clone(), fieldname.to_string()),
+                        Range::from(span),
+                        None,
+                    ));
+                }
+            }
+        }
+        found
     }
 
     /// The occurrences the schema itself holds: a `Link` naming a DocType, a
@@ -2181,6 +2209,20 @@ impl Index {
                     // reference list of 40-line ranges is unreadable.
                     field.ranges.fieldname.unwrap_or(field.range),
                 ));
+            }
+            // `field_order` names each field again, and a rename that misses
+            // it leaves the form without the field.
+            for (symbol, range) in &doctype.field_order_ranges {
+                if doctype.field(*symbol).is_some() {
+                    found.push((
+                        Key::Field(
+                            doctype.name.clone(),
+                            self.interner.resolve(*symbol).to_string(),
+                        ),
+                        path.clone(),
+                        *range,
+                    ));
+                }
             }
         }
 

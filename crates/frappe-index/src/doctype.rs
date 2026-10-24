@@ -211,6 +211,9 @@ pub struct DocType {
     /// `field_order`, interned. May disagree with `fields` — that disagreement
     /// is a diagnostic, not something the index repairs.
     pub field_order: Vec<Symbol>,
+    /// Each `field_order` entry the file itself writes, with the range of its
+    /// value. Layer 2 inserts into `field_order`, never into this.
+    pub field_order_ranges: Vec<(Symbol, Range)>,
     /// `permissions`.
     pub permissions: Vec<Permission>,
     /// `links`.
@@ -373,7 +376,8 @@ pub(crate) struct Raw {
     pub image_field: Option<String>,
     pub search_fields: Option<String>,
     pub fields: Vec<RawField>,
-    pub field_order: Vec<String>,
+    /// Each entry with the interior range of its string, when the file scanned.
+    pub field_order: Vec<(String, Option<Range>)>,
     pub permissions: Vec<Permission>,
     pub links: Vec<DocTypeLink>,
     pub states: Vec<State>,
@@ -465,6 +469,24 @@ pub(crate) fn parse(source: &str) -> Result<Raw, String> {
         })
         .unwrap_or_default();
 
+    let order_spans = document
+        .and_then(|node| node.value("field_order"))
+        .map(crate::span::Node::elements)
+        .unwrap_or_default();
+    let field_order = object
+        .get("field_order")
+        .and_then(Value::as_array)
+        .map(|rows| {
+            rows.iter()
+                .enumerate()
+                .filter_map(|(at, row)| {
+                    let range = order_spans.get(at).map(|node| node.range.interior());
+                    Some((row.as_str()?.to_string(), range))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
     Ok(Raw {
         name,
         module: string(object, "module"),
@@ -480,15 +502,7 @@ pub(crate) fn parse(source: &str) -> Result<Raw, String> {
         image_field: string(object, "image_field"),
         search_fields: string(object, "search_fields"),
         fields,
-        field_order: object
-            .get("field_order")
-            .and_then(Value::as_array)
-            .map(|rows| {
-                rows.iter()
-                    .filter_map(|row| row.as_str().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default(),
+        field_order,
         permissions: parse_permissions(object),
         links: parse_links(object),
         states: parse_states(object),

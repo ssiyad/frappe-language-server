@@ -14,7 +14,7 @@ use crate::index::Index;
 /// Bumped whenever the cached types change shape, or the scan records
 /// different sites for the same files. An old file is then simply not this
 /// format, which is the same as absent.
-pub const SCHEMA_VERSION: u32 = 6;
+pub const SCHEMA_VERSION: u32 = 7;
 
 /// Default cache directory, relative to the bench root — spec 30.
 pub const DIRECTORY: &str = ".frappe-lsp";

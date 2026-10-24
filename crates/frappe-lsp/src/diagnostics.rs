@@ -827,20 +827,16 @@ fn schema(index: &Index, path: &Path) -> Vec<Finding> {
     // `field_order` decides what the form shows; a field missing from it is
     // invisible, and a name in it that no field has renders nothing.
     let declared: Vec<&str> = doctype.fields.iter().map(|f| index.fieldname(f)).collect();
-    let ordered: Vec<&str> = doctype
-        .field_order
-        .iter()
-        .map(|symbol| index.text(*symbol))
-        .collect();
-    if !ordered.is_empty() {
-        // Only the direction that is provably broken. A field absent from
-        // `field_order` is ordinary — Frappe regenerates the list on save, and
-        // its own schema ships two such fields — but a name in `field_order`
-        // that no field has renders nothing at all.
-        for extra in ordered.iter().filter(|name| !declared.contains(name)) {
+    // Only the direction that is provably broken. A field absent from
+    // `field_order` is ordinary — Frappe regenerates the list on save, and its
+    // own schema ships two such fields — but a name in `field_order` that no
+    // field has renders nothing at all.
+    for (symbol, range) in &doctype.field_order_ranges {
+        let extra = index.text(*symbol);
+        if !declared.contains(&extra) {
             findings.push(Finding {
                 code: "field-order-mismatch",
-                span: frappe_syntax::Span::new(0, 0),
+                span: span_of(*range),
                 message: format!("field_order names `{extra}`, which is not a field"),
             });
         }
