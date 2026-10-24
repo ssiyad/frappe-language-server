@@ -173,10 +173,11 @@ export default function (pi: ExtensionAPI) {
 				}
 				if (!found.ready) return text("frappe-lsp is still building its reference table; try again shortly.");
 				const what = params.fieldname ? `${params.doctype}.${params.fieldname}` : params.doctype;
-				if (found.total === 0) return text(`Nothing in this bench names ${what}.`, found);
+				const covers = found.covers ? `\n${found.covers}` : "";
+				if (found.total === 0) return text(`Nothing in this bench names ${what}.${covers}`, found);
 				const lines = found.sites.map((site: any) => `${shown(server.bench, site.path)}:${site.line}  ${site.text}`);
 				const more = found.total > found.sites.length ? `\n(${found.total - found.sites.length} more not shown)` : "";
-				return text(`${found.total} references to ${what}:\n${lines.join("\n")}${more}`, found);
+				return text(`${found.total} references to ${what}:\n${lines.join("\n")}${more}${covers}`, found);
 			},
 		}),
 	);

@@ -84,6 +84,13 @@ pub fn describe(index: &Index, name: &str) -> Value {
     })
 }
 
+/// What a reference list holds and what it cannot, said with every answer: an
+/// agent that reads the list as complete renames half a field.
+pub const REFERENCES_COVER: &str = "Covers Python, desk JavaScript, DocType JSON, hooks.py, \
+fixtures and templates inside app packages. Not covered: code outside an app package, such as a \
+frappe-ui dashboard, and attribute reads on a variable not tied to a DocType. Before a rename, \
+confirm with grep there.";
+
 /// `frappe-lsp/references` — every site that names a DocType, or one of its
 /// fields, as a path, a 1-based line and the line itself.
 #[must_use]
@@ -120,7 +127,7 @@ pub fn references(index: &Index, doctype: &str, fieldname: Option<&str>) -> Valu
             }));
         }
     }
-    json!({"ready": true, "total": sites.len(), "sites": out})
+    json!({"ready": true, "total": sites.len(), "sites": out, "covers": REFERENCES_COVER})
 }
 
 #[cfg(test)]
@@ -187,5 +194,11 @@ mod tests {
                 .iter()
                 .all(|site| site["text"].as_str().is_some_and(|text| !text.is_empty()))
         );
+    }
+
+    #[test]
+    fn references_say_what_they_do_not_cover() {
+        let found = references(&index(), "Library Member", Some("email_id"));
+        assert_eq!(found["covers"], REFERENCES_COVER);
     }
 }

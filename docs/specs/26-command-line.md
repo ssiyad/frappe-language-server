@@ -32,7 +32,8 @@ frappe-lsp references [--json] <DocType> [<fieldname>]
 `check` prints one finding per line, `path:line:column: severity: message
 [code]`, 1-based, the column in bytes, paths relative to the current
 directory. A summary goes to stderr, so stdout is only findings. `references`
-prints `path:line: text`. `describe` prints a header, then one field per line.
+prints `path:line: text`, and its count and `covers` to stderr. `describe`
+prints a header, then one field per line.
 `--json` prints the same as one JSON value.
 
 An unknown name MUST be said as such. An empty reference list for a misspelt

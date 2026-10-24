@@ -362,6 +362,7 @@ fn references(doctype: &str, fieldname: Option<&str>, json: bool) -> Result<Exit
     } else {
         eprintln!("{total} references");
     }
+    eprintln!("{}", crate::agent::REFERENCES_COVER);
     Ok(ExitCode::SUCCESS)
 }
 

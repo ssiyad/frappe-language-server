@@ -130,7 +130,7 @@ Client capabilities MUST be honoured, not assumed:
 | `frappe-lsp/reindex` | Force a full rebuild |
 | `frappe-lsp/refreshBridge` | Re-sync Layer 3 ([05](05-live-bridge.md)) |
 | `frappe-lsp/describe` | `{doctype}` → a DocType's schema as data: fields with type, label, options, `reqd` and layer; controller; JSON path; parents; site scripts. Unknown names return `similar` |
-| `frappe-lsp/references` | `{doctype, fieldname?}` → every site naming it, as path, line and text, by name rather than cursor; `ready: false` until the occurrence table exists |
+| `frappe-lsp/references` | `{doctype, fieldname?}` → every site naming it, as path, line and text, by name rather than cursor; `ready: false` until the occurrence table exists. `covers` says which surfaces the list holds and which it cannot, so a reader does not take it as complete |
 
 The last two are for programs rather than editors: hover is markdown for a
 person, and an agent needs the schema as data. Both only read, and both are
